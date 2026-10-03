@@ -1,0 +1,105 @@
+name: Deploy a producción (Docker · puerto 4000)
+
+# Se ejecuta en cada push a main (y se puede lanzar a mano desde la pestaña Actions).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Evita despliegues simultáneos: el más reciente espera al anterior.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/${{ github.repository }}   # se normaliza a minúsculas en el job
+  CONTAINER_NAME: mercy-studio
+  HOST_PORT: "4000"
+
+jobs:
+  build:
+    name: Construir y publicar imagen
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Nombre de imagen en minúsculas
+        id: meta
+        run: echo "image=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Login en GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build y push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Desplegar en el servidor
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}:${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+          HOST_PORT: ${{ env.HOST_PORT }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: IMAGE,GHCR_USER,GHCR_TOKEN,CONTAINER_NAME,HOST_PORT
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker pull "$IMAGE"
+
+            # Reemplaza el contenedor anterior (si existe)
+            docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              --restart unless-stopped \
+              -p "${HOST_PORT}:4000" \
+              "$IMAGE"
+
+            # Verificación: el sitio debe responder en el puerto 4000
+            for i in $(seq 1 15); do
+              if curl -fsS "http://127.0.0.1:${HOST_PORT}/" >/dev/null; then
+                echo "✔ Mercy Studio responde en el puerto ${HOST_PORT}"
+                docker image prune -f >/dev/null
+                docker logout ghcr.io
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "✘ El contenedor no respondió a tiempo" >&2
+            docker logs --tail 50 "$CONTAINER_NAME" >&2
+            exit 1

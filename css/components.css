@@ -1,0 +1,83 @@
+/* ==========================================================================
+   Mercy Studio — components.css
+   Componentes compartidos entre páginas: tile (placeholder de foto), tarjeta de
+   producto (C11 tipografías, C23/C24 agotado), grilla, reseñas, cabeceras de sección.
+   ========================================================================== */
+
+/* --- Tile: degradado + texto (placeholder de foto, como en las capturas) ------ */
+.tile {
+  container-type: inline-size;
+  position: relative; width: 100%; height: 100%;
+  display: grid; place-items: center; overflow: hidden; text-align: center;
+  background: linear-gradient(155deg, var(--tile-from, #d8bea6), var(--tile-to, #b77e5d));
+  color: #fff7ec;
+}
+.tile__text {
+  display: flex; flex-direction: column; align-items: center; gap: 0.08em;
+  font-family: var(--font-title); font-weight: 700; text-transform: uppercase;
+  font-size: var(--tile-fs, 14cqw); line-height: 0.98; letter-spacing: 0.01em;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.16);
+  padding-inline: 6%; max-width: 100%;
+}
+.tile__line { display: block; white-space: nowrap; }
+.tile--stacked .tile__line--sm { font-size: 0.5em; letter-spacing: 0.2em; font-weight: 600; }
+.tile--stacked .tile__line--lg { font-size: 1.4em; }
+.tile__sub { margin-top: 1.1em; font-family: var(--font-small); font-weight: 400; font-size: max(0.7rem, 0.32em); letter-spacing: 0.3em; }
+.tile__play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(34, 24, 15, 0.25); }
+
+/* --- Tarjeta de producto ------------------------------------------------------- */
+.product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 14px; }
+@media (min-width: 700px) { .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 22px; } }
+@media (min-width: 1100px) { .product-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 44px 24px; } }
+@media (min-width: 1100px) { .product-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 44px 28px; } }
+
+/* 2 columnas en móvil/tablet y 4 desde 1000 px (evita el 3+1 en tablet) */
+.product-grid--2-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1000px) { .product-grid--2-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 44px 24px; } }
+
+.pcard { position: relative; display: flex; flex-direction: column; min-width: 0; --card-ratio: 4 / 5; }
+.pcard__media { position: relative; display: block; aspect-ratio: var(--card-ratio); border-radius: 6px; overflow: hidden; background: var(--crema-3); }
+.pcard__media .tile { transition: transform 700ms var(--ease); }
+.pcard:hover .pcard__media .tile { transform: scale(1.04); }
+.pcard .badge { position: absolute; top: 14px; left: 14px; }
+.pcard .fav-btn {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  background: rgba(250, 240, 228, 0.92); color: var(--tinta);
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.fav-btn:hover { transform: scale(1.08); background: #fff; }
+.fav-btn[aria-pressed="true"] { color: var(--terracota); }
+.pcard__body { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
+.pcard__name { font-family: var(--font-title); font-weight: 600; text-transform: uppercase; font-size: 1.25rem; line-height: 1.08; letter-spacing: 0.02em; }   /* C11: Norwester */
+.pcard__name a { display: inline-block; padding-block: 10px; margin-block: -10px; }   /* objetivo táctil >= 40 px */
+.pcard__name a:hover { color: var(--terracota); }
+.pcard__meta { font-size: var(--fs-xs); color: var(--cafe-suave); letter-spacing: 0.04em; }
+.pcard__swatches { display: flex; gap: 6px; align-items: center; min-height: 16px; }
+.pcard__price { font-family: var(--font-small); font-weight: 700; font-size: 1.0625rem; }   /* C11: Lekton */
+.pcard__price.is-muted { color: var(--cafe-suave); }
+.pcard__ship { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--verde-oscuro); }
+
+/* Agotado (C23/C24): velo opaco + ícono de "no disponible" */
+.pcard__veil {
+  position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px;
+  padding-bottom: 9%;   /* no pisa el texto del tile */
+  background: linear-gradient(to top, rgba(54, 40, 28, 0.62) 0, rgba(54, 40, 28, 0.4) 38%, rgba(54, 40, 28, 0.36) 100%);
+  color: rgba(255, 247, 236, 0.92);
+}
+.pcard__veil .icon { opacity: 0.9; width: 26px; height: 26px; }
+.pcard__veil-text { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; }
+.pcard.is-soldout .tile { filter: saturate(0.55); }
+
+/* --- Cabecera de sección --------------------------------------------------------- */
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; margin-bottom: 28px; }
+.section-head .eyebrow { display: block; margin-bottom: 10px; }
+
+/* --- Reseñas (Google) -------------------------------------------------------------- */
+.g-badge { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; flex-wrap: wrap; }
+.g-badge svg { flex: none; }
+.review-card { background: #fff; border: 1px solid var(--borde); border-radius: 6px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.review-card__quote { font-family: var(--font-title); font-size: 1.1875rem; line-height: 1.35; font-style: italic; font-weight: 300; text-transform: none; }
+.review-card__who { display: flex; align-items: center; gap: 12px; font-size: var(--fs-sm); color: var(--cafe-suave); }
+.review-card__avatar { width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--terracota); color: #fff; font-weight: 700; flex: none; }
+.review-card__verified { display: inline-flex; align-items: center; gap: 6px; color: var(--verde-oscuro); font-size: var(--fs-xs); }

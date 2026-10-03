@@ -1,0 +1,51 @@
+# Mercy Studio — Mockup funcional
+
+Tienda de ropa con propósito (Colombia). Mockup navegable en **HTML + CSS + JavaScript separados**, sin build ni dependencias.
+
+## Cómo verlo
+Abre `index.html` con doble clic (o sirve la carpeta con cualquier servidor estático, p. ej. `python3 -m http.server`). Las fuentes se cargan de Google Fonts (requiere internet; sin conexión usa tipografías de respaldo).
+
+## Pantallas (escritorio + móvil)
+| Archivo | Pantalla | Qué probar |
+|---------|----------|-----------|
+| `index.html` | Inicio | Hero a pantalla completa con único botón **COMPRA**, franja en movimiento, "Los más vendidos", propósito, reseñas, descuento 15 % (pop-up a los 3,5 s) |
+| `catalogo.html` | Catálogo | Filtros en acordeón (cerrados), orden, "Ver más", `?vista=mas-vendidos`, `?cat=hoodies`, `?q=jecvv` |
+| `producto.html?id=fe` | Producto | Color/talla/fit, talla agotada tachada en diagonal, **Agregar al carrito**, acordeones (Detalles, Cuidados, Medidas/Tallas…), `?id=amen` (agotado) |
+| `checkout.html` | Finalizar compra | Validación obligatoria, Departamento → Ciudad, envío gratis / no incluido, ¿es un regalo?, pago con logos, mensaje de WhatsApp |
+
+Funciones transversales: menú lateral, búsqueda en vivo (con referencias parecidas), favoritos (corazón), carrito como overlay de derecha a izquierda (persistente en `localStorage`), código **MERCY15** (15 % primer pedido).
+
+## Estructura
+```
+index.html catalogo.html producto.html checkout.html
+css/   tokens · base · layout · components  +  home · catalogo · producto · checkout
+js/    config · data · icons · ui · store · layout  +  home · catalogo · producto · checkout
+assets/logo   logos PNG (terracota #bb3f17, beige #eceae2, oscuro)
+assets/fonts  ver README (Norwester y Dafoe con licencia)
+docs/  ANALISIS-RETROALIMENTACION.md · COMENTARIOS-WORD.md · ARQUITECTURA.md
+```
+
+## Personalización rápida (`js/config.js`)
+Número de WhatsApp · código y % de descuento · máximo de caracteres del mensaje de regalo · imagen/video del hero (`heroMedia`) · redes sociales. Productos, stock y envío gratis por producto en `js/data.js` (`envioGratis`).
+
+## Documentación
+- `docs/ANALISIS-RETROALIMENTACION.md` — qué pidió cada comentario del Word y cómo se resolvió (con decisiones a validar).
+- `docs/COMENTARIOS-WORD.md` — transcripción literal de los 47 comentarios.
+- `docs/ARQUITECTURA.md` — contrato técnico (APIs, reglas de negocio, convenciones).
+
+> Datos de ejemplo: precios, stock, medidas, políticas, reseñas y logos bancarios son marcadores de posición hasta recibir los insumos reales.
+
+## Despliegue (GitHub Actions + Docker, puerto 4000)
+Cada push a `main` ejecuta `.github/workflows/deploy.yml`: construye la imagen (`Dockerfile`, nginx), la publica en GHCR y la despliega por SSH en el servidor como el contenedor `mercy-studio` en el **puerto 4000** (`http://SERVIDOR:4000`). También se puede lanzar a mano desde la pestaña *Actions*.
+
+**Configuración única** (Settings → Secrets and variables → Actions):
+| Secret | Valor |
+|--------|-------|
+| `SSH_HOST` | IP o dominio del servidor |
+| `SSH_USER` | usuario con permiso para usar Docker |
+| `SSH_KEY` | llave privada SSH (la pública va en `~/.ssh/authorized_keys` del servidor) |
+| `SSH_PORT` | (opcional) puerto SSH, por defecto 22 |
+
+Requisitos del servidor: Docker instalado, `curl`, y el puerto 4000 abierto en el firewall. El workflow usa un *environment* llamado `production` (GitHub lo crea solo; puedes añadirle aprobaciones).
+
+Probar la imagen en local: `docker build -t mercy-studio . && docker run --rm -p 4000:4000 mercy-studio`.

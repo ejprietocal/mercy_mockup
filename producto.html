@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Prenda — Mercy Studio</title>
+  <meta name="description" content="Detalle de la prenda en Mercy Studio: ropa con propósito cristiano. Elige tu fit, color y talla y agrégala al carrito.">
+  <meta name="theme-color" content="#fff5e4">
+  <link rel="icon" href="assets/logo/mercy-studio-terracota.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Lekton:wght@400;700&family=Oswald:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/producto.css">
+</head>
+<body data-page="producto" data-header="solid" data-footer="full">
+  <main id="main" class="pdp" tabindex="-1">
+
+    <!-- Migas: Inicio / Catálogo / <nombre> -->
+    <div class="container">
+      <nav class="crumbs" aria-label="Migas de pan" id="crumbs"></nav>
+    </div>
+
+    <!-- Ficha de producto -->
+    <section class="pdp__top container" id="pdp" aria-label="Detalle de la prenda" hidden>
+
+      <!-- Galería: escritorio = miniaturas verticales a la izquierda · móvil = carrusel + miniaturas debajo -->
+      <div class="gallery" id="gallery" role="region" aria-roledescription="carrusel" aria-label="Galería de la prenda">
+        <div class="gallery__stage">
+          <div class="gallery__track" id="gallery-track" tabindex="0" aria-label="Fotos y video de la prenda. Usa las flechas del teclado para cambiar."></div>
+          <div id="gallery-fav-slot"></div>
+          <button type="button" class="gallery__chip" id="gallery-video" aria-haspopup="dialog">
+            <span id="gallery-video-icon"></span><span>Ver video</span>
+          </button>
+          <button type="button" class="gallery__nav gallery__nav--prev" id="gallery-prev" aria-label="Foto anterior"></button>
+          <button type="button" class="gallery__nav gallery__nav--next" id="gallery-next" aria-label="Foto siguiente"></button>
+          <div class="gallery__dots" id="gallery-dots" aria-hidden="true"></div>
+          <p class="visually-hidden" id="gallery-status" aria-live="polite"></p>
+        </div>
+        <div class="gallery__thumbs" id="gallery-thumbs" role="group" aria-label="Miniaturas"></div>
+      </div>
+
+      <!-- Información -->
+      <div class="info" id="info">
+        <div class="info__meta">
+          <p class="eyebrow" id="p-eyebrow"></p>
+          <p class="rating" id="p-rating"></p>
+        </div>
+        <h1 class="h1 pdp-title" id="p-name"></h1>
+        <p class="pdp-price price" id="p-price"></p>
+        <p class="pdp-desc" id="p-desc" hidden></p>
+
+        <div class="status">
+          <p class="status__stock" id="p-stock"></p>
+          <p class="status__ship" id="p-ship"></p>
+        </div>
+
+        <!-- Fit -->
+        <div class="opt" id="opt-fit" hidden>
+          <p class="opt__label" id="fit-label"></p>
+          <div class="fit-grid" id="fit-group" role="radiogroup" aria-labelledby="fit-label"></div>
+        </div>
+
+        <!-- Color (C25: la etiqueta con el nombre va ENCIMA de los círculos) -->
+        <div class="opt" id="opt-color">
+          <p class="opt__label" id="color-label"></p>
+          <div class="swatches" id="color-group" role="radiogroup" aria-labelledby="color-label"></div>
+        </div>
+
+        <!-- Estampado (solo productos con p.prints) -->
+        <div class="opt" id="opt-print" hidden>
+          <p class="opt__label" id="print-label"></p>
+          <div class="swatches" id="print-group" role="radiogroup" aria-labelledby="print-label"></div>
+        </div>
+
+        <!-- Talla (C43: agotada = tachón diagonal) -->
+        <div class="opt" id="opt-size">
+          <div class="opt__row">
+            <p class="opt__label" id="size-label"></p>
+            <button type="button" class="link-btn" id="size-guide-btn" aria-haspopup="dialog" hidden></button>
+          </div>
+          <div class="size-grid" id="size-group" role="radiogroup" aria-labelledby="size-label"></div>
+        </div>
+
+        <!-- Cantidad + CTA (C26/C27: SOLO "Agregar al carrito") -->
+        <div class="qty-row">
+          <span class="opt__label" id="qty-label">Cantidad</span>
+          <div id="qty-slot"></div>
+          <span class="qty-hint" id="qty-hint" aria-live="polite"></span>
+        </div>
+        <button type="button" class="btn btn--dark btn--lg btn--block add-btn" id="add-btn" aria-describedby="buy-msg"></button>
+        <p class="form-msg" id="buy-msg" role="alert" hidden></p>
+
+        <!-- Acordeones (C28): Detalles abierto, ítem por ítem -->
+        <div class="pdp-acc" id="p-acc">
+          <div class="acc" data-acc data-open>
+            <button type="button" class="acc__head" id="acc-detalles-h" aria-expanded="true" aria-controls="acc-detalles"><span>Detalles</span><span class="acc__icon" data-chev></span></button>
+            <div class="acc__panel" id="acc-detalles" role="region" aria-labelledby="acc-detalles-h"><div class="acc__inner" id="p-details"></div></div>
+          </div>
+          <div class="acc" data-acc>
+            <button type="button" class="acc__head" id="acc-cuidados-h" aria-expanded="false" aria-controls="acc-cuidados"><span>Cuidados de la prenda</span><span class="acc__icon" data-chev></span></button>
+            <div class="acc__panel" id="acc-cuidados" role="region" aria-labelledby="acc-cuidados-h"><div class="acc__inner" id="p-care"></div></div>
+          </div>
+          <div class="acc" data-acc>
+            <button type="button" class="acc__head" id="acc-medidas-h" aria-expanded="false" aria-controls="acc-medidas"><span>Medidas / Tallas</span><span class="acc__icon" data-chev></span></button>
+            <div class="acc__panel" id="acc-medidas" role="region" aria-labelledby="acc-medidas-h"><div class="acc__inner" id="p-measures"></div></div>
+          </div>
+          <div class="acc" data-acc>
+            <button type="button" class="acc__head" id="acc-envios-h" aria-expanded="false" aria-controls="acc-envios"><span>Envíos</span><span class="acc__icon" data-chev></span></button>
+            <div class="acc__panel" id="acc-envios" role="region" aria-labelledby="acc-envios-h"><div class="acc__inner" id="p-shipping"></div></div>
+          </div>
+          <div class="acc" data-acc>
+            <button type="button" class="acc__head" id="acc-cambios-h" aria-expanded="false" aria-controls="acc-cambios"><span>Cambios y devoluciones</span><span class="acc__icon" data-chev></span></button>
+            <div class="acc__panel" id="acc-cambios" role="region" aria-labelledby="acc-cambios-h"><div class="acc__inner" id="p-returns"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Estado: producto no encontrado -->
+    <section class="pdp-missing container" id="pdp-missing" aria-labelledby="missing-title" hidden>
+      <div class="empty">
+        <span id="missing-icon"></span>
+        <h1 class="empty__title" id="missing-title">No encontramos esta prenda</h1>
+        <p class="empty__text">Puede que el enlace esté incompleto o que la prenda ya no esté en la colección.</p>
+        <a class="btn btn--primary" href="catalogo.html">Ver catálogo</a>
+      </div>
+    </section>
+
+    <!-- La historia del diseño -->
+    <section class="story on-dark" id="pdp-story" aria-labelledby="story-title" hidden>
+      <p class="eyebrow" id="story-title">La historia del diseño</p>
+      <blockquote class="story__quote" id="story-text"></blockquote>
+    </section>
+
+    <!-- Reseñas verificadas -->
+    <section class="reviews container" id="pdp-reviews" aria-labelledby="reviews-title" hidden>
+      <div class="reviews__head">
+        <span id="g-logo"></span>
+        <h2 class="h2 reviews__title" id="reviews-title">Reseñas <span class="accent">verificadas</span></h2>
+        <p class="reviews__meta" id="reviews-meta"></p>
+      </div>
+      <div class="reviews__grid" id="reviews-grid"></div>
+    </section>
+
+    <!-- También te puede gustar -->
+    <section class="related container" id="pdp-related" aria-labelledby="related-title" hidden>
+      <h2 class="h2 related__title" id="related-title">También te puede <span class="accent">gustar</span></h2>
+      <div class="related__list" id="related-list"></div>
+    </section>
+
+    <!-- Barra de acciones pegajosa (solo móvil, cuando el botón principal sale de la vista) -->
+    <div class="buybar" id="buybar" inert></div>
+  </main>
+
+  <script defer src="js/config.js"></script>
+  <script defer src="js/data.js"></script>
+  <script defer src="js/icons.js"></script>
+  <script defer src="js/ui.js"></script>
+  <script defer src="js/store.js"></script>
+  <script defer src="js/layout.js"></script>
+  <script defer src="js/producto.js"></script>
+</body>
+</html>

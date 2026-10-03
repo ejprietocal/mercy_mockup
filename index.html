@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mercy Studio — Viste con propósito</title>
+  <meta name="description" content="Mercy Studio: prendas con propósito. Cada diseño cuenta una historia de fe, identidad y esperanza. Envíos a todo el país.">
+  <meta name="theme-color" content="#fff5e4">
+  <link rel="icon" href="assets/logo/mercy-studio-terracota.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Lekton:wght@400;700&family=Oswald:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/home.css">
+</head>
+<body data-page="home" data-header="hero" data-footer="full">
+  <main id="main">
+
+    <!-- 1 · HERO a pantalla completa (C36, C37, C38, C39) -->
+    <section class="hero on-dark" aria-labelledby="hero-title">
+      <div class="hero__media" data-hero-media aria-hidden="true">
+        <!-- Placeholder: se reemplaza por <video>/<img> si Mercy.config.heroMedia trae src -->
+        <div class="hero__placeholder" data-hero-placeholder>
+          <span class="hero__mark">FE</span>
+          <span class="hero__chip"><svg class="icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg>Video / Imagen</span>
+        </div>
+      </div>
+      <div class="hero__scrim" aria-hidden="true"></div>
+
+      <div class="hero__inner">
+        <p class="eyebrow hero__eyebrow">Nueva colección · Renacer</p>
+        <h1 class="hero__title" id="hero-title">
+          <span class="hero__line">Lo que crees,</span>
+          <span class="hero__line">ahora lo <span class="accent">vistes</span>.</span>
+        </h1>
+        <p class="hero__sub">Prendas con propósito. Cada diseño cuenta una historia de fe, identidad y esperanza — pensadas para que tu mensaje también se lleve puesto.</p>
+        <a class="btn btn--light btn--lg hero__cta" href="catalogo.html">Compra</a>
+      </div>
+
+      <!-- Franja café en movimiento (C37) -->
+      <div class="marquee" data-marquee>
+        <ul class="visually-hidden" data-marquee-sr></ul>
+        <div class="marquee__track" data-marquee-track aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <!-- 2 · LOS MÁS VENDIDOS (C10–C14) -->
+    <section class="section favs" id="favoritos" aria-labelledby="favs-title">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Los favoritos</span>
+            <h2 class="h2 section-title" id="favs-title">Los más <span class="accent">vendidos</span></h2>
+          </div>
+          <a class="link-arrow favs__all" href="catalogo.html?vista=mas-vendidos">Ver todo</a>
+        </div>
+        <div class="product-grid favs__grid" data-favs-grid></div>
+      </div>
+    </section>
+
+    <!-- 3 · NUESTRO PROPÓSITO (C15) -->
+    <section class="purpose on-dark" id="proposito" aria-labelledby="purpose-title">
+      <div class="container purpose__inner">
+        <div class="purpose__head">
+          <span class="eyebrow">Nuestro propósito</span>
+          <h2 class="h2 purpose__title" id="purpose-title">Más que una prenda, un mensaje que <span class="accent">llevas puesto</span>.</h2>
+        </div>
+        <div class="purpose__body">
+          <p class="purpose__text" data-purpose-text>Mercy Studio existe para usar la moda como un medio para comunicar la Palabra de Dios, expresar nuestra fe de manera auténtica y creativa, y llevar el mensaje de Cristo a más personas. Creamos prendas con propósito, recordando que Mercy es el medio; Cristo es siempre el centro.</p>
+          <button type="button" class="btn btn--outline-light purpose__btn" data-story aria-haspopup="dialog">Conoce la historia</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · RESEÑAS DE GOOGLE -->
+    <section class="section reviews" id="resenas" aria-labelledby="reviews-title">
+      <div class="container">
+        <div class="reviews__head">
+          <h2 class="g-badge" id="reviews-title">
+            <svg class="g-logo" width="22" height="22" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span>Reseñas de Google</span>
+            <span class="stars" data-reviews-stars role="img" aria-label="5 de 5 estrellas"></span>
+            <span class="reviews__score">4.9 · 320 reseñas</span>
+          </h2>
+        </div>
+        <div class="reviews__scroller" data-reviews-scroller tabindex="0" role="region" aria-label="Reseñas de clientes">
+          <ul class="reviews__list" data-reviews-list></ul>
+        </div>
+        <div class="reviews__dots" data-reviews-dots aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <!-- 5 · COMUNIDAD + 15 % DE DESCUENTO (C20, C21, P22) -->
+    <section class="community" id="comunidad" aria-labelledby="community-title">
+      <div class="container">
+        <div class="community__card on-dark">
+          <h2 class="h2 community__title" id="community-title">Sé parte de nuestra <span class="accent">comunidad</span> Mercy</h2>
+          <hr class="community__rule" aria-hidden="true">
+          <p class="community__sub">Tu camino de fe comienza aquí. <strong>Obtén un 15% de descuento en tu primer pedido.</strong></p>
+
+          <div class="community__state" aria-live="polite">
+            <div data-community-form-wrap>
+              <form class="community__form" novalidate data-community-form>
+                <div class="field">
+                  <label class="visually-hidden" for="community-email">Correo electrónico (obligatorio)</label>
+                  <input class="input input--pill" id="community-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="Introduce tu correo electrónico">
+                </div>
+                <button type="submit" class="btn btn--dark btn--pill community__submit">Obtén un 15% de descuento</button>
+              </form>
+              <p class="community__fine">Al registrarte aceptas recibir novedades de Mercy Studio. Puedes darte de baja cuando quieras.</p>
+            </div>
+
+            <div class="community__done" data-community-done hidden>
+              <span class="community__check" aria-hidden="true"></span>
+              <p class="community__done-title">¡Bienvenido a Mercy!</p>
+              <div class="community__code">
+                <strong data-community-code>MERCY15</strong>
+                <button type="button" class="btn btn--ghost btn--sm" data-copy-code aria-label="Copiar el código de descuento"><span data-copy-icon></span>Copiar</button>
+              </div>
+              <p class="community__done-msg">Ya está aplicado a tu carrito</p>
+              <a class="btn btn--light btn--pill btn--sm community__go" href="catalogo.html">Seguir comprando</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script defer src="js/config.js"></script>
+  <script defer src="js/data.js"></script>
+  <script defer src="js/icons.js"></script>
+  <script defer src="js/ui.js"></script>
+  <script defer src="js/store.js"></script>
+  <script defer src="js/layout.js"></script>
+  <script defer src="js/home.js"></script>
+</body>
+</html>

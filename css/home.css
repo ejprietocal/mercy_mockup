@@ -1,0 +1,273 @@
+/* ==========================================================================
+   Mercy Studio — home.css  (pantalla INICIO)
+   1 Hero a pantalla completa + franja en movimiento (C36–C39)
+   2 Los más vendidos (C10–C14) · 3 Nuestro propósito (C15) · 4 Reseñas
+   5 Comunidad + 15 % de descuento (C20, P22)
+   Mobile-first; breakpoints 700 / 900 / 1100.
+   ========================================================================== */
+
+.section { padding-block: 64px 72px; }
+@media (min-width: 900px) { .section { padding-block: 88px 96px; } }
+
+.section-title { font-size: clamp(2.25rem, 1.5rem + 2.6vw, 3.5rem); }
+.section-title .accent { font-size: 1.12em; }
+
+/* ==========================================================================
+   1 · HERO
+   ========================================================================== */
+.hero {
+  position: relative; isolation: isolate; overflow: hidden;
+  display: flex; flex-direction: column;
+  min-height: calc(100vh - var(--strip-h));
+  min-height: calc(100svh - var(--strip-h));     /* C36: ocupa toda la pantalla (bajo la franja café) */
+  background: #7a3a17;
+  color: #fff7ec;
+}
+.hero__media { position: absolute; inset: 0; }   /* sin z-index propio: el chip puede quedar sobre el scrim */
+.hero__video, .hero__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* Placeholder con degradado cálido (como el hero de la propuesta) */
+.hero__placeholder {
+  position: absolute; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 76% 24%, rgba(232, 160, 112, 0.55) 0%, rgba(232, 160, 112, 0) 60%),
+    radial-gradient(70% 60% at 12% 92%, rgba(60, 24, 8, 0.55) 0%, rgba(60, 24, 8, 0) 70%),
+    linear-gradient(155deg, #c58a63 0%, #a44809 50%, #5a2a12 100%);
+}
+.hero__mark {
+  position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
+  font-family: var(--font-title); font-weight: 700; line-height: 0.8; letter-spacing: 0.02em;
+  font-size: clamp(15rem, 46vw, 44rem);
+  color: rgba(255, 236, 214, 0.12); user-select: none; pointer-events: none;
+}
+.hero__chip {
+  position: absolute; right: var(--gutter); top: calc(var(--header-h) + 14px);
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px;
+  border-radius: var(--radius-pill); background: rgba(70, 34, 16, 0.5);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  font-size: var(--fs-xs); letter-spacing: 0.16em; text-transform: uppercase; color: #fff;
+  z-index: 3; pointer-events: none;
+}
+
+/* Scrim para legibilidad sobre cualquier foto / video */
+.hero__scrim {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(24, 12, 6, 0.42) 0%, rgba(24, 12, 6, 0.12) 32%, rgba(24, 12, 6, 0.2) 62%, rgba(24, 12, 6, 0.6) 100%);
+}
+
+.hero__inner {
+  position: relative; z-index: 2; flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  padding: calc(var(--header-h) + 36px) var(--gutter) 56px;
+}
+.hero .hero__eyebrow { color: #ffe3cf; margin-bottom: 22px; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35); font-size: 0.75rem; }
+@media (min-width: 700px) { .hero__eyebrow { font-size: var(--fs-sm); letter-spacing: 0.28em; margin-bottom: 28px; } }
+
+.hero__title {
+  font-family: var(--font-title); font-weight: 600; text-transform: uppercase;
+  font-size: clamp(2.6rem, 0.6rem + 9vw, 7.5rem); line-height: 1.02; letter-spacing: 0.005em;
+  color: #fff9f0; text-shadow: 0 2px 34px rgba(0, 0, 0, 0.3);
+  margin-bottom: 26px; max-width: 14ch;
+}
+.hero__line { display: block; }
+.hero__title .accent { color: #ffcfae; font-size: 1.1em; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.3); }
+
+.hero__sub {
+  max-width: 54ch; margin-bottom: 40px; color: rgba(255, 247, 236, 0.94);
+  font-size: var(--fs-md); line-height: 1.7; text-shadow: 0 1px 14px rgba(0, 0, 0, 0.4);
+}
+@media (min-width: 900px) { .hero__sub { font-size: var(--fs-lg); } }
+
+/* C39: único botón de la primera vista */
+.hero__cta {
+  min-width: min(100%, 260px); min-height: 64px; font-size: var(--fs-md); letter-spacing: 0.26em;
+  box-shadow: 0 10px 34px rgba(24, 12, 6, 0.32);
+}
+.hero__cta:hover { --btn-bg: var(--terracota); --btn-fg: #fff; --btn-bd: var(--terracota); }
+
+/* Foco visible sobre superficies oscuras / terracota (el anillo terracota casi no se ve ahí) */
+.hero :focus-visible, .purpose :focus-visible, .community__card :focus-visible { outline-color: #fff; }
+.hero__cta:focus-visible { outline-offset: 4px; }
+
+/* El botón flotante de WhatsApp sube mientras la franja en movimiento está a la vista */
+.wa-fab { transition: transform var(--t-fast) var(--ease), bottom var(--t-med) var(--ease); }
+body.is-marquee-visible .wa-fab { bottom: 84px; }
+@media (min-width: 900px) { body.is-marquee-visible .wa-fab { bottom: 96px; } }
+
+/* --- Franja café en movimiento (C37) ---------------------------------------- */
+.marquee {
+  position: relative; z-index: 2; overflow: hidden;
+  background: var(--tinta); color: #ddc9b3;
+  border-top: 1px solid rgba(255, 245, 228, 0.08);
+}
+.marquee__track { display: flex; width: max-content; animation: marquee-slide 40s linear infinite; will-change: transform; }
+.marquee:hover .marquee__track { animation-play-state: paused; }   /* pausa al pasar el cursor */
+.marquee__group { display: flex; flex: none; }
+.marquee__item {
+  display: inline-flex; align-items: center; gap: 12px; flex: none; white-space: nowrap;
+  padding: 18px 34px; font-size: var(--fs-xs); letter-spacing: 0.16em; text-transform: uppercase;
+}
+.marquee__item .icon { color: #f0a98a; flex: none; }
+.marquee__item::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: rgba(240, 169, 138, 0.55); margin-left: 34px; }
+@keyframes marquee-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (min-width: 900px) { .marquee__item { padding-block: 22px; font-size: 0.8125rem; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee__track { animation: none; width: 100%; justify-content: center; }
+  .marquee__group { flex-wrap: wrap; justify-content: center; }
+  .marquee__group + .marquee__group, .marquee__item--dup { display: none; }
+  .marquee__item { padding-block: 12px; }
+  .marquee__item::after { display: none; }
+}
+
+/* ==========================================================================
+   2 · LOS MÁS VENDIDOS
+   ========================================================================== */
+.favs { background: var(--crema); }
+.favs .section-head { margin-bottom: 36px; }
+.favs__all { min-height: 44px; }
+@media (max-width: 699px) {
+  .favs .section-head { position: relative; }
+  .favs__all { position: absolute; right: 0; top: -14px; }
+}
+.favs__grid.product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 14px; }
+@media (min-width: 700px) { .favs__grid.product-grid { gap: 40px 22px; } }
+@media (min-width: 1000px) { .favs__grid.product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 44px 24px; } }
+/* En la propuesta la tarjeta es alta (aprox. 4:5.4) */
+.favs .pcard { --card-ratio: 4 / 5; }
+@media (max-width: 420px) { .favs .pcard__name { font-size: 1.0625rem; } .favs .pcard .fav-btn { width: 40px; height: 40px; top: 8px; right: 8px; } .favs .pcard .badge { top: 10px; left: 10px; } }
+
+/* ==========================================================================
+   3 · NUESTRO PROPÓSITO
+   ========================================================================== */
+.purpose { background: var(--tinta-2); color: var(--crema); padding-block: 72px; }
+.purpose__inner { display: grid; gap: 28px; text-align: center; justify-items: center; }
+.purpose__head { display: grid; gap: 18px; justify-items: center; }
+.purpose__title { font-size: clamp(2.1rem, 1.1rem + 3.4vw, 4rem); line-height: 1.04; color: var(--crema); max-width: 16ch; }
+.purpose__title .accent { font-size: 1.1em; }
+.purpose__body { display: grid; gap: 30px; justify-items: center; }
+.purpose__text { max-width: 58ch; color: #d9c6b3; line-height: 1.85; font-size: var(--fs-md); }
+.purpose__btn { min-width: 220px; }
+@media (min-width: 900px) {
+  .purpose { padding-block: 104px; }
+  .purpose__inner { grid-template-columns: 1fr 1fr; gap: clamp(48px, 7vw, 120px); text-align: left; justify-items: stretch; align-items: center; }
+  .purpose__head { justify-items: start; }
+  .purpose__title { max-width: none; }
+  .purpose__body { justify-items: start; }
+  .purpose__text { font-size: var(--fs-lg); }
+}
+
+/* Modal "Nuestra historia" */
+.story__lead { color: #5a4a3b; line-height: 1.75; }
+.story__quote {
+  margin-top: 26px; padding-top: 22px; border-top: 3px dotted rgba(187, 63, 23, 0.55);
+  font-family: var(--font-title); text-transform: uppercase; font-weight: 600;
+  font-size: clamp(1.4rem, 1rem + 2vw, 1.9rem); line-height: 1.15; color: var(--tinta);
+}
+.story__quote .accent { font-size: 1.15em; }
+.story__cta { margin-top: 26px; }
+
+/* ==========================================================================
+   4 · RESEÑAS (Google)
+   ========================================================================== */
+.reviews { background: var(--crema); padding-top: 72px; }
+.reviews__head { display: flex; justify-content: center; margin-bottom: 30px; }
+.reviews .g-badge { font-size: var(--fs-sm); justify-content: center; gap: 8px 10px; font-weight: 700; }
+.reviews .stars svg { display: block; }
+.reviews__score { white-space: nowrap; }
+
+.reviews__scroller {
+  /* Móvil: carrusel con scroll-snap (sin scroll de página) */
+  margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter);
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter);
+  scrollbar-width: none; overscroll-behavior-x: contain;
+  padding-bottom: 6px;
+}
+.reviews__scroller::-webkit-scrollbar { display: none; }
+.reviews__scroller:focus-visible { outline-offset: -2px; }
+.reviews__list { display: flex; gap: 14px; width: max-content; }
+.reviews__list > li { flex: 0 0 min(84vw, 380px); scroll-snap-align: start; display: flex; }
+.reviews .review-card { width: 100%; padding: 24px 22px; }
+.reviews .review-card__quote { margin: 0; flex: 1; }
+.review-card__stars { display: flex; }
+.review-card__who { flex-wrap: wrap; row-gap: 4px; }
+.review-card__name { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.review-card__name strong { color: var(--tinta); }
+.reviews .review-card__who { color: #6f5f50; }                 /* contraste AA sobre blanco */
+.reviews .review-card__verified { color: var(--verde-oscuro); }
+.review-card__verified { margin-left: auto; }
+@media (max-width: 420px) { .review-card__verified { margin-left: 50px; flex-basis: 100%; } }
+
+.reviews__dots { display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
+.reviews__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--borde-fuerte); transition: background var(--t-fast) var(--ease), width var(--t-fast) var(--ease); }
+.reviews__dot.is-on { background: var(--terracota); width: 22px; border-radius: 99px; }
+
+@media (min-width: 900px) {
+  .reviews { padding-top: 88px; }
+  .reviews__scroller { margin-inline: 0; padding-inline: 0; overflow: visible; scroll-snap-type: none; padding-bottom: 0; }
+  .reviews__list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; width: auto; }
+  .reviews__list > li { flex: initial; }
+  .reviews__dots { display: none; }
+  .reviews .g-badge { font-size: var(--fs-md); }
+}
+
+/* ==========================================================================
+   5 · COMUNIDAD + 15 % DE DESCUENTO
+   ========================================================================== */
+.community { background: var(--crema); padding-block: 8px 72px; }
+@media (min-width: 900px) { .community { padding-bottom: 104px; } }
+.community__card {
+  position: relative; overflow: hidden; text-align: center;
+  max-width: 980px; margin-inline: auto; padding: 46px 22px 36px;
+  border-radius: 14px; color: #fff;
+  background:
+    radial-gradient(80% 120% at 100% 0%, rgba(255, 170, 120, 0.22) 0%, rgba(255, 170, 120, 0) 60%),
+    linear-gradient(135deg, var(--terracota) 0%, var(--terracota-oscuro) 100%);
+  box-shadow: var(--shadow-md);
+}
+@media (min-width: 700px) { .community__card { padding: 64px 56px 48px; border-radius: 18px; } }
+.community__title { font-size: clamp(2rem, 1.2rem + 3vw, 3.4rem); line-height: 1.06; color: #fff; max-width: 20ch; margin-inline: auto; }
+.community__title .accent, .community .accent { color: #ffe2cc; font-size: 1.1em; }
+.community__rule { border: 0; border-top: 3px dotted rgba(255, 226, 204, 0.6); width: min(82%, 520px); margin: 22px auto 20px; }
+.community__sub { max-width: 54ch; margin: 0 auto 28px; font-size: var(--fs-md); line-height: 1.65; color: rgba(255, 255, 255, 0.94); }
+.community__sub strong { display: block; margin-top: 4px; font-weight: 700; letter-spacing: 0.02em; color: #fff; }
+@media (min-width: 700px) { .community__sub { font-size: var(--fs-lg); } }
+
+.community__form { display: grid; gap: 14px; max-width: 700px; margin-inline: auto; text-align: left; }
+.community__form .input { background: #fff; border-color: transparent; min-height: 56px; }
+.community__form .input:focus { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
+.community__submit { min-height: 56px; padding-inline: 20px; }
+.community__submit:hover { --btn-bg: #000; }
+@media (min-width: 700px) {
+  .community__form { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+  .community__submit { padding-inline: 32px; }
+}
+@media (max-width: 380px) { .community__card { padding-inline: 18px; } .community__form .input { padding-inline: 18px; } }
+/* Error legible sobre el terracota */
+.community .field.has-error .input { border-color: #fff; background: #fff; }
+.community .field__error {
+  align-self: flex-start; color: #fff; background: rgba(34, 24, 15, 0.62);
+  padding: 6px 14px; border-radius: 16px; font-size: var(--fs-sm);
+}
+.community__fine { margin: 18px auto 0; max-width: 52ch; font-size: var(--fs-xs); line-height: 1.55; color: rgba(255, 255, 255, 0.94); }
+
+/* Estado de éxito */
+.community__done { display: grid; justify-items: center; gap: 6px; padding-top: 4px; }
+.community__check {
+  width: 54px; height: 54px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--verde); color: #fff; margin-bottom: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+.community__done-title { font-family: var(--font-title); text-transform: uppercase; font-weight: 600; font-size: 1.6rem; line-height: 1.1; }
+.community__code {
+  display: inline-flex; align-items: center; gap: 10px; margin: 10px 0 6px; padding: 6px 6px 6px 22px;
+  background: #fff; color: var(--terracota-oscuro); border: 2px dashed var(--terracota); border-radius: var(--radius-pill);
+}
+.community__code strong { font-size: var(--fs-xl); letter-spacing: 0.14em; }
+.community__code .btn { gap: 6px; min-height: 40px; }
+.community__done-msg { font-size: var(--fs-lg); font-weight: 700; color: #fff; }
+.community__go { margin-top: 14px; min-height: 44px; }
+
+/* Objetivo táctil >= 40 px en el enlace del nombre de la tarjeta */
+.favs .pcard__name a { display: inline-block; padding-block: 11px; margin-block: -11px; }
