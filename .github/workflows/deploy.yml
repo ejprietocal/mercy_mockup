@@ -41,6 +41,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # QEMU + Buildx permiten publicar una imagen para amd64 Y arm64
+      # (el servidor es ARM64; sin esto falla con "no matching manifest for linux/arm64/v8").
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -48,6 +53,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ steps.meta.outputs.image }}:latest
@@ -75,7 +81,6 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           envs: IMAGE,GHCR_USER,GHCR_TOKEN,CONTAINER_NAME,HOST_PORT
-          script_stop: true
           script: |
             set -euo pipefail
 
