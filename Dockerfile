@@ -9,6 +9,11 @@ COPY css/ /usr/share/nginx/html/css/
 COPY js/ /usr/share/nginx/html/js/
 COPY assets/ /usr/share/nginx/html/assets/
 
+# Marca de versión: http://SERVIDOR:4000/version.txt devuelve el commit desplegado
+ARG GIT_SHA=dev
+RUN echo "$GIT_SHA" > /usr/share/nginx/html/version.txt
+LABEL org.opencontainers.image.revision="$GIT_SHA"
+
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
