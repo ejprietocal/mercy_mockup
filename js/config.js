@@ -28,7 +28,21 @@ Mercy.config = {
 
   /* Hero del Inicio. Deja `src` vacío para ver el placeholder con degradado.
      type: "video" | "image".  Ej.: { type: "video", src: "assets/img/hero.mp4", poster: "assets/img/hero.jpg" } */
-  heroMedia: { type: "", src: "", poster: "" },
+  /* VISTA PREVIA: video de paisaje enlazado directo desde Pexels (licencia libre, NO se descarga nada).
+     "fallback" se usa si el principal no carga. Para usar el material real: cambia src/poster por tus archivos,
+     p. ej. { type: "video", src: "assets/img/hero.mp4", poster: "assets/img/hero.jpg" }. type "" = placeholder con degradado. */
+  heroMedia: {
+    type: "video",
+    src: "https://videos.pexels.com/video-files/6989014/6989014-hd_1920_1080_25fps.mp4",          /* mar de nubes al amanecer dorado (1080p, ~4 MB) */
+    poster: "https://images.pexels.com/videos/6989014/pictures/preview-0.jpg",
+    fallback: {
+      src: "https://videos.pexels.com/video-files/4502082/4502082-hd_1920_1080_24fps.mp4",       /* amanecer sobre trigales */
+      poster: "https://images.pexels.com/videos/4502082/pictures/preview-0.jpg"
+    }
+  },
+
+  /* VISTA PREVIA: fotos de ropa reales (modelos) enlazadas desde Pexels. false = degradados con texto como en la propuesta. */
+  stockPhotos: true,
 
   /* Logos (se pueden reemplazar por los archivos en curvas — C7/C17). */
   logo: {

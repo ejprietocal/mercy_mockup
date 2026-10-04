@@ -168,7 +168,7 @@
       const p = it.product;
       return (
         '<li class="co-line" data-key="' + esc(it.key) + '">' +
-        '<a class="co-line__thumb" href="' + pUrl(p) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p) + "</a>" +
+        '<a class="co-line__thumb" href="' + pUrl(p) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "" }) + "</a>" +
         '<div class="co-line__info">' +
         '<p class="co-line__name"><a href="' + pUrl(p) + '">' + esc(p.name) + "</a></p>" +
         '<p class="co-line__variant">' + esc(variantText(it)) + "</p>" +
@@ -188,7 +188,7 @@
     sumLinesEl.innerHTML = S.cart.items().map(function (it) {
       const p = it.product;
       return (
-        '<li class="sum-line"><div class="sum-line__thumb">' + U.tileHTML(p) + "</div>" +
+        '<li class="sum-line"><div class="sum-line__thumb">' + U.tileHTML(p, { size: "thumb", alt: "" }) + "</div>" +
         '<div class="sum-line__info"><p class="sum-line__name">' + esc(p.name) + "</p>" +
         '<p class="sum-line__variant">' + esc(variantText(it)) + "</p>" +
         '<p class="sum-line__qty">Cantidad: ' + it.qty + "</p></div>" +

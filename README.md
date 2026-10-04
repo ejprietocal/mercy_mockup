@@ -15,6 +15,13 @@ Abre `index.html` con doble clic (o sirve la carpeta con cualquier servidor est�
 
 Funciones transversales: menú lateral, búsqueda en vivo (con referencias parecidas), favoritos (corazón), carrito como overlay de derecha a izquierda (persistente en `localStorage`), código **MERCY15** (15 % primer pedido).
 
+## Medios de vista previa (fotos y video)
+Para ver cómo se vería con material real, el mockup **enlaza directo desde [Pexels](https://www.pexels.com) (licencia libre; no se descarga ni se guarda nada en el proyecto)**:
+- **Hero del Inicio:** video de paisaje (mar de nubes al amanecer, 1080p) con un video de respaldo; se configura en `js/config.js` → `heroMedia`.
+- **Productos:** fotos de estudio por producto en `js/data.js` → `PHOTOS` (cada producto usa siempre la misma prenda; los detalles son acercamientos de la misma foto). Los fondos lisos se tiñen al tono arena de la marca por CSS.
+- Para volver a los degradados con texto: `stockPhotos: false` en `js/config.js`. Para usar material propio: reemplaza `heroMedia.src/poster` y las URLs de `PHOTOS`/`photoUrl()` por tus archivos en `assets/img/`.
+- Requiere internet; si un medio no carga, se muestra el degradado de respaldo.
+
 ## Estructura
 ```
 index.html catalogo.html producto.html checkout.html

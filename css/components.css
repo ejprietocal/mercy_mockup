@@ -23,6 +23,17 @@
 .tile--stacked .tile__line--sm { font-size: 0.5em; letter-spacing: 0.2em; font-weight: 600; }
 .tile--stacked .tile__line--lg { font-size: 1.4em; }
 .tile__sub { margin-top: 1.1em; font-family: var(--font-small); font-weight: 400; font-size: max(0.7rem, 0.32em); letter-spacing: 0.3em; }
+/* Foto real (vista previa): cubre el degradado; un tono cálido sutil la integra a la paleta de la marca */
+.tile--photo { background: radial-gradient(120% 90% at 50% 18%, #f6e9d8 0%, #e6cdb2 60%, #d3b090 100%); }   /* telón arena de la marca */
+.tile__img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%;
+  mix-blend-mode: multiply;   /* los fondos lisos de estudio (blanco/gris) toman el tono arena de la marca */
+  filter: saturate(1.04) contrast(1.03);
+  transform: scale(var(--zoom, 1)); transform-origin: var(--ox, 50%) var(--oy, 50%);   /* detalles: acercamientos de la misma foto */
+}
+.tile--photo .tile__text, .tile--photo .tile__sub { opacity: 0; }
+.tile--photo::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(246, 233, 216, 0) 70%, rgba(42, 30, 20, 0.1)); }
+.tile--photo .tile__play { z-index: 1; }
 .tile__play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(34, 24, 15, 0.25); }
 
 /* --- Tarjeta de producto ------------------------------------------------------- */

@@ -53,11 +53,37 @@ window.Mercy = window.Mercy || {};
     }
     const sub = opts.sub && t.sub ? '<span class="tile__sub">' + esc(t.sub) + "</span>" : "";
     const label = v === 3 ? '<span class="tile__play">' + icon("play", { size: 28 }) + "</span>" : "";
+
+    /* Vista previa con fotografía real (Mercy.config.stockPhotos). Si la foto falla, vuelve al degradado con texto. */
+    let photo = "";
+    const photos = p.photos || [];
+    if (Mercy.config.stockPhotos && photos.length) {
+      const entry = photos[(v === 3 ? 0 : v) % photos.length];
+      const pid = typeof entry === "object" ? entry.id : entry;
+      const zoomStyle = typeof entry === "object"
+        ? ' style="--zoom:' + entry.zoom + ";--ox:" + (entry.ox || "50%") + ";--oy:" + (entry.oy || "50%") + '"' : "";
+      const size = opts.size || "card";
+      const set = { thumb: [160, 320], card: [420, 640, 900], large: [640, 900, 1200] }[size] || [420, 640, 900];
+      const sizes = { thumb: "96px", card: "(min-width: 1100px) 25vw, 50vw", large: "(min-width: 900px) 50vw, 100vw" }[size];
+      const srcset = set.map(function (w) { return Mercy.data.photoUrl(pid, w) + " " + w + "w"; }).join(", ");
+      photo = '<img class="tile__img"' + zoomStyle + ' src="' + Mercy.data.photoUrl(pid, set[1]) + '" srcset="' + srcset + '" sizes="' + sizes + '" alt="' +
+        (opts.alt === undefined ? esc(p.name) : esc(opts.alt)) + '" loading="' + (opts.eager ? "eager" : "lazy") + '" decoding="async">';
+    }
     return (
-      '<div class="tile' + (t.stacked ? " tile--stacked" : "") + '" style="--tile-from:' + from + ";--tile-to:" + to + ";--tile-fs:" + fs.toFixed(2) + 'cqw">' +
-      '<div class="tile__text">' + (v === 3 ? "" : inner) + sub + "</div>" + label + "</div>"
+      '<div class="tile' + (t.stacked ? " tile--stacked" : "") + (photo ? " tile--photo" : "") + '" style="--tile-from:' + from + ";--tile-to:" + to + ";--tile-fs:" + fs.toFixed(2) + 'cqw">' +
+      '<div class="tile__text">' + (v === 3 ? "" : inner) + sub + "</div>" + photo + label + "</div>"
     );
   }
+
+  /* Si una foto de vista previa no carga (sin internet), se muestra de nuevo el degradado con texto. */
+  document.addEventListener("error", function (e) {
+    const t = e.target;
+    if (t && t.classList && t.classList.contains("tile__img")) {
+      const tile = t.closest(".tile");
+      if (tile) tile.classList.remove("tile--photo");
+      t.remove();
+    }
+  }, true);
 
   /* --- Tarjeta de producto ------------------------------------------------ */
   function cardHTML(p, opts) {

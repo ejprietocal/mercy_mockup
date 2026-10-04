@@ -277,8 +277,50 @@ window.Mercy = window.Mercy || {};
     story: "Un detalle pequeño con un mensaje grande, siempre a la vista."
   });
 
+  /* --- Fotos de vista previa (Pexels, licencia libre; enlazadas, no descargadas) ------
+     IDs de fotos de https://www.pexels.com — solo para ver cómo se vería con fotografía real.
+     Se desactivan con Mercy.config.stockPhotos = false. Orden: [principal, alterna 1, alterna 2]. */
+  /* Cada producto muestra SIEMPRE la misma prenda: o bien una serie de la misma sesión de estudio
+     (misma prenda y modelo, distintas poses), o bien acercamientos (zoom) de una sola foto.
+     Entrada = id  |  { id, zoom, ox, oy }  (zoom y punto de origen en %, para los detalles) */
+  const zoomOn = function (id, zoom, ox, oy) { return { id: id, zoom: zoom, ox: ox, oy: oy }; };
+  const PHOTOS = {
+    /* Camiseta terracota (estudio, fondo blanco): una sola modelo, detalles por zoom */
+    "gracia":             [12395682, zoomOn(12395682, 1.9, "50%", "62%"), zoomOn(12395682, 1.7, "50%", "22%")],
+    /* Camiseta blanca oversize — misma sesión, mismo modelo */
+    "fe":                 [8217536, 8217507, 8217539],
+    /* Hoodie negro, vista de espalda (estudio beige) */
+    "salmo-23":           [6311272, zoomOn(6311272, 1.8, "50%", "22%"), zoomOn(6311272, 1.6, "50%", "62%")],
+    /* Camiseta verde oliva (estudio gris claro) */
+    "renacer":            [9558684, zoomOn(9558684, 1.9, "50%", "42%"), zoomOn(9558684, 1.6, "50%", "20%")],
+    /* Camiseta blanca con gráfico (estudio gris) */
+    "esperanza":          [2364577, zoomOn(2364577, 2.1, "50%", "36%"), zoomOn(2364577, 1.7, "50%", "18%")],
+    /* Camiseta negra, brazos cruzados (estudio) */
+    "amen":               [4584267, zoomOn(4584267, 1.8, "50%", "70%"), zoomOn(4584267, 1.6, "50%", "30%")],
+    "jesus-es-el-camino": [19099186, zoomOn(19099186, 2.1, "52%", "70%"), zoomOn(19099186, 1.6, "50%", "38%")],
+    /* Camiseta negra (estudio gris claro) */
+    "paz":                [9558233, zoomOn(9558233, 1.8, "50%", "62%"), zoomOn(9558233, 1.5, "50%", "30%")],
+    /* Blusa crema, luz suave de ventana */
+    "misericordia":       [11802389, zoomOn(11802389, 1.8, "40%", "62%"), zoomOn(11802389, 1.6, "50%", "30%")],
+    /* Top blanco, luz natural */
+    "luz":                [413885, zoomOn(413885, 1.8, "50%", "62%"), zoomOn(413885, 1.6, "50%", "28%")],
+    /* Hoodie vinotinto (estudio blanco) */
+    "gloria":             [18700212, zoomOn(18700212, 2.0, "50%", "34%"), zoomOn(18700212, 1.6, "50%", "56%")],
+    /* Gorra trucker blanca — misma sesión, mismo modelo */
+    "gorra-proposito":    [9558770, 9558709, 9558927],
+    /* Tote crema + tote negro (colores del producto) */
+    "tote-mercy":         [9603489, 1214212, zoomOn(9603489, 1.7, "70%", "40%")],
+    /* Manilla en muñeca */
+    "manilla-fe":         [814662, zoomOn(814662, 1.9, "52%", "28%"), zoomOn(814662, 1.5, "78%", "22%")]
+  };
+  /* Sin h/fit: se conserva la proporción original y el recorte 4:5 lo hace CSS (object-fit + posición). */
+  function photoUrl(id, w) {
+    return "https://images.pexels.com/photos/" + id + "/pexels-photo-" + id + ".jpeg?auto=compress&cs=tinysrgb&w=" + w;
+  }
+
   /* Rellena defaults comunes */
   P.forEach(function (p) {
+    p.photos = PHOTOS[p.id] || [];
     p.sizeChart = SIZE_CHARTS[p.category] ? p.category : "";
     p.details = DETAILS[p.category] || [];
     p.care = CARE;
@@ -359,6 +401,7 @@ window.Mercy = window.Mercy || {};
     PAYMENT_METHODS: PAYMENT_METHODS,
     MARQUEE: MARQUEE,
 
+    photoUrl: photoUrl,
     byId: function (id) { return P.filter(function (p) { return p.id === id; })[0] || null; },
     color: function (id) { return COLORS[id] || { id: id, name: id, hex: "#999" }; },
     stockOf: function (p, color, size) {

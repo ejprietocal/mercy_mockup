@@ -82,8 +82,8 @@
   --z-toast: 160;
 
   /* Layout dinámico (los ajusta layout.js / media queries) */
-  --strip-h: 34px;
-  --header-h: 68px;
+  --strip-h: 26px;
+  --header-h: 56px;
 
   --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
   --t-fast: 160ms;
@@ -91,12 +91,16 @@
 }
 
 @media (min-width: 900px) {
-  :root { --header-h: 84px; --strip-h: 36px; }
+  :root { --header-h: 64px; --strip-h: 30px; }
 }
 
 /* --- Reset ------------------------------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+html {
+  -webkit-text-size-adjust: 100%; scroll-behavior: smooth;
+  background: var(--tinta);   /* iOS pinta con este color el rebote y la zona bajo la barra del navegador: igual que la franja y el footer */
+}
+html:has(body[data-header="minimal"]) { background: var(--crema); }
 body {
   margin: 0;
   min-height: 100vh;

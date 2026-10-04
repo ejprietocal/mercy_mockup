@@ -32,7 +32,17 @@
       el = document.createElement("img");
       el.className = "hero__img"; el.alt = ""; el.decoding = "async"; el.src = m.src;
     }
-    el.addEventListener("error", function () { el.remove(); if (placeholder) placeholder.hidden = false; });
+    let triedFallback = false;
+    el.addEventListener("error", function () {
+      if (!triedFallback && m.fallback && m.fallback.src) {      /* intenta el video de respaldo */
+        triedFallback = true;
+        if (m.fallback.poster) el.poster = m.fallback.poster;
+        el.src = m.fallback.src;
+        if (!reduceMotion) { const q = el.play(); if (q && q.catch) q.catch(function () {}); }
+        return;
+      }
+      el.remove(); if (placeholder) placeholder.hidden = false;
+    });
     box.appendChild(el);
     if (placeholder) placeholder.hidden = true;
     if (el.tagName === "VIDEO" && !reduceMotion) { const p = el.play(); if (p && p.catch) p.catch(function () {}); }

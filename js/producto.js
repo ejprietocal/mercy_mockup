@@ -122,7 +122,7 @@
     const slides = [];
     const thumbs = [];
     for (let v = 0; v < N_SLIDES; v++) {
-      const tile = U.tileHTML(p, { variant: v, sub: v === 0 });
+      const tile = U.tileHTML(p, { variant: v, sub: v === 0, size: "large", eager: v === 0 });
       const label = v === VIDEO_INDEX ? "Video" : "Foto " + (v + 1);
       slides.push(
         '<div class="gallery__slide" role="group" aria-roledescription="diapositiva" aria-label="' + (v + 1) + " de " + N_SLIDES + " · " + label + '">' +
@@ -134,7 +134,7 @@
       thumbs.push(
         '<button type="button" class="gallery__thumb" data-go="' + v + '" aria-current="false" aria-label="' +
         (v === VIDEO_INDEX ? "Ver video, 4 de 4" : "Ver foto " + (v + 1) + " de " + N_SLIDES) + '">' +
-        U.tileHTML(p, { variant: v }) + "</button>"
+        U.tileHTML(p, { variant: v, size: "thumb", alt: "" }) + "</button>"
       );
     }
     track.innerHTML = slides.join("");
@@ -212,7 +212,7 @@
   function openVideo() {
     U.infoModal("video-modal", p.name,
       '<div class="video-ph" role="img" aria-label="Video próximamente">' +
-      '<div class="video-ph__bg">' + U.tileHTML(p, { variant: 2 }) + "</div>" +
+      '<div class="video-ph__bg">' + U.tileHTML(p, { variant: 2, size: "large", alt: "" }) + "</div>" +
       '<div class="video-ph__msg"><span class="video-ph__icon">' + I("play", { size: 34 }) + "</span>" +
       "<strong>Video próximamente</strong><span>Estamos preparando el video de esta prenda.</span></div></div>");
   }

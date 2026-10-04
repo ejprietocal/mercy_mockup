@@ -104,7 +104,9 @@ window.Mercy = window.Mercy || {};
      Plantillas de la estructura
      ====================================================================== */
   function topStripHTML() {
-    return '<div class="topstrip" role="note"><p class="topstrip__text">Viste con propósito <span aria-hidden="true">·</span> Envíos a toda Colombia <span aria-hidden="true">·</span> Paga por WhatsApp</p></div>';
+    const txt = 'Viste con propósito <span aria-hidden="true">·</span> Envíos a toda Colombia <span aria-hidden="true">·</span> Paga por WhatsApp';
+    /* En móvil el texto corre en una sola línea (cinta); la copia es decorativa. En escritorio se muestra fijo y centrado. */
+    return '<div class="topstrip" role="note"><div class="topstrip__track"><p class="topstrip__text">' + txt + '</p><p class="topstrip__text topstrip__text--dup" aria-hidden="true">' + txt + "</p></div></div>";
   }
 
   function headerHTML() {
@@ -190,7 +192,7 @@ window.Mercy = window.Mercy || {};
     const cat = D.CATEGORIES.filter(function (c) { return c.id === p.category; })[0];
     return (
       '<a class="sr-item' + (p.soldOut ? " is-soldout" : "") + '" href="producto.html?id=' + encodeURIComponent(p.id) + '">' +
-      '<span class="sr-item__thumb">' + U.tileHTML(p) + "</span>" +
+      '<span class="sr-item__thumb">' + U.tileHTML(p, { size: "thumb" }) + "</span>" +
       '<span class="sr-item__info"><span class="sr-item__name">' + esc(p.name) + "</span>" +
       '<span class="sr-item__meta">Ref. ' + esc(p.ref) + " · " + esc(cat ? cat.name : "") + (p.soldOut ? " · Agotado" : "") + "</span>" +
       '<span class="sr-item__price">' + money(p.price) + "</span></span></a>"
@@ -251,7 +253,7 @@ window.Mercy = window.Mercy || {};
     }
     body.innerHTML = '<ul class="fav-list">' + list.map(function (p) {
       return (
-        '<li class="fav-item"><a class="fav-item__thumb" href="producto.html?id=' + encodeURIComponent(p.id) + '">' + U.tileHTML(p) + "</a>" +
+        '<li class="fav-item"><a class="fav-item__thumb" href="producto.html?id=' + encodeURIComponent(p.id) + '">' + U.tileHTML(p, { size: "thumb" }) + "</a>" +
         '<div class="fav-item__info"><a class="fav-item__name" href="producto.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.name) + "</a>" +
         '<span class="fav-item__price">' + money(p.price) + "</span>" +
         (p.soldOut ? '<span class="fav-item__tag">' + I("ban", { size: 14 }) + " No disponible</span>" : "") + "</div>" +
@@ -306,7 +308,7 @@ window.Mercy = window.Mercy || {};
       const p = it.product;
       return (
         '<li class="cart-line" data-key="' + esc(it.key) + '">' +
-        '<a class="cart-line__thumb" href="producto.html?id=' + encodeURIComponent(p.id) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p) + "</a>" +
+        '<a class="cart-line__thumb" href="producto.html?id=' + encodeURIComponent(p.id) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "" }) + "</a>" +
         '<div class="cart-line__info">' +
         '<a class="cart-line__name" href="producto.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.name) + "</a>" +
         '<p class="cart-line__variant">' + esc(variantText(it)) + "</p>" +
@@ -575,10 +577,22 @@ window.Mercy = window.Mercy || {};
 
     /* Header: estado transparente sobre el hero / sólido al hacer scroll */
     const header = $("#site-header");
+    /* Color de la barra del navegador (iOS/Android): oscuro mientras se ve la franja café; crema cuando manda el header. */
+    let themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (!themeMeta) { themeMeta = document.createElement("meta"); themeMeta.name = "theme-color"; document.head.appendChild(themeMeta); }
+    const css = getComputedStyle(document.documentElement);
+    const THEME_DARK = (css.getPropertyValue("--tinta") || "#2a1e14").trim();
+    const THEME_LIGHT = (css.getPropertyValue("--crema") || "#fff5e4").trim();
+    const stripEl = $(".topstrip");
+    function syncThemeColor(y) {
+      const c = stripEl && y < stripEl.offsetHeight - 1 ? THEME_DARK : THEME_LIGHT;
+      if (themeMeta.getAttribute("content") !== c) themeMeta.setAttribute("content", c);
+    }
     function onScroll() {
       const y = window.scrollY || document.documentElement.scrollTop;
       header.classList.toggle("is-scrolled", y > 24);
       header.classList.toggle("is-transparent", headerMode === "hero" && y <= 24);
+      syncThemeColor(y);
     }
     onScroll();
     let ticking = false;
