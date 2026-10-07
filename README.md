@@ -42,17 +42,13 @@ Número de WhatsApp · código y % de descuento · máximo de caracteres del men
 
 > Datos de ejemplo: precios, stock, medidas, políticas, reseñas y logos bancarios son marcadores de posición hasta recibir los insumos reales.
 
-## Despliegue (GitHub Actions + Docker, puerto 4000)
-Cada push a `main` ejecuta `.github/workflows/deploy.yml`: construye la imagen (`Dockerfile`, nginx), la publica en GHCR y la despliega por SSH en el servidor como el contenedor `mercy-studio` en el **puerto 4000** (`http://SERVIDOR:4000`). También se puede lanzar a mano desde la pestaña *Actions*.
+## Despliegue (GitHub Actions + Easypanel, puerto 4000)
+Cada push a `main` ejecuta `.github/workflows/deploy.yml`: construye la imagen (`Dockerfile`, nginx), la publica en GHCR (`ghcr.io/ejprietocal/mercy_mockup:latest`) y avisa a Easypanel mediante su *Deploy Webhook* para que descargue la imagen nueva y reinicie la app. También se puede lanzar a mano desde la pestaña *Actions*.
 
-**Configuración única** (Settings → Secrets and variables → Actions):
-| Secret | Valor |
-|--------|-------|
-| `SSH_HOST` | IP o dominio del servidor |
-| `SSH_USER` | usuario con permiso para usar Docker |
-| `SSH_KEY` | llave privada SSH (la pública va en `~/.ssh/authorized_keys` del servidor) |
-| `SSH_PORT` | (opcional) puerto SSH, por defecto 22 |
+**Configuración única**
+- En Easypanel, crea una App con *Source → Docker Image* `ghcr.io/ejprietocal/mercy_mockup:latest` y el puerto **4000** en *Domains*. El paquete de GHCR debe ser público, o bien configura en *Source* un PAT classic con `read:packages`.
+- En GitHub (Settings → Environments → `production` → Secrets) crea el secret `EASYPANEL_DEPLOY_URL` con la URL del *Deploy Webhook* de la app (pestaña *Deployments* o *Source*, según la versión de Easypanel).
 
-Requisitos del servidor: Docker instalado, `curl`, y el puerto 4000 abierto en el firewall. El workflow usa un *environment* llamado `production` (GitHub lo crea solo; puedes añadirle aprobaciones).
+El workflow usa un *environment* llamado `production` (GitHub lo crea solo; puedes añadirle aprobaciones).
 
 Probar la imagen en local: `docker build -t mercy-studio . && docker run --rm -p 4000:4000 mercy-studio`.
