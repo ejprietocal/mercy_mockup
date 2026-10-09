@@ -5,16 +5,18 @@
 
 /* --- Fuentes -----------------------------------------------------------
    Lekton            -> Google Fonts (se enlaza en el <head> de cada página)
-   Oswald            -> Google Fonts (sustituto de Norwester)
+   Mercy Titulo      -> assets/fonts/mercy-titulo.woff2: Norwester (OFL) + tildes y Ñ,
+                        que la Norwester gratuita no trae (retro C9). Se sirve desde el
+                        sitio, así que se ve igual en celular y computador.
    Kaushan Script    -> Google Fonts (sustituto de Dafoe)
-   Norwester y Dafoe NO están en Google Fonts. Si están instaladas en el equipo
-   se usan vía local(). Para usar archivos con licencia, agrega en `src`:
-     url('../assets/fonts/norwester.woff2') format('woff2')
+   Dafoe NO está en Google Fonts: si está instalada en el equipo se usa vía local().
+   Para servirla a todos, agrega en `src` url('../assets/fonts/dafoe.woff2')
    (ver assets/fonts/README.md). ------------------------------------------ */
 @font-face {
-  font-family: "Norwester";
-  src: local("Norwester"), local("Norwester Regular"), local("Norwester-Regular");
-  font-display: swap;
+  font-family: "Mercy Titulo";
+  src: url("../assets/fonts/mercy-titulo.woff2") format("woff2");
+  font-weight: 100 900;   /* un solo peso real: evita la "negrita falsa" que deforma la letra */
+  font-display: block;   /* archivo propio de 10 KB: mejor esperar que mostrar otra letra */
 }
 @font-face {
   font-family: "Dafoe";
@@ -49,7 +51,7 @@
 
   /* Tipografías (C11): Lekton = textos pequeños · Norwester = nombres/subtítulos · Dafoe = palabra clave */
   --font-small: "Lekton", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --font-title: "Norwester", "Oswald", "Arial Narrow", Impact, sans-serif;
+  --font-title: "Mercy Titulo", "Norwester", "Oswald", "Arial Narrow", Impact, sans-serif;
   --font-accent: "Dafoe", "Kaushan Script", "Brush Script MT", cursive;
 
   /* Escala */

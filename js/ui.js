@@ -176,6 +176,7 @@ window.Mercy = window.Mercy || {};
       return;
     }
     s.style.zIndex = String((top.el.classList.contains("modal") ? Z.modal : Z.drawer) - 1);
+    s.classList.toggle("is-light", top.el.classList.contains("search-panel"));
     s.classList.add("is-on");
     document.body.classList.add("is-locked");
   }

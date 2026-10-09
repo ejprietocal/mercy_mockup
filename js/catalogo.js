@@ -264,19 +264,22 @@
     mn.style.zIndex = state.pmin > (PRICE_MIN + PRICE_MAX) / 2 ? "3" : "";
   }
 
+  /* Retro: los títulos van en una sola tipografía (Norwester); solo "Toda la Colección" conserva la cursiva.
+     C4/C5: el título de resultados es más pequeño y usa comillas “ ”. */
   function titleParts() {
-    if (state.q) return { plain: "Resultados para «" + state.q + "»", html: '<span class="accent">Resultados</span> para «' + esc(state.q) + "»", def: false };
-    if (state.vista === "mas-vendidos") return { plain: "Los más vendidos", html: 'Los más <span class="accent">vendidos</span>', def: false };
-    if (state.vista === "novedades") return { plain: "Novedades", html: '<span class="accent">Novedades</span>', def: false };
+    if (state.q) return { plain: "Resultados para “" + state.q + "”", html: "Resultados para “" + esc(state.q) + "”", def: false, small: true };
+    if (state.vista === "mas-vendidos") return { plain: "Los más vendidos", html: "Los más vendidos", def: false };
+    if (state.vista === "novedades") return { plain: "Novedades", html: "Novedades", def: false };
     if (state.cat.length === 1) {
       const name = D.CATEGORIES.filter(function (c) { return c.id === state.cat[0]; })[0].name;
-      return { plain: name, html: '<span class="accent">' + esc(name) + "</span>", def: false };
+      return { plain: name, html: esc(name), def: false };
     }
-    return { plain: "Toda la colección", html: 'Toda la <span class="accent">colección</span>', def: true };
+    return { plain: "Toda la colección", html: 'Toda la <span class="accent">Colección</span>', def: true };
   }
   function renderHead(total) {
     const t = titleParts();
     el.title.innerHTML = t.html;
+    el.title.classList.toggle("cat-title--sm", !!t.small);
     document.title = (t.def ? "" : t.plain + " · ") + "Catálogo — Mercy Studio";
     el.n.textContent = U.pluralize(total, "diseño", "diseños");
     el.qclear.hidden = !state.q;
@@ -333,7 +336,7 @@
     if (!show) { el.similarGrid.innerHTML = ""; return; }
     el.similarText.textContent = res.list.length
       ? "Otras prendas que podrían interesarte."
-      : "No encontramos coincidencias exactas para «" + state.q + "», pero estas se parecen.";
+      : "No encontramos coincidencias exactas para “" + state.q + "”, pero estas se parecen.";
     el.similarGrid.innerHTML = cards(res.similar);
   }
 
@@ -343,7 +346,7 @@
     if (!empty) return;
     const hasFilters = filterCount() > 0;
     if (state.q) {
-      el.emptyTitle.textContent = hasFilters ? "No encontramos prendas con esos filtros" : "No encontramos prendas para «" + state.q + "»";
+      el.emptyTitle.textContent = hasFilters ? "No encontramos prendas con esos filtros" : "No encontramos prendas para “" + state.q + "”";
       el.emptyText.textContent = hasFilters ? "Prueba quitando algún filtro o mira lo que más gusta de la colección." : "Revisa la escritura, prueba con otro nombre, color o referencia, o explora lo más vendido.";
     } else {
       el.emptyTitle.textContent = "No encontramos prendas con esos filtros";

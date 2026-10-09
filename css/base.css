@@ -21,13 +21,17 @@
 .h3 { font-size: var(--fs-xl); line-height: 1.1; }
 .h4 { font-size: var(--fs-lg); line-height: 1.15; }
 
+/* C0/C14: la cursiva se ve más pequeña que Norwester aunque tenga el mismo tamaño.
+   font-size-adjust iguala la altura de sus minúsculas a una fracción fija del título,
+   así queda proporcional con Dafoe (computador) o con su respaldo (celular). */
 .accent {
   font-family: var(--font-accent);
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
   color: var(--terracota);
-  line-height: 1;
+  font-size-adjust: 0.53;
+  line-height: 0.8;
   white-space: nowrap;
 }
 .on-dark .accent, .accent--light { color: #f0a98a; }

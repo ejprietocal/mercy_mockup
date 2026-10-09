@@ -104,7 +104,7 @@ window.Mercy = window.Mercy || {};
      Plantillas de la estructura
      ====================================================================== */
   function topStripHTML() {
-    const txt = 'Viste con propósito <span aria-hidden="true">·</span> Envíos a toda Colombia <span aria-hidden="true">·</span> Paga por WhatsApp';
+    const txt = 'Viste con propósito <span aria-hidden="true">·</span> Envíos a toda Colombia <span aria-hidden="true">·</span> Compra segura';
     /* En móvil el texto corre en una sola línea (cinta); la copia es decorativa. En escritorio se muestra fijo y centrado. */
     return '<div class="topstrip" role="note"><div class="topstrip__track"><p class="topstrip__text">' + txt + '</p><p class="topstrip__text topstrip__text--dup" aria-hidden="true">' + txt + "</p></div></div>";
   }
@@ -188,13 +188,13 @@ window.Mercy = window.Mercy || {};
     );
   }
 
+  /* C3: resultado compacto (miniatura, nombre, referencia y precio), como la referencia de TRUE */
   function srItem(p) {
-    const cat = D.CATEGORIES.filter(function (c) { return c.id === p.category; })[0];
     return (
       '<a class="sr-item' + (p.soldOut ? " is-soldout" : "") + '" href="producto.html?id=' + encodeURIComponent(p.id) + '">' +
       '<span class="sr-item__thumb">' + U.tileHTML(p, { size: "thumb" }) + "</span>" +
       '<span class="sr-item__info"><span class="sr-item__name">' + esc(p.name) + "</span>" +
-      '<span class="sr-item__meta">Ref. ' + esc(p.ref) + " · " + esc(cat ? cat.name : "") + (p.soldOut ? " · Agotado" : "") + "</span>" +
+      '<span class="sr-item__meta">Ref. ' + esc(p.ref) + (p.soldOut ? " · Agotado" : "") + "</span>" +
       '<span class="sr-item__price">' + money(p.price) + "</span></span></a>"
     );
   }
@@ -214,14 +214,14 @@ window.Mercy = window.Mercy || {};
     const r = search.run(q);
     let html = "";
     if (r.exact.length) {
-      html += '<p class="search-label">' + U.pluralize(r.exact.length, "resultado", "resultados") + ' para «' + esc(q.trim()) + "»</p>";
-      html += '<div class="sr-list">' + r.exact.slice(0, 6).map(srItem).join("") + "</div>";
-      if (r.exact.length > 6) html += '<a class="search-all" href="catalogo.html?q=' + encodeURIComponent(q.trim()) + '">Ver los ' + r.exact.length + " resultados " + I("arrow-right", { size: 18 }) + "</a>";
-      else html += '<a class="search-all" href="catalogo.html?q=' + encodeURIComponent(q.trim()) + '">Ver en el catálogo ' + I("arrow-right", { size: 18 }) + "</a>";
+      const all = '<a class="search-all" href="catalogo.html?q=' + encodeURIComponent(q.trim()) + '">' +
+        (r.exact.length > 8 ? "Ver los " + r.exact.length + " resultados" : "Ver en el catálogo") + " " + I("arrow-right", { size: 16 }) + "</a>";
+      html += '<div class="search-head"><p class="search-label">' + U.pluralize(r.exact.length, "resultado", "resultados") + ' para “' + esc(q.trim()) + "”</p>" + all + "</div>";
+      html += '<div class="sr-list">' + r.exact.slice(0, 8).map(srItem).join("") + "</div>";
     } else {
-      html += '<p class="search-empty">No encontramos nada para «<strong>' + esc(q.trim()) + "</strong>». Prueba con otro nombre, color o referencia.</p>";
+      html += '<p class="search-empty">No encontramos nada para “<strong>' + esc(q.trim()) + "</strong>”. Prueba con otro nombre, color o referencia.</p>";
     }
-    let sims = r.similar.slice(0, r.exact.length ? 3 : 4);
+    let sims = r.similar.slice(0, 4);
     if (!r.exact.length && !sims.length) sims = D.PRODUCTS.slice().sort(function (a, b) { return a.bestRank - b.bestRank; }).slice(0, 4);
     if (sims.length) {
       html += '<p class="search-label search-label--sub">' + (r.exact.length ? "Referencias parecidas" : "Quizá te interese") + '</p><div class="sr-list">' + sims.map(srItem).join("") + "</div>";
@@ -338,8 +338,10 @@ window.Mercy = window.Mercy || {};
   function discountModalHTML() {
     return (
       '<button type="button" class="modal__close modal__close--on-media" data-close aria-label="Cerrar">' + I("close", { size: 24 }) + "</button>" +
-      '<div class="discount__media" aria-hidden="true"><div class="discount__sun"></div>' +
-      '<svg class="discount__crosses" viewBox="0 0 120 60" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M60 8v34M52 17h16M30 24v22M25 30h10M90 24v22M85 30h10"/><path d="M0 52c16-5 30-4 44 0s28 5 44 1 22-5 32-1" stroke-width="2.4"/></svg></div>' +
+      (C.discountImage
+        ? '<div class="discount__media discount__media--img" aria-hidden="true"><img src="' + esc(C.discountImage) + '" alt="" decoding="async"></div>'
+        : '<div class="discount__media" aria-hidden="true"><div class="discount__sun"></div>' +
+          '<svg class="discount__crosses" viewBox="0 0 120 60" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M60 8v34M52 17h16M30 24v22M25 30h10M90 24v22M85 30h10"/><path d="M0 52c16-5 30-4 44 0s28 5 44 1 22-5 32-1" stroke-width="2.4"/></svg></div>') +
       '<div class="discount__body">' +
       '<div class="discount__form-wrap">' +
       '<h2 class="discount__title" id="discount-title">Tu camino de <span class="accent">fe</span> comienza aquí</h2>' +
@@ -408,7 +410,7 @@ window.Mercy = window.Mercy || {};
       '<footer class="site-footer"><div class="site-footer__inner">' +
       '<div class="site-footer__brand">' +
       '<a class="footer-logo" href="index.html" aria-label="Mercy Studio — inicio"><img src="' + C.logo.beige + '" alt="Mercy Studio" width="170" height="85" loading="lazy" decoding="async"></a>' +
-      '<p class="site-footer__tagline">La moda es el medio. <span class="accent">Cristo</span> es el mensaje</p>' +
+      '<p class="site-footer__tagline">La moda es el medio. Cristo es el mensaje</p>' +
       socialLinks("social social--footer") + "</div>" +
       '<nav class="site-footer__col" aria-label="Tienda"><h2 class="site-footer__h">Tienda</h2><ul>' +
       '<li><a href="catalogo.html?vista=novedades">Novedades</a></li>' +

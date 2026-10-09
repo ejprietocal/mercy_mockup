@@ -168,7 +168,7 @@
 .qty-row .stepper { height: 48px; }
 .qty-row .stepper__btn { width: 44px; }
 .qty-row .stepper__value { min-width: 44px; }
-.qty-hint { font-size: var(--fs-xs); color: var(--terracota-oscuro); }
+.qty-hint { font-size: var(--fs-md); font-weight: 700; color: var(--terracota-oscuro); }   /* C15: aviso de pocas unidades más visible */
 .add-btn { margin-top: 16px; min-height: 60px; font-size: var(--fs-md); letter-spacing: 0.14em; }
 .add-btn__icon { display: inline-flex; }
 .btn.is-disabled[aria-disabled="true"]:hover { transform: none; box-shadow: none; }

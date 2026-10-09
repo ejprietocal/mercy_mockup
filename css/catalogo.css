@@ -25,7 +25,8 @@
 /* --- Cabecera: título, subtítulo, píldoras, herramientas ------------------------ */
 .cat-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .cat-title { font-size: clamp(2.25rem, 1.55rem + 3vw, 3.75rem); overflow-wrap: anywhere; line-height: 1.02; }
-.cat-title .accent { white-space: normal; }
+.cat-title .accent { white-space: normal; margin-left: -0.06em; }   /* retro móvil: "Colección" menos separada */
+.cat-title--sm { font-size: clamp(1.625rem, 1.3rem + 1.3vw, 2.375rem); }   /* C4: resultados de búsqueda, título más discreto */
 .cat-sub { margin-top: 12px; color: var(--cafe-suave); font-size: var(--fs-md); line-height: 1.5; }
 .cat-sub__link { margin-left: 8px; color: var(--terracota); font-weight: 700; white-space: nowrap; }
 .cat-sub__link:hover { text-decoration: underline; }

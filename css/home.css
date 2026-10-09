@@ -10,7 +10,6 @@
 @media (min-width: 900px) { .section { padding-block: 88px 96px; } }
 
 .section-title { font-size: clamp(2.25rem, 1.5rem + 2.6vw, 3.5rem); }
-.section-title .accent { font-size: 1.12em; }
 
 /* ==========================================================================
    1 · HERO
@@ -72,7 +71,7 @@
   margin-bottom: 16px; max-width: 20ch;
 }
 .hero__line { display: block; }
-.hero__title .accent { color: #ffcfae; font-size: 1.1em; text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35); }
+.hero__title .accent { color: #ffcfae; text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35); }
 
 .hero__sub {
   max-width: 46ch; margin-bottom: 28px; color: rgba(255, 247, 236, 0.94);
@@ -102,7 +101,7 @@ body.is-marquee-visible .wa-fab { bottom: 84px; }
   background: var(--tinta); color: #ddc9b3;
   border-top: 1px solid rgba(255, 245, 228, 0.08);
 }
-.marquee__track { display: flex; width: max-content; animation: marquee-slide 40s linear infinite; will-change: transform; }
+.marquee__track { display: flex; width: max-content; animation: marquee-slide 75s linear infinite;   /* C7: más lenta (antes 40s) */ will-change: transform; }
 .marquee:hover .marquee__track { animation-play-state: paused; }   /* pausa al pasar el cursor */
 .marquee__group { display: flex; flex: none; }
 .marquee__item {
@@ -127,10 +126,11 @@ body.is-marquee-visible .wa-fab { bottom: 84px; }
    ========================================================================== */
 .favs { background: var(--crema); }
 .favs .section-head { margin-bottom: 36px; }
-.favs__all { min-height: 44px; }
+/* Retro móvil: "Ver todo" como botón terracota (antes era un enlace de texto que no se notaba) */
+.favs__all { min-height: 44px; gap: 8px; padding-inline: 18px; letter-spacing: 0.14em; box-shadow: 0 4px 14px rgba(187, 63, 23, 0.22); }
 @media (max-width: 699px) {
   .favs .section-head { position: relative; }
-  .favs__all { position: absolute; right: 0; top: -14px; }
+  .favs__all { position: absolute; right: 0; top: -12px; min-height: 42px; padding-inline: 14px; }
 }
 .favs__grid.product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 14px; }
 @media (min-width: 700px) { .favs__grid.product-grid { gap: 40px 22px; } }
@@ -146,7 +146,6 @@ body.is-marquee-visible .wa-fab { bottom: 84px; }
 .purpose__inner { display: grid; gap: 28px; text-align: center; justify-items: center; }
 .purpose__head { display: grid; gap: 18px; justify-items: center; }
 .purpose__title { font-size: clamp(2.1rem, 1.1rem + 3.4vw, 4rem); line-height: 1.04; color: var(--crema); max-width: 16ch; }
-.purpose__title .accent { font-size: 1.1em; }
 .purpose__body { display: grid; gap: 30px; justify-items: center; }
 .purpose__text { max-width: 58ch; color: #d9c6b3; line-height: 1.85; font-size: var(--fs-md); }
 .purpose__btn { min-width: 220px; }
@@ -166,7 +165,6 @@ body.is-marquee-visible .wa-fab { bottom: 84px; }
   font-family: var(--font-title); text-transform: uppercase; font-weight: 600;
   font-size: clamp(1.4rem, 1rem + 2vw, 1.9rem); line-height: 1.15; color: var(--tinta);
 }
-.story__quote .accent { font-size: 1.15em; }
 .story__cta { margin-top: 26px; }
 
 /* ==========================================================================
@@ -230,7 +228,7 @@ body.is-marquee-visible .wa-fab { bottom: 84px; }
 }
 @media (min-width: 700px) { .community__card { padding: 64px 56px 48px; border-radius: 18px; } }
 .community__title { font-size: clamp(2rem, 1.2rem + 3vw, 3.4rem); line-height: 1.06; color: #fff; max-width: 20ch; margin-inline: auto; }
-.community__title .accent, .community .accent { color: #ffe2cc; font-size: 1.1em; }
+.community__title .accent, .community .accent { color: #ffe2cc; }
 .community__rule { border: 0; border-top: 3px dotted rgba(255, 226, 204, 0.6); width: min(82%, 520px); margin: 22px auto 20px; }
 .community__sub { max-width: 54ch; margin: 0 auto 28px; font-size: var(--fs-md); line-height: 1.65; color: rgba(255, 255, 255, 0.94); }
 .community__sub strong { display: block; margin-top: 4px; font-weight: 700; letter-spacing: 0.02em; color: #fff; }

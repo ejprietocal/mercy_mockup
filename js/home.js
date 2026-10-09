@@ -102,6 +102,8 @@
     /* El enlace de la foto duplica al del nombre: se saca del orden de tabulación y del árbol accesible */
     $$(".pcard__media", grid).forEach(function (a) { a.setAttribute("tabindex", "-1"); a.setAttribute("aria-hidden", "true"); });
     U.syncFavButtons();
+    const allIcon = $(".favs__all [data-icon]");
+    if (allIcon) allIcon.innerHTML = I(allIcon.getAttribute("data-icon"), { size: +allIcon.getAttribute("data-size") || 16 });
   }
 
   /* ----------------------------------------------------------------------
@@ -114,7 +116,7 @@
     btn.addEventListener("click", function () {
       const html =
         '<p class="story__lead">' + esc(textEl.textContent.trim()) + "</p>" +
-        '<p class="story__quote">La moda es el medio. <span class="accent">Cristo</span> es el mensaje.</p>' +
+        '<p class="story__quote">La moda es el medio. Cristo es el mensaje</p>' +
         '<a class="btn btn--primary story__cta" href="catalogo.html">Conoce la colección</a>';
       U.infoModal("historia", "Nuestra historia", html);
     });

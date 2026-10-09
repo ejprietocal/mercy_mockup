@@ -9,7 +9,7 @@
   <link rel="icon" href="assets/logo/mercy-studio-terracota.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Lekton:wght@400;700&family=Oswald:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Lekton:wght@400;700&display=swap">
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/layout.css">
@@ -161,10 +161,12 @@
           <!-- Paso: Pago (C35) -->
           <section class="co-step co-step--pay" aria-labelledby="h-pay">
             <h2 class="co-step__title" id="h-pay">Pago</h2>
-            <p class="co-step__lead" id="pay-lead">Coordina el pago por WhatsApp con transferencia a:</p>
+            <p class="co-step__lead" id="pay-lead">Elige cómo vas a pagar por transferencia:</p>
             <div class="field pay-field">
-              <div class="pay-list" id="co-pay" role="radiogroup" aria-labelledby="pay-lead" aria-required="true" data-co-pay></div>
+              <div class="pay-list" id="co-pay" role="radiogroup" aria-labelledby="pay-lead" aria-describedby="pay-hint" aria-required="true" data-co-pay></div>
             </div>
+            <!-- C16: el método elegido viaja en el mensaje de WhatsApp; la página no cobra -->
+            <p class="pay-hint" id="pay-hint"><span data-icon="whatsapp" data-size="18"></span><span>Aquí no se cobra nada. El método que elijas llega a Mercy Studio dentro de tu mensaje de WhatsApp y por ese chat te enviamos los datos para transferir.</span></p>
           </section>
         </form>
 

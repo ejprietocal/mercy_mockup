@@ -53,7 +53,7 @@
     setMeta("Prenda no encontrada" + SUFFIX, "No encontramos esa prenda. Mira la colección de Mercy Studio y encuentra la que habla de ti.");
     $("#missing-icon").innerHTML = I("search", { size: 44, stroke: 1.2 });
     $("#pdp-missing").hidden = false;
-    $("#related-title").innerHTML = 'Quizá te <span class="accent">interese</span>';
+    $("#related-title").textContent = "Quizá te interese";
     const list = D.PRODUCTS.slice().sort(byRankInStockFirst).slice(0, 4);
     renderCards(list, $("#related-list"));
     $("#pdp-related").hidden = false;

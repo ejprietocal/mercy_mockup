@@ -8,7 +8,6 @@
 .co { padding-block: clamp(28px, 5vw, 56px) clamp(56px, 8vw, 104px); outline: none; --cafe-suave: #6f6050; }  /* texto secundario con contraste AA sobre crema y blanco */
 .co__intro { margin-bottom: clamp(24px, 3.5vw, 36px); }
 .co__title { font-size: clamp(2.25rem, 1.5rem + 3vw, 3.5rem); }
-.co__title .accent { font-size: 1.12em; }
 .co__sub { margin-top: 12px; color: var(--cafe-suave); }
 .co__req-note { margin-top: 6px; font-size: var(--fs-xs); color: var(--cafe-suave); }
 .req { color: var(--terracota); margin-left: 3px; font-weight: 700; }
@@ -152,6 +151,8 @@
 /* --- Pago (C35): filas tipo radio con logo del banco a la derecha ------------------------ */
 .pay-field { gap: 8px; }
 .pay-list { display: grid; gap: 10px; }
+.pay-hint { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; color: var(--cafe-suave); font-size: var(--fs-xs); line-height: 1.55; }
+.pay-hint .icon { flex: none; color: var(--verde-oscuro); margin-top: 1px; }
 .pay-row {
   display: flex; align-items: center; gap: 16px; min-height: 64px; padding: 12px 18px; cursor: pointer;
   background: #fff; border: 1.5px solid var(--borde-fuerte); border-radius: var(--radius);
@@ -211,7 +212,6 @@
 .co-success { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; padding: clamp(40px, 8vw, 88px) 0 24px; }
 .co-success__check { width: 76px; height: 76px; border-radius: 50%; background: var(--verde); color: #fff; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px; }
 .co-success__title { outline: none; }
-.co-success__title .accent { font-size: 1.15em; }
 .co-success__text { max-width: 46ch; color: #5a4a3b; line-height: 1.6; }
 .co-success__actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 16px; }
 

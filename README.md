@@ -28,7 +28,8 @@ index.html catalogo.html producto.html checkout.html
 css/   tokens · base · layout · components  +  home · catalogo · producto · checkout
 js/    config · data · icons · ui · store · layout  +  home · catalogo · producto · checkout
 assets/logo   logos PNG (terracota #bb3f17, beige #eceae2, oscuro)
-assets/fonts  ver README (Norwester y Dafoe con licencia)
+assets/fonts  mercy-titulo.woff2 (Norwester + tildes, OFL) · ver README
+tools/        build_mercy_titulo.py (genera la fuente de títulos)
 docs/  ANALISIS-RETROALIMENTACION.md · COMENTARIOS-WORD.md · ARQUITECTURA.md
 ```
 

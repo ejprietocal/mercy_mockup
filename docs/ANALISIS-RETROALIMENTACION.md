@@ -130,3 +130,36 @@ Verificado en Chrome (escritorio 1440 y móvil 390; sin desbordes horizontales d
 | C44 carrito overlay derecha→izquierda | `js/layout.js` + `css/layout.css` (`.drawer--right`) |
 
 **Pendiente de insumos del cliente (no bloquea el mockup):** C7/C17 logos en curvas · C11 archivos Norwester/Dafoe · foto/video del hero · logos oficiales de bancos · número real de WhatsApp.
+
+---
+
+# Ronda 2 — "NOTAS DEL PROTOTIPO" (Word del 9 oct.: 18 comentarios + 8 notas de móvil)
+
+### Causa principal: la tipografía
+- **Norwester solo se usaba si estaba instalada en el equipo** (`local()`): en el PC de Valentina se veía, en los celulares salía Oswald. Por eso las notas de móvil piden "verificar que sea NORWESTER".
+- **La Norwester gratuita no trae tildes ni Ñ** (se verificó el archivo: le faltan Á É Í Ó Ú Ñ ¿ ¡). El navegador tomaba esas letras de otra fuente → la "Ó" de PROPÓSITO, la "Í" de INCREÍBLE, etc. se veían distintas (C9).
+- **Solución:** `assets/fonts/mercy-titulo.woff2` = Norwester (OFL) + Á É Í Ó Ú Ü Ñ á é í ó ú ü ñ ¿ ¡ ·, servida desde el sitio (igual en celular y PC). Por la licencia OFL la versión modificada se llama "Mercy Titulo". Se generó con `tools/build_mercy_titulo.py`. También se quitó la "negrita falsa" que el navegador le aplicaba.
+
+| ID | Comentario | Cambio | Estado |
+|----|-----------|--------|--------|
+| C0 | ¿Se puede cambiar la imagen de las cruces? / cursiva más proporcional | Sí: `discountImage` en `js/config.js` (vacío = cruces). La cursiva usa `font-size-adjust`, así queda proporcional al título en todo el sitio | ✅ |
+| C1 | Quitar el punto final de "vistes." | Quitado | ✅ |
+| C2 | Quitar el punto final de "llevas puesto." | Quitado | ✅ |
+| C3 | Búsqueda más compacta (ref. TRUE), que no tape toda la página | Resultados en 4 columnas con miniatura pequeña, nombre, ref. y precio; panel con altura máxima y velo más claro | ✅ |
+| C4/C5 | Título de resultados muy grande; comillas " " en vez de « » | Título más pequeño, una sola tipografía, comillas “ ” (también en la búsqueda y las migas) | ✅ |
+| C6 | "Paga por WhatsApp" → "Compra segura" | Franja superior | ✅ |
+| C7/C8 | Bajar la velocidad de la franja de abajo (la de arriba está bien) | 40 s → 75 s por vuelta; la de arriba sin cambios | ✅ |
+| C9 | Las tildes cambian la letra | Fuente con tildes (ver arriba) | ✅ |
+| C10 | "Cristo" sin cursiva en el footer | Una sola tipografía (también en el modal "Nuestra historia") | ✅ |
+| C11/C12 | Redes: Insta @mercy_studioo · TikTok mercy.studio0 · Facebook "MERCY STUDIO" · WhatsApp pendiente | Instagram y TikTok con sus enlaces reales. Facebook: abre la búsqueda de "MERCY STUDIO" hasta tener el enlace exacto de la página. WhatsApp sigue en placeholder | 🟡 |
+| C13/C14 | "Colección" con C mayúscula y un poco más grande | "Toda la *Colección*" | ✅ |
+| C15 | "Quedan X unidades" un poco más grande | Texto más grande y en negrita | ✅ |
+| C16 | ¿El método de pago me llega por WhatsApp? | Sí: va dentro del mensaje de WhatsApp del pedido ("MÉTODO DE PAGO: Nequi (transferencia)"); la página no cobra. Se agregó una nota en el paso de pago que lo explica | ✅ |
+| C17 | "Hoodies" (título de categoría) en Norwester | Títulos de categoría, "Novedades", "Los más vendidos" y resultados sin cursiva | ✅ |
+| Móvil | Footer pequeño y difuminado | En celular: logo, textos e íconos más pequeños y atenuados | ✅ |
+| Móvil | "Ver todo" no se ve | Botón terracota con flecha | ✅ |
+| Móvil | "Los más vendidos", "También te puede gustar", "Reseñas verificadas": una sola tipografía, Norwester | Sin cursiva (en celular y escritorio, para que la marca se vea igual en ambos) | ✅ |
+| Móvil | "Toda la colección": C mayúscula y menos separada | C mayúscula y menos espacio antes de la cursiva | ✅ |
+| Móvil | Título del producto en Norwester | Resuelto con la fuente servida desde el sitio | ✅ |
+
+**Pendientes:** enlace exacto de Facebook · nuevo número de WhatsApp (`js/config.js`) · archivo de **Dafoe**: en los computadores donde está instalada se ve Dafoe; en los demás (celulares) se ve Kaushan Script, su respaldo.
