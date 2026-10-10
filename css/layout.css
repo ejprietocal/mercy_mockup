@@ -56,11 +56,20 @@
 .site-header__right { display: flex; align-items: center; justify-self: end; gap: 2px; }
 @media (min-width: 900px) { .site-header__right { gap: 8px; } }
 
+/* Acceso al panel (settings.showAdminLink): en celular junto al menú; desde 900 px a la derecha, antes de favoritos */
+.site-header__admin--d { display: none; }
+@media (min-width: 900px) {
+  .site-header__admin--m { display: none; }
+  .site-header__admin--d { display: inline-flex; }
+}
+
 .icon-btn--label { padding-inline: 10px 12px; }
 .icon-btn__text { display: none; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
 @media (min-width: 900px) { .icon-btn__text { display: inline; } .icon-btn--label { padding-inline: 12px 16px; } }
 
 @media (max-width: 899px) { .site-header .icon-btn { min-width: 40px; height: 40px; } .icon-btn--label { padding-inline: 8px; } }
+/* ≤ 374 px (360, 375 justo arriba): los 3 íconos de la derecha no caben en su columna y descentraban el logo ~11 px */
+@media (max-width: 374px) { .site-header .icon-btn { min-width: 36px; } .site-header__right { gap: 0; } }
 
 @media (min-width: 900px) { .site-header .icon-btn { height: 40px; min-width: 42px; } }
 
@@ -145,6 +154,8 @@
 }
 .menu__group { margin-top: 18px; padding-top: 6px; border-top: 2px solid var(--tinta); }
 .menu__link--sub { font-family: var(--font-small); font-size: var(--fs-md); text-transform: none; letter-spacing: 0; font-weight: 400; padding: 13px 0; }
+.menu__link--admin { gap: 10px; color: var(--cafe-suave); }
+.menu__link--admin .icon { flex: none; }
 .menu__foot { display: grid; gap: 14px; }
 .menu__wa { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; color: var(--verde-oscuro); }
 
@@ -232,12 +243,15 @@
 }
 button.cart-promo:hover { background: rgba(187, 63, 23, 0.12); }
 .cart-promo.is-on { border-style: solid; border-color: #b6dcc9; background: #e3f1ea; color: var(--verde-oscuro); font-weight: 400; }
+/* Cupón aplicado que no descuenta (compra mínima / productos no participantes) */
+.cart-promo.is-warn { border-style: solid; border-color: var(--borde-fuerte); background: #f4ece0; color: var(--tinta); font-weight: 400; }
 .cart-promo .icon { flex: none; }
 .totals { display: grid; gap: 6px; }
 .totals div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .totals dt { color: var(--cafe-suave); }
 .totals dd { font-weight: 700; }
 .totals__disc dd, .totals__disc dt { color: var(--verde-oscuro); }
+.totals__disc.is-zero dd, .totals__disc.is-zero dt { color: var(--cafe-suave); }
 .totals .is-total { padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--borde-fuerte); font-size: var(--fs-xl); }
 .totals .is-total dt { color: var(--tinta); font-weight: 700; }
 .cart-note { font-size: var(--fs-xs); color: var(--cafe-suave); line-height: 1.5; }
@@ -295,6 +309,7 @@ button.cart-promo:hover { background: rgba(187, 63, 23, 0.12); }
 .discount__code { display: inline-flex; align-items: center; gap: 12px; margin: 4px 0 12px; padding: 8px 8px 8px 20px; border: 2px dashed var(--terracota); border-radius: var(--radius-pill); background: #fff; }
 .discount__code strong { font-size: var(--fs-xl); letter-spacing: 0.14em; color: var(--terracota-oscuro); }
 .discount__success .btn { margin-top: 12px; }
+.discount__with-code { display: contents; }   /* agrupa oferta + código + nota sin cambiar la grilla */
 
 /* --- Toasts -------------------------------------------------------------------------------- */
 .toasts { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-toast); display: grid; gap: 8px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
@@ -318,6 +333,37 @@ body.is-locked .toasts { bottom: auto; top: calc(16px + env(safe-area-inset-top,
 .wa-fab:hover { transform: scale(1.06); }
 .wa-fab .icon { width: 26px; height: 26px; }
 @media (min-width: 900px) { .wa-fab { right: 28px; bottom: 28px; width: 62px; height: 62px; } .wa-fab .icon { width: 30px; height: 30px; } }
+
+/* --- Barra de edición (sesión del panel abierta) ---------------------------------------------------
+   Pastilla discreta abajo a la izquierda (el botón de WhatsApp va a la derecha). Sube con la franja del
+   hero (Inicio) y con la barra de compra fija del producto (móvil), como el botón de WhatsApp. */
+.edit-bar {
+  position: fixed; left: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-fab);
+  display: inline-flex; align-items: center; height: 40px; padding: 0 4px;
+  background: rgba(42, 30, 20, 0.9); color: var(--crema);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 245, 228, 0.16); border-radius: var(--radius-pill); box-shadow: var(--shadow-md);
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; line-height: 1;
+  opacity: 0.88; transition: opacity var(--t-fast) var(--ease), bottom var(--t-med) var(--ease);
+}
+.edit-bar:hover, .edit-bar:focus-within { opacity: 1; }
+.edit-bar__link { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--radius-pill); white-space: nowrap; }
+.edit-bar__link:hover { background: rgba(255, 245, 228, 0.14); }
+.edit-bar__link .icon { flex: none; color: #f0a98a; }
+.edit-bar__sep { width: 1px; height: 18px; background: rgba(255, 245, 228, 0.28); }
+.edit-bar :focus-visible { outline-color: #fff; }
+@media (max-width: 419px) {
+  /* Celulares angostos: solo "Editar" a la vista (el lector de pantalla oye "Editar esta página") */
+  .edit-bar__more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@media (min-width: 900px) { .edit-bar { left: 28px; bottom: 28px; height: 44px; } .edit-bar__link { height: 36px; } }
+body.is-marquee-visible .edit-bar { bottom: 84px; }
+@media (min-width: 900px) { body.is-marquee-visible .edit-bar { bottom: 96px; } }
+@media (max-width: 899px) { .pdp-bar-on .edit-bar { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); } }
+/* Espacio al final de la página para que la pastilla no tape la última línea (pie legal / checkout sin footer) */
+.has-edit-bar .site-footer__legal { padding-bottom: 72px; }
+body.has-edit-bar[data-footer="none"] { padding-bottom: 72px; }
+@media print { .edit-bar { display: none !important; } body.has-edit-bar[data-footer="none"] { padding-bottom: 0; } }
 
 /* --- Footer (C15–C19) --------------------------------------------------------------------------- */
 .site-footer { background: var(--tinta-3); color: #cdb8a4; margin-top: 0; }

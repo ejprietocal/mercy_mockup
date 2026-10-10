@@ -7,8 +7,10 @@
      · Envío único (domicilio), estado según carrito           · C32 C33 C34 C46
      · ¿Es un regalo? con mensaje y límite de caracteres       · C45
      · Pago por transferencia con logo del banco               · C35
-     · Código de descuento (MERCY15)                           · P22 / C29
-     · Confirmar: mensaje de WhatsApp + modal de vista previa
+     · Código de descuento (cupones del panel: %, fijo, por categoría/producto, compra mínima) · P22 / C29
+     · Confirmar: con cupón se vuelve a VALIDAR (no suma usos); si ya no vale se quita y NO se continúa.
+       Luego mensaje de WhatsApp + modal de vista previa. El uso del cupón se cuenta al ENVIAR («Abrir WhatsApp»):
+       cerrar la vista previa o confirmar en otra pestaña no gasta usos.
    ========================================================================== */
 (function () {
   "use strict";
@@ -40,6 +42,10 @@
   const giftCount = $("[data-gift-count]"), giftLive = $("[data-gift-live]");
 
   let sent = false;          /* el usuario ya abrió WhatsApp con su pedido */
+  let couponBusy = false;    /* validando un código */
+  let confirming = false;    /* validando el cupón al confirmar */
+  const confirmBtn = $("#co-confirm");
+  const CONFIRM_ERR_TEXT = confirmErr.textContent;
   let modal = null;
   let lastMessage = "";
   let refocus = null;        /* {key, step} para devolver el foco tras repintar el carrito */
@@ -168,7 +174,7 @@
       const p = it.product;
       return (
         '<li class="co-line" data-key="' + esc(it.key) + '">' +
-        '<a class="co-line__thumb" href="' + pUrl(p) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "" }) + "</a>" +
+        '<a class="co-line__thumb" href="' + pUrl(p) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId }) + "</a>" +
         '<div class="co-line__info">' +
         '<p class="co-line__name"><a href="' + pUrl(p) + '">' + esc(p.name) + "</a></p>" +
         '<p class="co-line__variant">' + esc(variantText(it)) + "</p>" +
@@ -188,7 +194,7 @@
     sumLinesEl.innerHTML = S.cart.items().map(function (it) {
       const p = it.product;
       return (
-        '<li class="sum-line"><div class="sum-line__thumb">' + U.tileHTML(p, { size: "thumb", alt: "" }) + "</div>" +
+        '<li class="sum-line"><div class="sum-line__thumb">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId }) + "</div>" +
         '<div class="sum-line__info"><p class="sum-line__name">' + esc(p.name) + "</p>" +
         '<p class="sum-line__variant">' + esc(variantText(it)) + "</p>" +
         '<p class="sum-line__qty">Cantidad: ' + it.qty + "</p></div>" +
@@ -210,45 +216,90 @@
     }
   }
 
+  /* "Descuento (CÓDIGO · 15%)" o "(CÓDIGO · $20.000)"; sin descuento efectivo (mínimo no alcanzado / sin productos
+     participantes) solo "Descuento (CÓDIGO)": no promete un valor que no se aplica */
+  function discLabel(info) { return "Descuento (" + info.code + (info.amount ? " · " + info.label : "") + ")"; }
+
   function renderTotals() {
     const sh = S.cart.shipping();
-    const disc = S.cart.discountAmount();
+    const info = S.cart.discountInfo();
     const notIncluded = sh.status === "not-included";
     totalsEl.innerHTML =
       "<div><dt>Subtotal</dt><dd>" + money(S.cart.subtotal()) + "</dd></div>" +
-      (disc ? '<div class="is-disc"><dt>Descuento ' + S.discount.percent() + "%</dt><dd>−" + money(disc) + "</dd></div>" : "") +
+      (info.coupon
+        ? '<div class="is-disc' + (info.amount ? "" : " is-zero") + '" data-co-disc><dt>' + esc(discLabel(info)) + "</dt><dd>" + (info.amount ? "−" + money(info.amount) : money(0)) + "</dd></div>"
+        : "") +
       "<div><dt>Envío</dt><dd" + (sh.status === "free" ? ' class="is-ship-free"' : "") + ">" + (sh.status === "free" ? "Gratis" : "No incluido") + "</dd></div>" +
       '<div class="is-total"><dt>Total</dt><dd>' + money(S.cart.total()) + (notIncluded ? "<small>+ envío por coordinar</small>" : "") + "</dd></div>";
   }
 
-  /* Código de descuento (MERCY15) */
+  /* Código de descuento: aplicado (con aviso si no llega al mínimo / no aplica) o campo para escribirlo.
+     Debajo del campo: "¿Aún no tienes código?" (abre el pop-up) solo si la clienta NO se ha suscrito, con el modal de
+     descuento activo y un cupón de bienvenida vigente; si ya se suscribió y su código no está aplicado (lo cambió por
+     otro o lo quitó), "Usar mi código X" (lo aplica de verdad); si ya lo usó en un pedido, nada. */
   function renderCoupon() {
-    if (S.discount.couponApplied()) {
+    const info = S.cart.discountInfo();
+    if (info.coupon) {
+      const c = info.coupon;
+      /* Sin descuento efectivo (mínimo no alcanzado / sin productos participantes) la caja va en neutro y no promete el valor */
       couponEl.innerHTML =
-        '<p class="coupon__applied">' + I("tag", { size: 18 }) +
-        "<span><strong>" + esc(S.discount.code()) + "</strong> aplicado · " + S.discount.percent() + "% de descuento</span>" +
-        '<button type="button" class="co-link" data-coupon-remove aria-label="Quitar código de descuento">Quitar</button></p>';
+        '<p class="coupon__applied' + (info.amount ? "" : " is-pending") + '">' + I("tag", { size: 18 }) +
+        "<span><strong>" + esc(c.code) + "</strong> " + (info.amount ? "aplicado · " + esc(c.label) + " de descuento" : "agregado · aún sin descuento") + "</span>" +
+        '<button type="button" class="co-link" data-coupon-remove aria-label="Quitar código de descuento">Quitar</button></p>' +
+        (info.message
+          ? '<p class="coupon__note" data-coupon-note>' + I("info", { size: 16 }) + "<span>" + esc(info.message) + "</span></p>"
+          : info.partial ? '<p class="coupon__note coupon__note--soft" data-coupon-note>Aplica solo a los productos participantes.</p>' : "");
       couponEl.classList.remove("has-error");
       return;
     }
+    /* Conserva lo escrito (y el estado de espera) si se repinta mientras tanto */
+    const prev = $("#co-coupon", couponEl);
+    const typed = prev ? prev.value : "";
+    const mine = S.discount.pendingClaim();
+    const ask = mine
+      ? '<button type="button" class="co-link coupon__ask" data-claimed-apply>Usar mi código ' + esc(mine.code) + " (" + esc(mine.label) + " de descuento)</button>"
+      : !S.discount.claimed() && C.discountEnabled && S.discount.welcomeLabel()
+        ? '<button type="button" class="co-link coupon__ask" data-discount-open>¿Aún no tienes código? Obtén ' + esc(S.discount.welcomeLabel()) + " de descuento</button>"
+        : "";
     couponEl.innerHTML =
       '<label class="visually-hidden" for="co-coupon">Código de descuento</label>' +
-      '<div class="coupon__row"><input class="input" id="co-coupon" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Código de descuento">' +
-      '<button type="button" class="btn btn--dark" data-coupon-apply>Aplicar</button></div>' +
-      '<button type="button" class="co-link coupon__ask" data-discount-open>¿Aún no tienes código? Obtén ' + S.discount.percent() + "% de descuento</button>";
+      '<div class="coupon__row"><input class="input" id="co-coupon" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="30" placeholder="Código de descuento">' +
+      '<button type="button" class="btn btn--dark" data-coupon-apply>Aplicar</button></div>' + ask;
+    const inp = $("#co-coupon", couponEl);
+    inp.value = typed;
+    if (couponBusy) setCouponBusy(true);
   }
-  function applyCoupon() {
+  function setCouponBusy(on) {
+    const inp = $("#co-coupon", couponEl), btn = $("[data-coupon-apply]", couponEl);
+    if (on) couponEl.setAttribute("aria-busy", "true"); else couponEl.removeAttribute("aria-busy");
+    if (inp) inp.readOnly = on;
+    if (btn) { btn.disabled = on; btn.textContent = on ? "Aplicando…" : "Aplicar"; }
+  }
+  function applyCoupon(given) {
     const input = $("#co-coupon");
-    if (!input) return;
-    const code = input.value.trim();
+    if (!input || couponBusy) return;
+    const code = given || input.value.trim();
     if (!code) { setErr(input, "Escribe tu código de descuento."); input.focus(); return; }
-    if (S.discount.applyCoupon(code)) {
-      statusEl.textContent = "Código aplicado: " + S.discount.percent() + "% de descuento.";
-      U.toast("¡Código aplicado! " + S.discount.percent() + "% de descuento", { icon: "check" });
-    } else {
-      setErr(input, "Ese código no es válido. Revisa e inténtalo de nuevo.");
-      input.focus();
-    }
+    couponBusy = true;
+    setCouponBusy(true);
+    statusEl.textContent = "Validando el código…";
+    S.discount.applyCoupon(code).then(function (r) {
+      couponBusy = false;
+      setCouponBusy(false);
+      if (r.ok) {
+        const info = S.cart.discountInfo();
+        const msg = info.amount
+          ? "Código " + r.coupon.code + " aplicado: " + r.coupon.label + " de descuento."
+          : "Código " + r.coupon.code + " aplicado. " + info.message;
+        statusEl.textContent = msg;
+        U.toast(info.amount ? "¡Código aplicado! " + r.coupon.label + " de descuento" : info.message, { icon: info.amount ? "check" : "info", ms: info.amount ? 2600 : 4200 });
+        const rm = $("[data-coupon-remove]", couponEl); if (rm) rm.focus({ preventScroll: true });
+        return;
+      }
+      const inp = $("#co-coupon");
+      if (inp) { setErr(inp, r.message); inp.focus(); }
+      statusEl.textContent = r.message;
+    });
   }
 
   /* Vista según el carrito: vacío / formulario / éxito */
@@ -272,17 +323,17 @@
   function buildMessage() {
     const items = S.cart.items();
     const sh = S.cart.shipping();
-    const disc = S.cart.discountAmount();
+    const info = S.cart.discountInfo();
     const val = function (f) { return f.el.value.trim(); };
     const F = {}; FIELDS.forEach(function (f) { F[f.key] = val(f); });
     const pay = D.PAYMENT_METHODS.filter(function (m) { return m.id === currentPay(); })[0];
     const L = [];
-    L.push("Hola Mercy Studio 👋, quiero confirmar mi pedido:", "", "*MI PEDIDO*");
+    L.push(U.waGreeting(", quiero confirmar mi pedido:"), "", "*MI PEDIDO*");
     items.forEach(function (it, i) {
       L.push((i + 1) + ". " + it.product.name + " — " + variantText(it) + " — x" + it.qty + " — " + money(it.lineTotal));
     });
     L.push("", "Subtotal: " + money(S.cart.subtotal()));
-    if (disc) L.push("Descuento " + S.discount.percent() + "% (" + S.discount.code() + "): −" + money(disc));
+    if (info.amount) L.push(discLabel(info) + ": −" + money(info.amount));
     L.push("Envío: " + (sh.status === "free" ? "GRATIS" : "NO INCLUIDO (costo adicional, se coordina por WhatsApp)"));
     L.push("*TOTAL: " + money(S.cart.total()) + "*" + (sh.status === "free" ? "" : " + envío por coordinar"));
     L.push("", "*DATOS DEL CLIENTE*", "Nombre: " + F.name, "Cédula: " + F.cedula.replace(/\D/g, ""), "Celular: " + groupPhone(F.phone));
@@ -330,11 +381,14 @@
       modal.removeAttribute("aria-label");
       $("[data-co-copy]", modal).addEventListener("click", function () { copyText(lastMessage); });
       $("[data-co-open-wa]", modal).addEventListener("click", function () {
-        /* Abrir WhatsApp = pedido enviado: se vacía el carrito y se limpia el formulario guardado */
+        /* Abrir WhatsApp = pedido enviado: se cuenta el uso del cupón (si hubo descuento), se vacía el carrito y se
+           limpia el formulario guardado. El canje va en segundo plano (keepalive): el enlace se abre igual. */
         if (!sent) {
           sent = true;
+          if (S.cart.count() && S.cart.discountInfo().amount) S.discount.redeem();
           clearSaved();
           S.cart.clear();
+          S.discount.removeCoupon();          /* el código ya se usó en este pedido */
           $("[data-co-modal-status]", modal).textContent = "Abrimos WhatsApp en otra pestaña. Cuando termines, cierra esta ventana.";
         }
       });
@@ -358,7 +412,31 @@
   }
 
   /* --- Confirmar ----------------------------------------------------------------------------------------- */
+  function setConfirmBusy(on) {
+    if (!confirmBtn) return;
+    confirmBtn.disabled = on;
+    if (on) confirmBtn.setAttribute("aria-busy", "true"); else confirmBtn.removeAttribute("aria-busy");
+    const label = confirmBtn.querySelector("span:last-child");
+    if (label) {
+      if (on) { if (confirmBtn.__label == null) confirmBtn.__label = label.textContent; label.textContent = "Confirmando…"; }
+      else if (confirmBtn.__label != null) { label.textContent = confirmBtn.__label; confirmBtn.__label = null; }
+    }
+  }
+  /* El cupón ya no vale al confirmar: se quitó (los totales se recalculan con el evento) → se explica y NO se continúa */
+  function couponRejected(r) {
+    const msg = "Quitamos el código " + r.code + ": " + r.message + " Revisa el nuevo total antes de confirmar.";
+    confirmErr.textContent = msg;
+    confirmErr.hidden = false;
+    statusEl.textContent = msg;
+    U.toast("Quitamos el código " + r.code + ": " + r.message, { icon: "info", ms: 5000 });
+    const inp = $("#co-coupon");
+    if (inp) { setErr(inp, r.message); }
+    try { couponEl.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" }); } catch (e) {}
+  }
+
   function submit() {
+    if (confirming) return;
+    confirmErr.textContent = CONFIRM_ERR_TEXT;
     let firstBad = null;
     REQUIRED.forEach(function (f) { if (!validateField(f) && !firstBad) firstBad = f.id; });
     if (!validatePay() && !firstBad) firstBad = "co-pay";
@@ -372,7 +450,19 @@
     alertEl.hidden = true; confirmErr.hidden = true;
     if (!S.cart.count()) { refreshView(); return; }
     save();
-    openModal(buildMessage());
+    const info = S.cart.discountInfo();
+    /* Sin descuento efectivo no hace falta validar. Con descuento se vuelve a validar el código (NO suma usos: el uso
+       se cuenta al abrir WhatsApp, así cerrar la vista previa o confirmar otra vez no lo gasta). */
+    if (!info.amount) { openModal(buildMessage()); return; }
+    confirming = true;
+    setConfirmBusy(true);
+    S.discount.revalidate().then(function (r) {
+      confirming = false;
+      setConfirmBusy(false);
+      if (r.removed) { couponRejected(r); return; }
+      /* ok, o sin red (r.network): se continúa igual; el pedido se coordina por WhatsApp */
+      openModal(buildMessage());
+    });
   }
 
   /* --- Regalo (C45) ----------------------------------------------------------------------------------------- */
@@ -461,6 +551,7 @@
     /* Cupón */
     couponEl.addEventListener("click", function (e) {
       if (e.target.closest("[data-coupon-apply]")) applyCoupon();
+      else if (e.target.closest("[data-claimed-apply]")) { const mine = S.discount.pendingClaim(); if (mine) applyCoupon(mine.code); }
       else if (e.target.closest("[data-coupon-remove]")) {
         S.discount.removeCoupon();
         statusEl.textContent = "Código de descuento quitado.";
@@ -474,9 +565,10 @@
       if (e.target.id === "co-coupon" && e.target.getAttribute("aria-invalid") === "true") setErr(e.target, "");
     });
 
-    /* Estado compartido */
+    /* Estado compartido (el aviso del cupón depende del carrito: compra mínima / productos participantes) */
     document.addEventListener("mercy:cart", function () {
       renderCartLines(); renderSumLines(); renderShipping(); renderTotals(); refreshView();
+      if (S.discount.couponApplied()) renderCoupon();
     });
     document.addEventListener("mercy:discount", function () { renderCoupon(); renderTotals(); });
   }

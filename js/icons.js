@@ -37,7 +37,9 @@ window.Mercy = window.Mercy || {};
     ruler: '<path d="M3.5 16.5l13-13 4 4-13 13z"/><path d="M7.5 12.5l2 2M10.5 9.5l2 2M13.5 6.5l2 2"/>',
     cross: '<path d="M12 3v18M7 8h10"/>',
     user: '<circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20c.9-3.6 3.8-5.4 7.2-5.4s6.3 1.8 7.2 5.4"/>',
-    chat: '<path d="M20.5 11.6a8 8 0 0 1-11.7 7.1L4 20l1.4-4.5a8 8 0 1 1 15.1-3.9z"/>'
+    chat: '<path d="M20.5 11.6a8 8 0 0 1-11.7 7.1L4 20l1.4-4.5a8 8 0 1 1 15.1-3.9z"/>',
+    /* Lápiz (barra "Editar esta página") */
+    edit: '<path d="M4 20h4L19.2 8.8a2.1 2.1 0 0 0 0-3L18.2 4.8a2.1 2.1 0 0 0-3 0L4 16z"/><path d="M13.5 6.5l4 4"/>'
   };
 
   /* Relleno (fill) */

@@ -1,340 +1,234 @@
 /* ==========================================================================
    Mercy Studio — data.js
-   Catálogo de ejemplo, categorías, reseñas, ubicaciones y medios de pago.
-   Todos los precios, stocks y textos de producto son DATOS DE EJEMPLO.
+   Construye Mercy.data a partir del contenido administrable (Mercy.content, ver config.js)
+   con la MISMA forma que la tienda usa desde siempre:
+     PRODUCTS (solo publicados; colors = [ids], stock[color][talla], photos, reviews = número,
+     collection = nombre…), COLORS, FITS, CATEGORIES, COLLECTIONS, SIZE_CHARTS, REVIEWS, MARQUEE…
+   Departamentos/ciudades y medios de pago siguen fijos aquí.
+   Defensivo ante contenido editado a mano: listas vacías, campos faltantes, colores sin stock,
+   productos sin fotos o categorías sin productos nunca lanzan excepciones.
    ========================================================================== */
 window.Mercy = window.Mercy || {};
 
 (function () {
-  /* --- Colores disponibles -------------------------------------------- */
-  const COLORS = {
-    negro:      { id: "negro",      name: "Negro",      hex: "#2a1e14" },
-    crema:      { id: "crema",      name: "Crema",      hex: "#f6e9d5" },
-    terracota:  { id: "terracota",  name: "Terracota",  hex: "#bb3f17" },
-    cafe:       { id: "cafe",       name: "Café",       hex: "#6e5847" },
-    taupe:      { id: "taupe",      name: "Taupe",      hex: "#9a8468" },
-    verde:      { id: "verde",      name: "Verde salvia", hex: "#5e7360" },
-    ladrillo:   { id: "ladrillo",   name: "Ladrillo",   hex: "#8e3410" },
-    arena:      { id: "arena",      name: "Arena",      hex: "#d8bea6" }
-  };
+  const CT = Mercy.content || Mercy.DEFAULT_CONTENT || {};
+  const TX = CT.texts || {};
 
-  const SIZES_STD = ["S", "M", "L", "XL", "XXL"];
-
-  const FITS = {
-    regular: "Regular",
-    oversize: "Oversize",
-    boxy: "Boxy"
-  };
-
-  const CATEGORIES = [
-    { id: "camisetas",  name: "Camisetas" },
-    { id: "blusas",     name: "Blusas" },
-    { id: "hoodies",    name: "Hoodies" },
-    { id: "gorras",     name: "Gorras" },
-    { id: "accesorios", name: "Accesorios" }
-  ];
-
-  /* Genera stock por color/talla. `agotado` = { color: ['XXL', ...] }, `bajo` = { 'color:talla': n } */
-  function makeStock(colors, sizes, agotado, bajo, todoAgotado) {
-    const out = {};
-    colors.forEach(function (c, ci) {
-      out[c] = {};
-      sizes.forEach(function (s, si) {
-        let units = 4 + ((ci + si) % 5);
-        if (todoAgotado || (agotado && agotado[c] && agotado[c].indexOf(s) > -1)) units = 0;
-        else if (bajo && bajo[c + ":" + s] != null) units = bajo[c + ":" + s];
-        out[c][s] = units;
-      });
-    });
-    return out;
+  /* --- Utilidades de saneamiento ------------------------------------------ */
+  function arr(v) { return Array.isArray(v) ? v : []; }
+  function str(v) { return v == null ? "" : String(v); }
+  function num(v, d) { const n = typeof v === "number" ? v : (typeof v === "string" && v.trim() !== "" ? Number(v) : NaN); return isFinite(n) ? n : d; }
+  function strList(v) { return arr(v).map(str).map(function (s) { return s.trim(); }).filter(Boolean); }
+  const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+  function hex(v, d) { return HEX.test(str(v)) ? str(v).toLowerCase() : d; }
+  function uniqueBy(list, key) {
+    const seen = {};
+    return list.filter(function (x) { const k = key(x); if (!k || seen[k]) return false; seen[k] = true; return true; });
   }
 
-  /* --- Tablas de medidas (cm) — EJEMPLO ---------------------------------- */
-  const SIZE_CHARTS = {
-    camisetas: {
-      head: ["Talla", "Pecho", "Largo", "Manga"],
-      regular:  [["S", 51, 68, 20], ["M", 53, 70, 21], ["L", 55, 72, 22], ["XL", 57, 74, 23], ["XXL", 59, 76, 24]],
-      oversize: [["S", 56, 72, 24], ["M", 58, 74, 25], ["L", 60, 76, 26], ["XL", 62, 78, 27], ["XXL", 64, 80, 28]],
-      boxy:     [["S", 54, 66, 22], ["M", 56, 68, 23], ["L", 58, 70, 24], ["XL", 60, 72, 25], ["XXL", 62, 74, 26]]
-    },
-    blusas: {
-      head: ["Talla", "Pecho", "Largo", "Manga"],
-      regular:  [["S", 47, 58, 19], ["M", 49, 60, 20], ["L", 51, 62, 21], ["XL", 53, 64, 22], ["XXL", 55, 66, 23]],
-      oversize: [["S", 52, 62, 22], ["M", 54, 64, 23], ["L", 56, 66, 24], ["XL", 58, 68, 25], ["XXL", 60, 70, 26]]
-    },
-    hoodies: {
-      head: ["Talla", "Pecho", "Largo", "Manga"],
-      regular:  [["S", 56, 66, 60], ["M", 58, 68, 61], ["L", 60, 70, 62], ["XL", 62, 72, 63], ["XXL", 64, 74, 64]],
-      oversize: [["S", 60, 70, 62], ["M", 62, 72, 63], ["L", 64, 74, 64], ["XL", 66, 76, 65], ["XXL", 68, 78, 66]]
-    }
-  };
+  /* --- Colores, hormas, categorías y colecciones ------------------------------ */
+  const COLORS = {};
+  arr(CT.colors).forEach(function (c) {
+    if (!c || !c.id || COLORS[c.id]) return;
+    COLORS[c.id] = { id: str(c.id), name: str(c.name) || str(c.id), hex: hex(c.hex, "#999999") };
+  });
 
-  /* --- Detalles por categoría (ítem por ítem — C28) --------------------- */
-  const DETAILS = {
-    camisetas: [
-      "Algodón 100 % de 210 g, transpirable y fresco",
-      "Estampación DTF de alta durabilidad",
-      "Cuello RIB resistente",
-      "Corte unisex y femenino",
-      "Horma disponible: Regular, Oversize o Boxy",
-      "Hecha en Colombia",
-      "Modelo: 1,80 m usa talla L"
-    ],
-    blusas: [
-      "Algodón suave 100 %, ligera y fresca",
-      "Estampación DTF de alta durabilidad",
-      "Corte femenino con caída relajada",
-      "Hecha en Colombia",
-      "Modelo: 1,68 m usa talla M"
-    ],
-    hoodies: [
-      "Algodón French Terry de 320 g, interior suave",
-      "Capota doble con cordón",
-      "Bolsillo canguro",
-      "Estampación DTF de alta durabilidad",
-      "Corte unisex",
-      "Hecha en Colombia",
-      "Modelo: 1,80 m usa talla L"
-    ],
-    gorras: [
-      "Gorra de gabardina con curva clásica",
-      "Bordado en alto relieve",
-      "Cierre ajustable trasero",
-      "Talla única"
-    ],
-    accesorios: [
-      "Tela de lona de algodón resistente",
-      "Estampación serigráfica",
-      "Medidas aprox. 38 × 42 cm",
-      "Hecho en Colombia"
-    ]
-  };
+  const FITS = {};
+  arr(CT.fits).forEach(function (f) {
+    if (f && f.id && !FITS[f.id]) FITS[f.id] = str(f.name) || str(f.id);
+  });
 
-  const CARE = [
-    "Lávala en agua fría y evita la secadora para que no encoja",
-    "Plancha siempre al revés, sin calor directo sobre el diseño",
-    "Lava a mano con tonos similares",
-    "No uses blanqueador, así mantienes los colores vivos"
-  ];
+  const CARE = strList(TX.care);
 
-  const SHIPPING_INFO =
-    "Enviamos a toda Colombia. Algunas prendas incluyen envío gratis (lo verás marcado en el producto y en tu carrito); " +
-    "en las demás el envío tiene un costo adicional que coordinamos contigo por WhatsApp.";
+  /* --- Guías de tallas (cm) ---------------------------------------------------
+     Forma de siempre: SIZE_CHARTS[idGuía] = { head: [...], regular: [[talla, …], …], oversize: […] }
+     (las claves enumerables son "head" + ids de hormas). Además, NO enumerables: id, name, unit, fits (orden de pestañas). */
+  const SIZE_CHARTS = {};
+  const SIZE_CHART_IDS = [];
+  arr(CT.sizeCharts).forEach(function (g) {
+    if (!g || !g.id || SIZE_CHARTS[g.id]) return;
+    const chart = { head: strList(g.head).length ? strList(g.head) : ["Talla"] };
+    const rows = g.rows && typeof g.rows === "object" ? g.rows : {};
+    const fits = [];
+    Object.keys(rows).forEach(function (fit) {
+      if (fit === "head") return;
+      const list = arr(rows[fit]).filter(function (r) { return Array.isArray(r) && r.length && str(r[0]).trim(); });
+      if (!list.length) return;
+      chart[fit] = list.map(function (r) { return r.map(function (v, i) { return i ? (v == null ? "" : v) : str(v).trim(); }); });
+      fits.push(fit);
+    });
+    if (!fits.length) return;                     // guía sin filas: no se publica
+    Object.defineProperty(chart, "id", { value: str(g.id) });
+    Object.defineProperty(chart, "name", { value: str(g.name) || str(g.id) });
+    Object.defineProperty(chart, "unit", { value: g.unit == null ? "cm" : str(g.unit) });
+    Object.defineProperty(chart, "fits", { value: fits });
+    SIZE_CHARTS[g.id] = chart;
+    SIZE_CHART_IDS.push(str(g.id));
+  });
 
-  const RETURNS_INFO =
-    "¿Te quedó grande o pequeña? Escríbenos por WhatsApp apenas recibas tu pedido y coordinamos el cambio. " +
-    "La prenda debe estar sin uso y con sus etiquetas.";
+  const CATEGORIES = uniqueBy(arr(CT.categories).filter(Boolean), function (c) { return c.id; }).map(function (c) {
+    return {
+      id: str(c.id), name: str(c.name) || str(c.id),
+      details: strList(c.details),
+      sizeChart: c.sizeChart && SIZE_CHARTS[c.sizeChart] ? str(c.sizeChart) : "",
+      inFooter: c.inFooter !== false
+    };
+  });
+  function categoryById(id) { return CATEGORIES.filter(function (c) { return c.id === id; })[0] || null; }
 
-  /* --- Productos ----------------------------------------------------------
-     tile: degradado + texto grande (placeholder de foto, como en las capturas)
-     envioGratis: true => este producto incluye envío (C32/C34)               */
+  const COLLECTIONS = uniqueBy(arr(CT.collections).filter(Boolean), function (c) { return c.id; }).map(function (c) {
+    return { id: str(c.id), name: str(c.name) || str(c.id), description: str(c.description) };
+  });
+  function collectionById(id) { return COLLECTIONS.filter(function (c) { return c.id === id; })[0] || null; }
+
+  const SHIPPING_INFO = str(TX.shippingInfo);
+  const RETURNS_INFO = str(TX.returnsInfo);
+
+  /* --- Fotos -------------------------------------------------------------------
+     Foto = { src, thumb, alt, zoom, ox, oy } (contrato §3). Pexels → tamaños con ?w=;
+     fotos subidas con miniatura → srcset "thumb 600w, src 2000w"; otras URLs → solo src. */
+  const PEXELS = /^https?:\/\/images\.pexels\.com\//i;
+  const PCT = /^-?\d{1,3}(?:\.\d+)?%$/;                // punto de origen del acercamiento ("50%")
+  function normPhoto(ph) {
+    if (typeof ph === "string") ph = { src: ph };
+    if (!ph || typeof ph !== "object" || !str(ph.src).trim()) return null;
+    const zoom = num(ph.zoom, null);
+    return {
+      src: str(ph.src).trim(), thumb: str(ph.thumb).trim(), alt: str(ph.alt),
+      zoom: zoom && zoom > 0 ? zoom : null,
+      ox: PCT.test(str(ph.ox)) ? str(ph.ox) : null, oy: PCT.test(str(ph.oy)) ? str(ph.oy) : null
+    };
+  }
+  /* URL de una foto para un ancho dado. Acepta una foto, una URL o (compatibilidad) un id numérico de Pexels. */
+  function photoUrl(ph, w) {
+    if (typeof ph === "number") return "https://images.pexels.com/photos/" + ph + "/pexels-photo-" + ph + ".jpeg?auto=compress&cs=tinysrgb&w=" + w;
+    const src = typeof ph === "string" ? ph : (ph && ph.src) || "";
+    if (PEXELS.test(src)) return src.split("?")[0] + "?auto=compress&cs=tinysrgb&w=" + w;
+    if (ph && ph.thumb && w && w <= 600) return ph.thumb;
+    return src;
+  }
+  /* srcset para los anchos pedidos ("" si la foto no tiene variantes) */
+  function photoSrcset(ph, widths) {
+    const src = (ph && ph.src) || "";
+    if (PEXELS.test(src)) return (widths || [640]).map(function (w) { return photoUrl(ph, w) + " " + w + "w"; }).join(", ");
+    if (ph && ph.thumb) return ph.thumb + " 600w, " + src + " 2000w";
+    return "";
+  }
+
+  /* --- Productos ----------------------------------------------------------------
+     Solo publicados (status "draft" = invisible). colors: [{ color, photos, stock }] → colors: [ids],
+     stock[color][talla], colorPhotos[color] = [fotos]. */
   const P = [];
-  function add(p) { P.push(p); }
+  const seenIds = {};
+  arr(CT.products).forEach(function (raw, idx) {
+    if (!raw || typeof raw !== "object" || !raw.id || seenIds[raw.id]) return;
+    if (raw.status && raw.status !== "published") return;
+    seenIds[raw.id] = true;
 
-  add({
-    id: "gracia", ref: "GRA-001", name: "Camiseta Gracia", category: "camisetas",
-    fits: ["oversize", "regular", "boxy"], badge: "Oversize", price: 89900, collection: "Renacer",
-    colors: ["terracota", "negro", "crema", "cafe"], sizes: SIZES_STD,
-    stock: makeStock(["terracota", "negro", "crema", "cafe"], SIZES_STD, { crema: ["XXL"] }),
-    envioGratis: true, bestRank: 1, newRank: 4, rating: 4.9, reviews: 112,
-    tile: { from: "#d8bea6", to: "#b77e5d", lines: ["GRACIA"], sub: "SOBRE GRACIA" },
-    tags: ["gracia", "oversize", "fe", "amor"],
-    story: "“Gracia” nació de una verdad sencilla: lo mejor que hemos recibido nunca lo merecimos. Es un recordatorio de que hay amor que no se gana, se acepta."
-  });
-  add({
-    id: "fe", ref: "FE-002", name: "Camiseta Fe", category: "camisetas",
-    fits: ["regular", "oversize", "boxy"], badge: "Nuevo", price: 79900, collection: "Renacer",
-    colors: ["negro", "crema", "terracota"], sizes: SIZES_STD,
-    stock: makeStock(["negro", "crema", "terracota"], SIZES_STD, { negro: ["XXL"], crema: ["S"] }),
-    envioGratis: false, bestRank: 2, newRank: 1, rating: 4.9, reviews: 48,
-    tile: { from: "#c5a68b", to: "#a44809", lines: ["FE"] },
-    tags: ["fe", "creer", "renacer"],
-    story: "“Fe” nació de un momento de incertidumbre. Es un recordatorio de que creer no siempre es ver — es seguir caminando confiando. Quien la lleva puesta declara aquello que sostiene su corazón."
-  });
-  add({
-    id: "salmo-23", ref: "SAL-023", name: "Hoodie Salmo 23", category: "hoodies",
-    fits: ["oversize", "regular"], badge: "", price: 139900, collection: "Salmos",
-    colors: ["negro", "taupe"], sizes: SIZES_STD,
-    stock: makeStock(["negro", "taupe"], SIZES_STD, { taupe: ["XXL"] }),
-    envioGratis: true, bestRank: 3, newRank: 8, rating: 5.0, reviews: 64,
-    tile: { from: "#8d7864", to: "#3b2d23", lines: ["SALMO", "23"], stacked: true },
-    tags: ["salmo", "pastor", "hoodie", "buzo"],
-    story: "El Señor es mi pastor, nada me faltará. Un hoodie para los días de frío, de incertidumbre y de descanso en Él."
-  });
-  add({
-    id: "renacer", ref: "REN-004", name: "Camiseta Renacer", category: "camisetas",
-    fits: ["regular", "oversize"], badge: "Oversize", price: 84900, collection: "Renacer",
-    colors: ["arena", "negro", "crema", "verde", "terracota"], sizes: SIZES_STD,
-    stock: makeStock(["arena", "negro", "crema", "verde", "terracota"], SIZES_STD, { verde: ["XL", "XXL"] }),
-    envioGratis: false, bestRank: 4, newRank: 2, rating: 4.8, reviews: 39,
-    tile: { from: "#d8bea6", to: "#a76d4a", lines: ["RENACER"] },
-    tags: ["renacer", "nueva vida", "oversize"],
-    story: "Todo lo que parecía final fue el principio. “Renacer” es para quien volvió a empezar de la mano de Dios."
-  });
-  add({
-    id: "esperanza", ref: "ESP-005", name: "Camiseta Esperanza", category: "camisetas",
-    fits: ["regular", "boxy"], badge: "", price: 79900, collection: "Renacer",
-    colors: ["cafe", "crema"], sizes: SIZES_STD,
-    stock: makeStock(["cafe", "crema"], SIZES_STD, {}),
-    envioGratis: false, bestRank: 5, newRank: 6, rating: 4.9, reviews: 27,
-    tile: { from: "#c0ae95", to: "#715b4a", lines: ["ESPERANZA"] },
-    tags: ["esperanza", "confianza"],
-    story: "La esperanza no defrauda. “Esperanza” es una declaración silenciosa de que lo mejor aún viene."
-  });
-  add({
-    id: "amen", ref: "AME-006", name: "Camiseta Amén", category: "camisetas",
-    fits: ["regular"], badge: "", price: 84900, collection: "Salmos",
-    colors: ["terracota", "negro"], sizes: SIZES_STD,
-    stock: makeStock(["terracota", "negro"], SIZES_STD, {}, {}, true),
-    envioGratis: false, bestRank: 6, newRank: 12, rating: 4.7, reviews: 18, soldOut: true,
-    tile: { from: "#8f7f6d", to: "#75370c", lines: ["AMÉN"] },
-    tags: ["amen", "así sea"],
-    story: "Así sea. “Amén” cierra cada oración con confianza y empieza cada día con expectativa."
-  });
-  add({
-    id: "jesus-es-el-camino", ref: "JECVV", name: "Camiseta Ref. Jesús es el camino", category: "camisetas",
-    fits: ["oversize", "regular"], badge: "Oversize", price: 105900, collection: "Juan 14:6",
-    colors: ["negro"], sizes: ["S", "M", "L", "XL"],
-    stock: makeStock(["negro"], ["S", "M", "L", "XL"], {}),
-    prints: [
-      { id: "naranja", name: "Naranja", hex: "#e8620a" },
-      { id: "azul", name: "Azul noche", hex: "#2f2f63" }
-    ],
-    envioGratis: true, bestRank: 7, newRank: 3, rating: 5.0, reviews: 21,
-    tile: { from: "#5b2418", to: "#1c0f0b", lines: ["JESÚS", "ES EL CAMINO"], fs: 11 },
-    tags: ["jesus", "camino", "verdad", "vida", "juan"],
-    desc: "Camiseta en algodón de 210 gr, con horma Oversize o Regular Fit, cuello RIB resistente.",
-    story: "“Yo soy el camino, la verdad y la vida.” Juan 14:6. Una camiseta para declarar hacia dónde caminas."
-  });
-  add({
-    id: "paz", ref: "PAZ-007", name: "Camiseta Paz", category: "camisetas",
-    fits: ["regular", "oversize", "boxy"], badge: "Nuevo", price: 79900, collection: "Renacer",
-    colors: ["crema", "verde", "negro"], sizes: SIZES_STD,
-    stock: makeStock(["crema", "verde", "negro"], SIZES_STD, { verde: ["S"] }),
-    envioGratis: false, bestRank: 9, newRank: 5, rating: 4.8, reviews: 14,
-    tile: { from: "#c9c3a8", to: "#5e7360", lines: ["PAZ"] },
-    tags: ["paz", "calma"],
-    story: "Una paz que sobrepasa todo entendimiento. “Paz” es para los días en que solo necesitas descansar en Él."
-  });
-  add({
-    id: "misericordia", ref: "MIS-101", name: "Blusa Misericordia", category: "blusas",
-    fits: ["regular", "oversize"], badge: "", price: 74900, collection: "Misericordia",
-    colors: ["crema", "terracota", "negro"], sizes: SIZES_STD,
-    stock: makeStock(["crema", "terracota", "negro"], SIZES_STD, { terracota: ["XXL"] }),
-    envioGratis: true, bestRank: 8, newRank: 7, rating: 4.9, reviews: 33,
-    tile: { from: "#e3cdb4", to: "#bb3f17", lines: ["MISERI-", "CORDIA"], fs: 13 },
-    tags: ["misericordia", "blusa", "mujer"],
-    story: "Nuevas cada mañana son sus misericordias. Una blusa suave para recordarlo cada día."
-  });
-  add({
-    id: "luz", ref: "LUZ-102", name: "Blusa Luz", category: "blusas",
-    fits: ["regular"], badge: "Nuevo", price: 69900, collection: "Misericordia",
-    colors: ["crema", "arena"], sizes: SIZES_STD,
-    stock: makeStock(["crema", "arena"], SIZES_STD, {}),
-    envioGratis: false, bestRank: 11, newRank: 9, rating: 4.8, reviews: 9,
-    tile: { from: "#f1e1c8", to: "#c8956c", lines: ["LUZ"] },
-    tags: ["luz", "blusa", "mujer"],
-    story: "Ustedes son la luz del mundo. “Luz” es para brillar sin hacer ruido."
-  });
-  add({
-    id: "gloria", ref: "GLO-201", name: "Hoodie Gloria", category: "hoodies",
-    fits: ["oversize"], badge: "Oversize", price: 149900, collection: "Salmos",
-    colors: ["ladrillo", "negro"], sizes: SIZES_STD,
-    stock: makeStock(["ladrillo", "negro"], SIZES_STD, { ladrillo: ["S"] }),
-    envioGratis: true, bestRank: 10, newRank: 10, rating: 4.9, reviews: 16,
-    tile: { from: "#a4552c", to: "#3a1b0f", lines: ["GLORIA"] },
-    tags: ["gloria", "hoodie", "buzo", "alabanza"],
-    story: "Toda la gloria es de Él. Un hoodie pesado, cálido y con propósito."
-  });
-  add({
-    id: "gorra-proposito", ref: "GOR-301", name: "Gorra Propósito", category: "gorras",
-    fits: [], badge: "", price: 59900, collection: "Renacer",
-    colors: ["negro", "crema", "cafe"], sizes: ["Única"],
-    stock: makeStock(["negro", "crema", "cafe"], ["Única"], { cafe: ["Única"] }),
-    envioGratis: false, bestRank: 12, newRank: 11, rating: 4.7, reviews: 11,
-    tile: { from: "#b9a58d", to: "#4b392c", lines: ["PROPÓSITO"], small: true },
-    tags: ["gorra", "proposito"],
-    story: "Porque nada es casualidad. Una gorra para caminar con propósito."
-  });
-  add({
-    id: "tote-mercy", ref: "TOT-401", name: "Tote Bag Mercy", category: "accesorios",
-    fits: [], badge: "Nuevo", price: 49900, collection: "Mercy",
-    colors: ["crema", "negro"], sizes: ["Única"],
-    stock: makeStock(["crema", "negro"], ["Única"], {}),
-    envioGratis: false, bestRank: 13, newRank: 13, rating: 4.8, reviews: 8,
-    tile: { from: "#efe0cb", to: "#bb3f17", lines: ["MERCY"] },
-    tags: ["tote", "bolso", "accesorio"],
-    story: "Para llevar lo que necesitas — y compartir lo que crees."
-  });
-  add({
-    id: "manilla-fe", ref: "MAN-402", name: "Manilla Fe", category: "accesorios",
-    fits: [], badge: "", price: 24900, collection: "Mercy",
-    colors: ["negro", "terracota"], sizes: ["Única"],
-    stock: makeStock(["negro", "terracota"], ["Única"], {}),
-    envioGratis: false, bestRank: 14, newRank: 14, rating: 4.9, reviews: 22,
-    tile: { from: "#c9a98a", to: "#6b3a1d", lines: ["FE"], small: true },
-    tags: ["manilla", "pulsera", "accesorio"],
-    story: "Un detalle pequeño con un mensaje grande, siempre a la vista."
+    const name = str(raw.name).trim() || str(raw.id);
+    const sizes = uniqueBy(strList(raw.sizes), function (s) { return s; });
+    const entries = uniqueBy(arr(raw.colors).filter(function (c) { return c && typeof c === "object" && c.color; }), function (c) { return c.color; });
+    const colors = entries.map(function (c) { return str(c.color); });
+    const stock = {}, colorPhotos = {};
+    entries.forEach(function (c) {
+      const id = str(c.color);
+      const st = c.stock && typeof c.stock === "object" ? c.stock : {};
+      stock[id] = {};
+      sizes.forEach(function (s) { const n = Math.floor(num(st[s], 0)); stock[id][s] = n > 0 ? n : 0; });
+      colorPhotos[id] = arr(c.photos).map(normPhoto).filter(Boolean).slice(0, 4);   // máx. 4 por color
+    });
+
+    const t = raw.tile && typeof raw.tile === "object" ? raw.tile : {};
+    const tileLines = strList(t.lines);
+    const cat = categoryById(str(raw.category));
+    const col = raw.collection ? collectionById(str(raw.collection)) : null;
+    const details = strList(raw.details);
+    const care = strList(raw.care);
+    const reviewsCount = Math.max(0, Math.round(num(raw.reviewsCount, num(raw.reviews, 0))));
+
+    const p = {
+      id: str(raw.id), ref: str(raw.ref), name: name,
+      category: str(raw.category),
+      collection: col ? col.name : "", collectionId: col ? col.id : "",
+      fits: strList(raw.fits).filter(function (f) { return FITS[f]; }),
+      sizes: sizes,
+      price: Math.max(0, Math.round(num(raw.price, 0))),
+      badge: str(raw.badge).trim(),
+      envioGratis: !!raw.envioGratis,
+      bestRank: num(raw.bestRank, 1000 + idx), newRank: num(raw.newRank, 1000 + idx),
+      rating: Math.max(0, Math.min(5, num(raw.rating, 0))), reviews: reviewsCount, reviewsCount: reviewsCount,
+      colors: colors, stock: stock, colorPhotos: colorPhotos,
+      prints: arr(raw.prints).filter(function (x) { return x && x.id; }).map(function (x) {
+        return { id: str(x.id), name: str(x.name) || str(x.id), hex: hex(x.hex, "#999999") };
+      }),
+      video: raw.video && typeof raw.video === "object" && str(raw.video.src).trim()
+        ? { src: str(raw.video.src).trim(), poster: str(raw.video.poster).trim() } : null,
+      tile: {
+        from: hex(t.from, "#d8bea6"), to: hex(t.to, "#b77e5d"),
+        lines: tileLines.length ? tileLines : [name.toUpperCase()],
+        sub: str(t.sub), stacked: !!t.stacked, small: !!t.small, fs: num(t.fs, null) || null
+      },
+      tags: strList(raw.tags), desc: str(raw.desc).trim(), story: str(raw.story).trim(),
+      sizeChart: cat && cat.sizeChart ? cat.sizeChart : "",
+      details: details.length ? details : (cat ? cat.details.slice() : []),
+      care: care.length ? care : CARE.slice()
+    };
+    /* Sin estampados la propiedad no existe (forma de siempre: store.js asume p.prints[0] si la hay) */
+    if (!p.prints.length) delete p.prints;
+    p.soldOut = !!raw.soldOut || colors.every(function (c) {
+      return Object.keys(stock[c]).every(function (s) { return stock[c][s] === 0; });
+    });
+    p.initialColor = colors.filter(function (c) { return colorHasStock(p, c); })[0] || colors[0] || "";
+    p.photos = photosFor(p, p.initialColor);
+    P.push(p);
   });
 
-  /* --- Fotos de vista previa (Pexels, licencia libre; enlazadas, no descargadas) ------
-     IDs de fotos de https://www.pexels.com — solo para ver cómo se vería con fotografía real.
-     Se desactivan con Mercy.config.stockPhotos = false. Orden: [principal, alterna 1, alterna 2]. */
-  /* Cada producto muestra SIEMPRE la misma prenda: o bien una serie de la misma sesión de estudio
-     (misma prenda y modelo, distintas poses), o bien acercamientos (zoom) de una sola foto.
-     Entrada = id  |  { id, zoom, ox, oy }  (zoom y punto de origen en %, para los detalles) */
-  const zoomOn = function (id, zoom, ox, oy) { return { id: id, zoom: zoom, ox: ox, oy: oy }; };
-  const PHOTOS = {
-    /* Camiseta terracota (estudio, fondo blanco): una sola modelo, detalles por zoom */
-    "gracia":             [12395682, zoomOn(12395682, 1.9, "50%", "62%"), zoomOn(12395682, 1.7, "50%", "22%")],
-    /* Camiseta blanca oversize — misma sesión, mismo modelo */
-    "fe":                 [8217536, 8217507, 8217539],
-    /* Hoodie negro, vista de espalda (estudio beige) */
-    "salmo-23":           [6311272, zoomOn(6311272, 1.8, "50%", "22%"), zoomOn(6311272, 1.6, "50%", "62%")],
-    /* Camiseta verde oliva (estudio gris claro) */
-    "renacer":            [9558684, zoomOn(9558684, 1.9, "50%", "42%"), zoomOn(9558684, 1.6, "50%", "20%")],
-    /* Camiseta blanca con gráfico (estudio gris) */
-    "esperanza":          [2364577, zoomOn(2364577, 2.1, "50%", "36%"), zoomOn(2364577, 1.7, "50%", "18%")],
-    /* Camiseta negra, brazos cruzados (estudio) */
-    "amen":               [4584267, zoomOn(4584267, 1.8, "50%", "70%"), zoomOn(4584267, 1.6, "50%", "30%")],
-    "jesus-es-el-camino": [19099186, zoomOn(19099186, 2.1, "52%", "70%"), zoomOn(19099186, 1.6, "50%", "38%")],
-    /* Camiseta negra (estudio gris claro) */
-    "paz":                [9558233, zoomOn(9558233, 1.8, "50%", "62%"), zoomOn(9558233, 1.5, "50%", "30%")],
-    /* Blusa crema, luz suave de ventana */
-    "misericordia":       [11802389, zoomOn(11802389, 1.8, "40%", "62%"), zoomOn(11802389, 1.6, "50%", "30%")],
-    /* Top blanco, luz natural */
-    "luz":                [413885, zoomOn(413885, 1.8, "50%", "62%"), zoomOn(413885, 1.6, "50%", "28%")],
-    /* Hoodie vinotinto (estudio blanco) */
-    "gloria":             [18700212, zoomOn(18700212, 2.0, "50%", "34%"), zoomOn(18700212, 1.6, "50%", "56%")],
-    /* Gorra trucker blanca — misma sesión, mismo modelo */
-    "gorra-proposito":    [9558770, 9558709, 9558927],
-    /* Tote crema + tote negro (colores del producto) */
-    "tote-mercy":         [9603489, 1214212, zoomOn(9603489, 1.7, "70%", "40%")],
-    /* Manilla en muñeca */
-    "manilla-fe":         [814662, zoomOn(814662, 1.9, "52%", "28%"), zoomOn(814662, 1.5, "78%", "22%")]
-  };
-  /* Sin h/fit: se conserva la proporción original y el recorte 4:5 lo hace CSS (object-fit + posición). */
-  function photoUrl(id, w) {
-    return "https://images.pexels.com/photos/" + id + "/pexels-photo-" + id + ".jpeg?auto=compress&cs=tinysrgb&w=" + w;
+  /* Ids anteriores de productos renombrados (products[].formerIds, los pone el servidor) → id actual, para que
+     enlaces viejos (producto.html?id=fe, el botón del hero…), carritos y favoritos sigan llevando a la prenda.
+     Un id real siempre gana sobre un alias. */
+  const ALIASES = {};
+  const BY_ID = {};
+  P.forEach(function (p) { BY_ID[p.id] = p; });
+  arr(CT.products).forEach(function (raw) {
+    if (!raw || typeof raw !== "object" || !BY_ID[str(raw.id)] || (raw.status && raw.status !== "published")) return;
+    strList(raw.formerIds).forEach(function (f) { if (!BY_ID[f] && !ALIASES[f]) ALIASES[f] = str(raw.id); });
+  });
+  function byId(id) {
+    const k = str(id);
+    return (Object.prototype.hasOwnProperty.call(BY_ID, k) && BY_ID[k]) ||
+      (Object.prototype.hasOwnProperty.call(ALIASES, k) && BY_ID[ALIASES[k]]) || null;
   }
 
-  /* Rellena defaults comunes */
-  P.forEach(function (p) {
-    p.photos = PHOTOS[p.id] || [];
-    p.sizeChart = SIZE_CHARTS[p.category] ? p.category : "";
-    p.details = DETAILS[p.category] || [];
-    p.care = CARE;
-    p.soldOut = !!p.soldOut || Object.keys(p.stock).every(function (c) {
-      return Object.keys(p.stock[c]).every(function (s) { return p.stock[c][s] === 0; });
-    });
-  });
+  /* Fotos del color (1–4); si ese color no tiene, las del primer color con fotos; si ninguno, []. */
+  function photosFor(p, colorId) {
+    if (!p || !p.colorPhotos) return (p && p.photos) || [];
+    const own = p.colorPhotos[colorId];
+    if (own && own.length) return own;
+    const first = (p.colors || []).filter(function (c) { return p.colorPhotos[c] && p.colorPhotos[c].length; })[0];
+    return first ? p.colorPhotos[first] : [];
+  }
+  function stockOf(p, color, size) {
+    return p && p.stock && p.stock[color] && p.stock[color][size] != null ? p.stock[color][size] : 0;
+  }
+  function colorHasStock(p, color) {
+    const s = p && p.stock && p.stock[color];
+    return !!s && Object.keys(s).some(function (k) { return s[k] > 0; });
+  }
 
-  /* --- Reseñas ---------------------------------------------------------- */
-  const REVIEWS = [
-    { name: "Laura M.", city: "Bogotá", stars: 5, text: "Excelente calidad y el mensaje me encanta. La tela es suave y el estampado no se ha dañado.", quote: "La calidad es increíble y el mensaje llega al corazón. Me identifiqué apenas la vi." },
-    { name: "Andrés R.", city: "Medellín", stars: 5, text: "Compré la Regular y me quedó perfecta. El proceso por WhatsApp fue muy rápido.", quote: "Pedí por WhatsApp y todo fue rapidísimo. La camiseta se siente premium." },
-    { name: "Valentina C.", city: "Cali", stars: 5, text: "Más que una camiseta, un recordatorio diario. La amo y pedí otra.", quote: "Más que ropa, es un recordatorio de lo que creo. La uso con orgullo." }
-  ];
+  /* --- Reseñas (solo visibles) ------------------------------------------- */
+  const REVIEWS = arr(CT.reviews).filter(function (r) { return r && typeof r === "object" && r.visible !== false && (str(r.quote).trim() || str(r.text).trim()); })
+    .map(function (r) {
+      const quote = str(r.quote).trim(), text = str(r.text).trim();
+      return {
+        id: str(r.id), name: str(r.name).trim() || "Cliente", city: str(r.city).trim(),
+        stars: Math.max(1, Math.min(5, Math.round(num(r.stars, 5)))),
+        quote: quote || text, text: text || quote
+      };
+    });
+
+  /* --- Franja en movimiento del hero (C8, C9, C37) ------------------------- */
+  const MARQUEE = arr(CT.home && CT.home.marquee).filter(function (m) { return m && str(m.text).trim(); })
+    .map(function (m) { return { icon: str(m.icon), text: str(m.text).trim() }; });
 
   /* --- Departamentos → ciudades (C30: primero Departamento, luego Ciudad) */
   const DEPARTMENTS = {
@@ -380,35 +274,31 @@ window.Mercy = window.Mercy || {};
     { id: "bancolombia", name: "Bancolombia Ahorros",  hint: "Transferencia a cuenta de ahorros" }
   ];
 
-  /* --- Franja en movimiento del hero (C8, C9, C37) ----------------------- */
-  const MARQUEE = [
-    { icon: "truck", text: "Envíos a todo el país" },
-    { icon: "heart", text: "Viste con propósito" },
-    { icon: "shield", text: "Compra segura" },
-    { icon: "star", text: "+2.000 clientes felices" }
-  ];
-
   Mercy.data = {
     COLORS: COLORS,
     FITS: FITS,
     CATEGORIES: CATEGORIES,
+    COLLECTIONS: COLLECTIONS,
     PRODUCTS: P,
     SIZE_CHARTS: SIZE_CHARTS,
+    SIZE_CHART_IDS: SIZE_CHART_IDS,
     SHIPPING_INFO: SHIPPING_INFO,
     RETURNS_INFO: RETURNS_INFO,
+    CARE: CARE,
     REVIEWS: REVIEWS,
     DEPARTMENTS: DEPARTMENTS,
     PAYMENT_METHODS: PAYMENT_METHODS,
     MARQUEE: MARQUEE,
 
     photoUrl: photoUrl,
-    byId: function (id) { return P.filter(function (p) { return p.id === id; })[0] || null; },
-    color: function (id) { return COLORS[id] || { id: id, name: id, hex: "#999" }; },
-    stockOf: function (p, color, size) {
-      return p.stock && p.stock[color] && p.stock[color][size] != null ? p.stock[color][size] : 0;
-    },
-    colorHasStock: function (p, color) {
-      return Object.keys(p.stock[color] || {}).some(function (s) { return p.stock[color][s] > 0; });
-    }
+    photoSrcset: photoSrcset,
+    photosFor: photosFor,
+    /* Producto publicado por id (o por un id anterior si se renombró: el resultado trae el id ACTUAL en p.id) */
+    byId: byId,
+    category: categoryById,
+    collectionById: collectionById,
+    color: function (id) { return COLORS[id] || { id: id, name: str(id), hex: "#999999" }; },
+    stockOf: stockOf,
+    colorHasStock: colorHasStock
   };
 })();

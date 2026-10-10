@@ -3,18 +3,36 @@
    Pantalla CATÁLOGO: título según URL, píldoras de categoría, filtros en
    acordeón CERRADO (C41/C42), orden, chips activos, grilla con "Ver más",
    estado vacío y sincronía con la URL (history.replaceState).
+   Textos desde Mercy.content.texts.catalog; rango de precios, tallas, hormas y colores
+   se calculan de los productos publicados.
    ========================================================================== */
 (function () {
   "use strict";
 
   const U = Mercy.ui, D = Mercy.data, C = Mercy.config;
   const I = U.icon, $ = U.$, $$ = U.$$, esc = U.esc, money = U.money;
+  const TXC = (Mercy.content && Mercy.content.texts && Mercy.content.texts.catalog) || {};
+  function txt(v, d) { return v == null ? d : String(v); }
 
-  /* --- Constantes --------------------------------------------------------- */
-  const PRICE_MIN = 20000, PRICE_MAX = 150000, STEP = 5000;
-  const SIZES = ["S", "M", "L", "XL", "XXL"];
+  /* --- Constantes (calculadas de los productos publicados) -------------------- */
+  const STEP = 5000;
+  const PRICES = D.PRODUCTS.map(function (p) { return p.price; });
+  const PRICE_MIN = PRICES.length ? Math.floor(Math.min.apply(null, PRICES) / STEP) * STEP : 20000;
+  const PRICE_MAX = PRICES.length ? Math.max(PRICE_MIN + STEP, Math.ceil(Math.max.apply(null, PRICES) / STEP) * STEP) : 150000;
+  /* Tallas del filtro: las de los productos (sin "Única"), en orden de tallaje */
+  const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL", "4XL"];
+  const SIZES = (function () {
+    const all = [];
+    D.PRODUCTS.forEach(function (p) { p.sizes.forEach(function (s) { if (all.indexOf(s) < 0 && !/^[úu]nica$/i.test(s)) all.push(s); }); });
+    const rank = function (s) { const i = SIZE_ORDER.indexOf(s.toUpperCase()); return i < 0 ? 100 : i; };
+    return all.sort(function (a, b) { return rank(a) - rank(b); });
+  })();
   const CAT_IDS = D.CATEGORIES.map(function (c) { return c.id; });
-  const FIT_IDS = Object.keys(D.FITS);
+  /* Categorías con al menos un producto publicado (píldoras y filtro) */
+  const CATS_WITH = D.CATEGORIES.filter(function (c) { return D.PRODUCTS.some(function (p) { return p.category === c.id; }); });
+  const FIT_IDS = Object.keys(D.FITS).filter(function (f) {
+    return D.PRODUCTS.some(function (p) { return p.fits.indexOf(f) > -1; });
+  });
   const COLOR_IDS = Object.keys(D.COLORS).filter(function (id) {
     return D.PRODUCTS.some(function (p) { return p.colors.indexOf(id) > -1; });
   });
@@ -47,7 +65,7 @@
     vista: VISTAS.indexOf(params.get("vista")) > -1 ? params.get("vista") : "",
     cat: csv(params, "cat", CAT_IDS),
     fit: csv(params, "fit", FIT_IDS),
-    talla: csv(params, "talla", SIZES, function (v) { return v.toUpperCase(); }),
+    talla: csv(params, "talla", SIZES, function (v) { const u = v.trim().toUpperCase(); return SIZES.filter(function (s) { return s.toUpperCase() === u; })[0] || v; }),
     color: csv(params, "color", COLOR_IDS),
     pmin: PRICE_MIN,
     pmax: PRICE_MAX,
@@ -135,9 +153,9 @@
   }
 
   function buildPills() {
-    const all = [{ id: "", name: "Todo" }].concat(D.CATEGORIES);
+    const all = [{ id: "", name: "Todo" }].concat(CATS_WITH);
     el.pills.innerHTML = all.map(function (c) {
-      return '<button type="button" class="chip" data-pill="' + c.id + '" aria-pressed="false">' + esc(c.name) + "</button>";
+      return '<button type="button" class="chip" data-pill="' + esc(c.id) + '" aria-pressed="false">' + esc(c.name) + "</button>";
     }).join("");
   }
   function syncPills() {
@@ -172,7 +190,7 @@
     );
   }
   function buildFilters() {
-    const catRows = D.CATEGORIES.map(function (c) {
+    const catRows = CATS_WITH.map(function (c) {
       const n = D.PRODUCTS.filter(function (p) { return p.category === c.id; }).length;
       return checkRow("cat", c.id, c.name, n);
     }).join("");
@@ -185,20 +203,20 @@
       "</div>" +
       '<div class="range__vals"><output for="price-min" id="price-min-out"></output><output for="price-max" id="price-max-out"></output></div>';
     const sizes = '<div class="size-grid">' + SIZES.map(function (s) {
-      return '<button type="button" class="size-btn" data-size="' + s + '" aria-pressed="false" aria-label="Talla ' + s + '">' + s + "</button>";
+      return '<button type="button" class="size-btn" data-size="' + esc(s) + '" aria-pressed="false" aria-label="Talla ' + esc(s) + '">' + esc(s) + "</button>";
     }).join("") + "</div>";
     const colors = '<div class="color-grid">' + COLOR_IDS.map(function (id) {
       const c = D.color(id);
-      return '<button type="button" class="swatch-btn" data-color="' + id + '" aria-pressed="false" aria-label="' + esc(c.name) + '" title="' + esc(c.name) + '"><span class="swatch" style="--c:' + c.hex + '"></span></button>';
+      return '<button type="button" class="swatch-btn" data-color="' + esc(id) + '" aria-pressed="false" aria-label="' + esc(c.name) + '" title="' + esc(c.name) + '"><span class="swatch" style="--c:' + c.hex + '"></span></button>';
     }).join("") + '</div><p class="filters__hint" id="color-caption"></p>';
     const stock = checkRow("stock", "1", "Solo en stock");
 
     el.groups.innerHTML =
-      group("cat", "Categoría", '<div class="check-col">' + catRows + "</div>") +
-      group("fit", "Fit", '<div class="check-col">' + fitRows + "</div>") +
+      (CATS_WITH.length ? group("cat", "Categoría", '<div class="check-col">' + catRows + "</div>") : "") +
+      (FIT_IDS.length ? group("fit", "Fit", '<div class="check-col">' + fitRows + "</div>") : "") +
       group("price", "Precio", price) +
-      group("size", "Talla", sizes) +
-      group("color", "Color", colors) +
+      (SIZES.length ? group("size", "Talla", sizes) : "") +
+      (COLOR_IDS.length ? group("color", "Color", colors) : "") +
       group("stock", "Disponibilidad", '<div class="check-col">' + stock + "</div>");
 
     U.initAccordions(el.groups);   /* sin data-open: TODOS cerrados al cargar */
@@ -245,7 +263,8 @@
       const on = state.color.indexOf(b.getAttribute("data-color")) > -1;
       b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", String(on));
     });
-    $("#color-caption", el.groups).textContent = state.color.map(function (id) { return D.color(id).name; }).join(" · ");
+    const cap = $("#color-caption", el.groups);
+    if (cap) cap.textContent = state.color.map(function (id) { return D.color(id).name; }).join(" · ");
     syncRange();
     setCount("cat", state.cat.length); setCount("fit", state.fit.length); setCount("price", priceActive() ? 1 : 0);
     setCount("size", state.talla.length); setCount("color", state.color.length); setCount("stock", state.stock ? 1 : 0);
@@ -268,19 +287,22 @@
      C4/C5: el título de resultados es más pequeño y usa comillas “ ”. */
   function titleParts() {
     if (state.q) return { plain: "Resultados para “" + state.q + "”", html: "Resultados para “" + esc(state.q) + "”", def: false, small: true };
-    if (state.vista === "mas-vendidos") return { plain: "Los más vendidos", html: "Los más vendidos", def: false };
-    if (state.vista === "novedades") return { plain: "Novedades", html: "Novedades", def: false };
+    const best = txt(TXC.bestTitle, "Los más vendidos"), news = txt(TXC.newTitle, "Novedades");
+    if (state.vista === "mas-vendidos") return { plain: U.plain(best), html: esc(U.plain(best)), def: false };
+    if (state.vista === "novedades") return { plain: U.plain(news), html: esc(U.plain(news)), def: false };
     if (state.cat.length === 1) {
-      const name = D.CATEGORIES.filter(function (c) { return c.id === state.cat[0]; })[0].name;
+      const cat = D.CATEGORIES.filter(function (c) { return c.id === state.cat[0]; })[0];
+      const name = cat ? cat.name : state.cat[0];
       return { plain: name, html: esc(name), def: false };
     }
-    return { plain: "Toda la colección", html: 'Toda la <span class="accent">Colección</span>', def: true };
+    const allT = txt(TXC.allTitle, "Toda la *Colección*");
+    return { plain: U.plain(allT), html: U.rich(allT), def: true };
   }
   function renderHead(total) {
     const t = titleParts();
     el.title.innerHTML = t.html;
     el.title.classList.toggle("cat-title--sm", !!t.small);
-    document.title = (t.def ? "" : t.plain + " · ") + "Catálogo — Mercy Studio";
+    document.title = (t.def ? "" : t.plain + " · ") + "Catálogo — " + C.brand;
     el.n.textContent = U.pluralize(total, "diseño", "diseños");
     el.qclear.hidden = !state.q;
     el.crumbs.innerHTML = t.def
@@ -296,7 +318,7 @@
   }
   function renderActive() {
     const items = [];
-    state.cat.forEach(function (id) { items.push(chipHTML("cat", id, D.CATEGORIES.filter(function (c) { return c.id === id; })[0].name)); });
+    state.cat.forEach(function (id) { const c = D.CATEGORIES.filter(function (x) { return x.id === id; })[0]; items.push(chipHTML("cat", id, c ? c.name : id)); });
     state.fit.forEach(function (id) { items.push(chipHTML("fit", id, D.FITS[id])); });
     state.talla.forEach(function (s) { items.push(chipHTML("talla", s, "Talla " + s)); });
     state.color.forEach(function (id) { items.push(chipHTML("color", id, D.color(id).name)); });
@@ -509,7 +531,22 @@
     if (mq.addEventListener) mq.addEventListener("change", placeGroups); else mq.addListener(placeGroups);
   }
 
+  /* --- Textos fijos de la página (texts.catalog) ------------------------------------------- */
+  function renderStaticTexts() {
+    const eb = $(".cat-eyebrow");
+    if (eb) { eb.textContent = txt(TXC.eyebrow, ""); eb.hidden = !eb.textContent.trim(); }
+    const sub = $("#cat-sub > span:first-child");
+    if (sub) {
+      sub.textContent = txt(TXC.subtitle, "");
+      const n = $(".cat-sub__n", el.n.closest("#cat-sub"));
+      if (n) n.firstChild.nodeValue = sub.textContent.trim() ? " · " : "";
+    }
+    const sug = $(".cat-suggest__title");
+    if (sug) sug.textContent = U.plain(txt(TXC.bestTitle, "Los más vendidos"));
+  }
+
   /* --- Arranque ------------------------------------------------------------------------ */
+  renderStaticTexts();
   buildSort();
   buildPills();
   buildFilters();

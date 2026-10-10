@@ -1,7 +1,8 @@
 /* ==========================================================================
    Mercy Studio — ui.js
-   Utilidades compartidas: formato, plantillas (tile / tarjeta de producto),
-   overlays (drawers y modales), acordeones, toasts y validación de formularios.
+   Utilidades compartidas: formato, textos enriquecidos del contenido (rich/fill),
+   plantillas (tile / tarjeta de producto), overlays (drawers y modales),
+   acordeones, toasts y validación de formularios.
    ========================================================================== */
 window.Mercy = window.Mercy || {};
 
@@ -21,25 +22,71 @@ window.Mercy = window.Mercy || {};
   function norm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim(); }
   function qs() { return new URLSearchParams(location.search); }
   function debounce(fn, ms) { let t; return function () { const a = arguments, c = this; clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
+  /* Enlace directo a api.whatsapp.com/send (no wa.me): la redirección de wa.me cambia los emojis de 4 bytes
+     (el 👋 del saludo) por «�» en WhatsApp Web/escritorio. api.whatsapp.com abre igual la app en el celular. */
   function waLink(text) {
-    return "https://wa.me/" + Mercy.config.whatsapp + (text ? "?text=" + encodeURIComponent(text) : "");
+    return "https://api.whatsapp.com/send?phone=" + encodeURIComponent(Mercy.config.whatsapp) + (text ? "&text=" + encodeURIComponent(text) : "");
   }
+  /* Saludo de WhatsApp del contenido (settings.whatsappGreeting) + resto opcional: "Hola Mercy Studio 👋, quiero…" */
+  function waGreeting(rest) { return (Mercy.config.whatsappGreeting || "") + (rest || ""); }
   function pluralize(n, one, many) { return n + " " + (n === 1 ? one : many); }
+  function thousands(n) { return Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+
+  /* --- Textos del contenido (contrato §2) -----------------------------------
+     Se guardan crudos (nunca HTML): aquí se escapan y luego
+       *palabra*  → <span class="accent">palabra</span>   (cursiva de marca; solo si accent !== false)
+       salto \n   → <br>, o una <span class="{lines}"> por línea en títulos multilínea
+     fill(text) reemplaza {descuento} por la etiqueta del cupón de bienvenida ("15%", "$20.000").
+     Sin cupón vigente, {descuento} desaparece sin dejar espacios dobles. */
+  function fill(text) {
+    const dm = Mercy.content && Mercy.content.discountModal;
+    const label = dm && dm.welcome && dm.welcome.label ? String(dm.welcome.label) : "";
+    const s = String(text == null ? "" : text);
+    if (label) return s.replace(/\{descuento\}/g, label);
+    return s.replace(/[ \t]*\{descuento\}/g, "").replace(/[ \t]{2,}/g, " ").trim();
+  }
+  function rich(text, opts) {
+    opts = opts || {};
+    let s = String(text == null ? "" : text).replace(/\r\n?/g, "\n");
+    if (opts.fill) s = fill(s);
+    const fmt = function (line) {
+      const h = esc(line);
+      return opts.accent === false ? h : h.replace(/\*([^*\n]+)\*/g, '<span class="accent">$1</span>');
+    };
+    const lines = s.split("\n");
+    if (opts.lines) return lines.map(function (l) { return '<span class="' + esc(opts.lines) + '">' + fmt(l) + "</span>"; }).join("");
+    return lines.map(fmt).join("<br>");
+  }
+  /* Texto plano de un campo con acento (para title/aria): quita los asteriscos */
+  function plain(text) { return String(text == null ? "" : text).replace(/\*([^*\n]+)\*/g, "$1").replace(/\s*\n\s*/g, " ").trim(); }
+
+  /* URLs del contenido: solo http(s), rutas del sitio, relativas y anclas (contrato §2). Lo demás → "" */
+  function safeUrl(u) {
+    const s = String(u == null ? "" : u).trim().replace(/[\u0000-\u001F\u007F]/g, "");   // el navegador ignora tabs/saltos ("java\tscript:")
+    if (!s) return "";
+    if (/^(https?:)?\/\//i.test(s)) return /^\/\//.test(s) ? "https:" + s : s;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return "";              // javascript:, data:, vbscript:, mailto:…
+    return s;
+  }
 
   function logoHTML(variant, cls) {
-    const src = Mercy.config.logo[variant || "terracota"];
-    return '<img class="' + (cls || "logo__img") + '" src="' + src + '" alt="Mercy Studio" width="160" height="80" decoding="async">';
+    const src = safeUrl(Mercy.config.logo[variant || "terracota"]);
+    return '<img class="' + (cls || "logo__img") + '" src="' + esc(src) + '" alt="' + esc(Mercy.config.brand) + '" width="160" height="80" decoding="async">';
   }
 
-  /* --- Tile (placeholder de foto con degradado, como en las capturas) ---- */
+  /* --- Tile (placeholder de foto con degradado, como en las capturas) ----
+     opts: variant (0–2 degradados alternos · 3 = diapositiva de video), index (foto a usar, por defecto = variant),
+           video (ícono de play), color (fotos de ese color; por defecto las del color inicial), size (thumb|card|large),
+           sub, alt, eager. */
   function tileHTML(p, opts) {
     opts = opts || {};
     const t = p.tile;
     const v = opts.variant || 0;
+    const isVideo = !!opts.video || v === 3;
     let from = t.from, to = t.to;
     if (v === 1) { from = "#e3cdb9"; to = "#b98563"; }
     if (v === 2) { from = "#8a7a6c"; to = "#2e2219"; }
-    const lines = t.lines;
+    const lines = t.lines && t.lines.length ? t.lines : [String(p.name || "")];
     const longest = lines.reduce(function (m, l) { return Math.max(m, l.length); }, 1);
     let fs = Math.max(9, 30 - 2.6 * longest);
     if (t.stacked) fs = Math.max(9, 26 - 2.2 * longest);
@@ -52,26 +99,28 @@ window.Mercy = window.Mercy || {};
       inner = lines.map(function (l) { return '<span class="tile__line">' + esc(l) + "</span>"; }).join("");
     }
     const sub = opts.sub && t.sub ? '<span class="tile__sub">' + esc(t.sub) + "</span>" : "";
-    const label = v === 3 ? '<span class="tile__play">' + icon("play", { size: 28 }) + "</span>" : "";
+    const label = isVideo ? '<span class="tile__play">' + icon("play", { size: 28 }) + "</span>" : "";
 
-    /* Vista previa con fotografía real (Mercy.config.stockPhotos). Si la foto falla, vuelve al degradado con texto. */
+    /* Fotografía (settings.showPhotos): fotos del color pedido (o del inicial). Si la foto falla, vuelve al degradado. */
     let photo = "";
-    const photos = p.photos || [];
+    const photos = opts.color !== undefined && Mercy.data.photosFor ? Mercy.data.photosFor(p, opts.color) : (p.photos || []);
     if (Mercy.config.stockPhotos && photos.length) {
-      const entry = photos[(v === 3 ? 0 : v) % photos.length];
-      const pid = typeof entry === "object" ? entry.id : entry;
-      const zoomStyle = typeof entry === "object"
-        ? ' style="--zoom:' + entry.zoom + ";--ox:" + (entry.ox || "50%") + ";--oy:" + (entry.oy || "50%") + '"' : "";
+      const idx = opts.index != null ? opts.index : (v === 3 ? 0 : v);
+      const entry = photos[idx % photos.length];
+      const zoomStyle = entry.zoom || entry.ox || entry.oy
+        ? ' style="' + (entry.zoom ? "--zoom:" + esc(entry.zoom) + ";" : "") + "--ox:" + esc(entry.ox || "50%") + ";--oy:" + esc(entry.oy || "50%") + '"' : "";
       const size = opts.size || "card";
       const set = { thumb: [160, 320], card: [420, 640, 900], large: [640, 900, 1200] }[size] || [420, 640, 900];
       const sizes = { thumb: "96px", card: "(min-width: 1100px) 25vw, 50vw", large: "(min-width: 900px) 50vw, 100vw" }[size];
-      const srcset = set.map(function (w) { return Mercy.data.photoUrl(pid, w) + " " + w + "w"; }).join(", ");
-      photo = '<img class="tile__img"' + zoomStyle + ' src="' + Mercy.data.photoUrl(pid, set[1]) + '" srcset="' + srcset + '" sizes="' + sizes + '" alt="' +
-        (opts.alt === undefined ? esc(p.name) : esc(opts.alt)) + '" loading="' + (opts.eager ? "eager" : "lazy") + '" decoding="async">';
+      const srcset = Mercy.data.photoSrcset(entry, set);
+      const src = Mercy.data.photoUrl(entry, set[1]);
+      const alt = opts.alt === undefined ? (entry.alt || p.name) : opts.alt;
+      photo = '<img class="tile__img"' + zoomStyle + ' src="' + esc(safeUrl(src)) + '"' +
+        (srcset ? ' srcset="' + esc(srcset) + '" sizes="' + sizes + '"' : "") + ' alt="' + esc(alt) + '" loading="' + (opts.eager ? "eager" : "lazy") + '" decoding="async">';
     }
     return (
       '<div class="tile' + (t.stacked ? " tile--stacked" : "") + (photo ? " tile--photo" : "") + '" style="--tile-from:' + from + ";--tile-to:" + to + ";--tile-fs:" + fs.toFixed(2) + 'cqw">' +
-      '<div class="tile__text">' + (v === 3 ? "" : inner) + sub + "</div>" + photo + label + "</div>"
+      '<div class="tile__text">' + (isVideo ? "" : inner) + sub + "</div>" + photo + label + "</div>"
     );
   }
 
@@ -384,7 +433,8 @@ window.Mercy = window.Mercy || {};
 
   Mercy.ui = {
     $: $, $$: $$, esc: esc, money: money, norm: norm, qs: qs, debounce: debounce, waLink: waLink,
-    pluralize: pluralize, icon: icon, logoHTML: logoHTML,
+    pluralize: pluralize, thousands: thousands, icon: icon, logoHTML: logoHTML, waGreeting: waGreeting,
+    rich: rich, fill: fill, plain: plain, safeUrl: safeUrl,
     tileHTML: tileHTML, cardHTML: cardHTML, syncFavButtons: syncFavButtons, stepperHTML: stepperHTML,
     overlay: overlay, createDrawer: createDrawer, createModal: createModal, infoModal: infoModal,
     initAccordions: initAccordions, setAcc: setAcc, toast: toast,

@@ -210,6 +210,9 @@
 .video-ph__msg strong { font-family: var(--font-title); font-size: 1.5rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
 .video-ph__msg > span:last-child { font-size: var(--fs-sm); opacity: 0.85; }
 .video-ph__icon { display: inline-flex; width: 68px; height: 68px; align-items: center; justify-content: center; padding-left: 4px; border: 2px solid rgba(255, 255, 255, 0.8); border-radius: 50%; }
+/* Video real de la prenda (p.video): reproductor nativo con controles */
+.video-player { position: relative; border-radius: 6px; overflow: hidden; background: var(--tinta-2); }
+.video-player__el { display: block; width: 100%; max-height: 72vh; aspect-ratio: 16 / 9; object-fit: contain; background: #000; }
 
 /* --- No encontrado ------------------------------------------------------------------------- */
 .pdp-missing { padding-block: 24px 24px; }

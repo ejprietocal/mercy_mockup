@@ -1,9 +1,22 @@
+# Solo entra a la imagen lo que copia el Dockerfile; esto evita enviar basura al contexto de build
 .git
 .github
 .gitignore
 .gitattributes
+.claude
+**/.DS_Store
+node_modules
+data
 _verify
 docs
+tools
+deploy
+server/test
 README.md
+# Documentación dentro de carpetas que sí se copian (admin/README.md, assets/fonts/README.md): no se sirve, sobra en la imagen
+**/*.md
 Dockerfile
 .dockerignore
+*.log
+.env
+.env.*

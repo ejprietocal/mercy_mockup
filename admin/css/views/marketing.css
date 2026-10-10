@@ -1,0 +1,185 @@
+/* ==========================================================================
+   Mercy Studio · Panel — css/views/marketing.css
+   Estilos propios de: Cupones, Suscriptores y Usuarios (coupons.js, subscribers.js, users.js).
+   Usa los tokens y componentes de ../admin.css; prefija las clases con la vista.
+   Índice: 1 Comunes · 2 Cupones (listado) · 3 Cupones (editor y selector de productos)
+           4 Suscriptores · 5 Usuarios · 6 Responsive
+   ========================================================================== */
+
+/* 1 · Comunes --------------------------------------------------------------- */
+.mk-stats { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.mk-only-mobile { display: none; }
+.mk-slot { display: grid; gap: 18px; min-width: 0; }
+.mk-meter {
+  display: block; width: 72px; height: 4px; border-radius: 4px; background: var(--c-surface-3); overflow: hidden;
+}
+.mk-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--c-accent); }
+.mk-meter > span.is-full { background: var(--c-warning); }
+.mk-meter--lg { width: 100%; height: 6px; }
+
+/* 2 · Cupones (listado) ----------------------------------------------------- */
+.mk-code-cell { display: grid; gap: 2px; min-width: 0; max-width: 340px; }
+.mk-code-cell__top { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.mk-code { font-family: var(--font-mono); font-weight: 700; font-size: 0.92rem; letter-spacing: 0.03em; }
+.mk-copy.btn--icon.btn--sm { width: 28px; min-height: 28px; color: var(--c-muted); }
+.mk-copy.btn--icon.btn--sm:hover { color: var(--c-text); }
+.mk-welcome { display: inline-flex; text-decoration: none; margin-left: 2px; border-radius: 999px; }
+.mk-welcome:hover .badge { background: var(--c-accent-soft-2); }
+.mk-code-cell__desc {
+  font-size: 0.82rem; color: var(--c-muted); font-weight: 400;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mk-disc { display: grid; gap: 0; line-height: 1.3; }
+.mk-disc strong { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+.mk-uses { display: grid; gap: 5px; }
+.mk-uses__num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* 3 · Cupones (editor) ------------------------------------------------------ */
+.mk-editor { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.mk-editor__main { display: grid; gap: 20px; min-width: 0; }
+.mk-editor__side { display: grid; gap: 16px; position: sticky; top: calc(var(--topbar-h) + 16px); min-width: 0; }
+.mk-hbadge:empty { display: none; }
+.mk-code-field .input,
+.mk-code-input { font-family: var(--font-mono); font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+.mk-code-field .input::placeholder,
+.mk-code-input::placeholder { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.mk-scope-all { display: flex; align-items: center; gap: 8px; }
+.mk-scope-all .icon { color: var(--c-success); }
+.mk-dates-help { display: flex; align-items: center; gap: 6px; margin-top: -6px; }
+
+.mk-sum .card__body { gap: 14px; }
+.mk-sum__code {
+  font-family: var(--font-mono); font-weight: 700; font-size: 1.22rem; letter-spacing: 0.05em;
+  padding: 10px 12px; border: 1.5px dashed var(--c-accent); border-radius: 10px; background: var(--c-accent-soft);
+  color: var(--c-accent-text); text-align: center; overflow-wrap: anywhere;
+}
+.mk-sum__code.is-empty { border-color: var(--c-border-strong); background: var(--c-surface-2); color: var(--c-muted); font-size: 0.95rem; letter-spacing: 0.02em; }
+.mk-sum__sentence { font-size: 0.98rem; font-weight: 550; line-height: 1.45; }
+.mk-sum__state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.mk-sum__hint { flex-basis: 100%; font-size: 0.84rem; color: var(--c-muted); }
+.mk-sum__kv { font-size: 0.88rem; gap: 6px 14px; padding-top: 12px; border-top: 1px solid var(--c-border); }
+.mk-sum .form-actions { padding-top: 2px; }
+.mk-sum .form-actions .btn { width: 100%; }
+
+.mk-usage { display: grid; gap: 10px; }
+.mk-usage__num { display: flex; align-items: baseline; gap: 8px; }
+.mk-usage__num strong { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.mk-usage__num span { color: var(--c-muted); font-size: 0.9rem; }
+.mk-usage__meta { font-size: 0.84rem; gap: 4px 12px; padding-top: 10px; border-top: 1px solid var(--c-border); }
+.mk-usage__meta dd { font-weight: 450; }
+
+.mk-howto { background: var(--c-surface-2); box-shadow: none; }
+.mk-howto .card__body { gap: 6px; padding: 14px 16px 16px; }
+.mk-howto__title { display: flex; align-items: center; gap: 6px; font-weight: 650; font-size: 0.9rem; }
+.mk-howto__title .icon { color: var(--c-info); }
+
+/* Miniatura de producto (foto o degradado del respaldo) */
+.mk-thumb {
+  width: 38px; height: 46px; border-radius: 7px; flex: none; overflow: hidden; display: grid; place-items: center;
+  background: var(--c-surface-3); border: 1px solid rgba(0, 0, 0, 0.04);
+}
+.mk-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mk-thumb__txt { font-size: 0.62rem; font-weight: 800; color: rgba(255, 255, 255, 0.92); letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Selector de productos */
+.mk-pp { display: grid; border: 1px solid var(--c-border-strong); border-radius: 10px; overflow: hidden; background: var(--c-surface); }
+.mk-pp__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px; border-bottom: 1px solid var(--c-border); background: var(--c-surface-2); }
+.mk-pp__search { flex: 1 1 240px; max-width: none; }
+.mk-pp__tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+.mk-pp__count { font-size: 0.84rem; color: var(--c-text-2); font-weight: 600; margin-right: 4px; white-space: nowrap; }
+.mk-pp__list { max-height: 360px; overflow-y: auto; overscroll-behavior: contain; }
+.mk-pp__item + .mk-pp__item { border-top: 1px solid var(--c-border); }
+.mk-pp__label { display: flex; align-items: center; gap: 12px; padding: 8px 12px; cursor: pointer; position: relative; }
+.mk-pp__label:hover { background: var(--c-surface-2); }
+.mk-pp__item.is-on .mk-pp__label { background: var(--c-accent-soft); }
+.mk-pp__label .check__box { margin-top: 0; }
+.mk-pp__label .check__input:checked + .check__box { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
+.mk-pp__label .check__input:focus-visible + .check__box { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.mk-pp__text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.mk-pp__name { font-weight: 600; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-pp__meta { font-size: 0.8rem; color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-pp__item--missing { background: var(--c-warning-bg); }
+.mk-pp__item--missing .mk-pp__label, .mk-pp__item--missing.is-on .mk-pp__label { cursor: default; background: transparent; }
+.mk-pp__item--missing .mk-pp__name { color: var(--c-warning); }
+.mk-pp__alert { color: var(--c-warning); flex: none; }
+.mk-pp__empty { padding: 18px 14px; text-align: center; color: var(--c-muted); font-size: 0.9rem; }
+
+/* 4 · Suscriptores ---------------------------------------------------------- */
+.mk-privacy .notice__msg { max-width: 90ch; }
+.mk-sub__bar { gap: 10px 14px; }
+.mk-sub__spin { display: inline-flex; color: var(--c-muted); }
+.mk-sub__count { font-size: 0.86rem; color: var(--c-muted); font-variant-numeric: tabular-nums; }
+.mk-sub__bar a.btn[aria-disabled="true"] { pointer-events: none; }
+.mk-sub__email { font-weight: 600; overflow-wrap: anywhere; }
+.mk-sub__code { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+.mk-sub__list > .empty { padding: 32px 16px; }
+.mk-sub__foot { display: flex; align-items: flex-start; gap: 6px; }
+.mk-sub__foot .icon { margin-top: 3px; }
+
+/* 5 · Usuarios -------------------------------------------------------------- */
+.mk-user { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mk-avatar { width: 36px; height: 36px; font-size: 0.82rem; }
+.mk-avatar.is-off { background: var(--c-surface-3); color: var(--c-muted); }
+.mk-user__text { display: grid; gap: 1px; min-width: 0; }
+.mk-user__name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+.mk-user__name .badge { font-weight: 600; }
+.mk-user__email { font-size: 0.84rem; color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+
+.mk-user-form { gap: 18px; }
+.mk-pw { display: grid; gap: 10px; }
+.mk-pw:empty { display: none; }
+.mk-pw__tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.mk-access { font-size: 0.92rem; padding: 12px 14px; border-radius: 10px; background: var(--c-surface-2); border: 1px solid var(--c-border); }
+.mk-access code { overflow-wrap: anywhere; }
+.mk-access__pw { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.03em; }
+
+.mk-roles { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.mk-perms th[scope="row"] {
+  position: static; background: none; color: var(--c-text); font-size: 0.9rem; font-weight: 500; letter-spacing: 0;
+  white-space: normal; padding: 11px 14px; border-bottom: 1px solid var(--c-border);
+}
+.mk-perms tbody tr:last-child th { border-bottom: 0; }
+.mk-perms thead th { text-align: left; }
+.mk-perms thead th.is-center { text-align: center; width: 120px; }
+.mk-perm { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; vertical-align: middle; }
+.mk-perm.is-yes { background: var(--c-success-bg); color: var(--c-success); }
+.mk-perm.is-no { background: var(--c-surface-3); color: var(--c-muted); }
+.mk-tips__list { display: grid; gap: 12px; }
+.mk-tips__list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; font-size: 0.9rem; color: var(--c-text-2); }
+.mk-tips__list .icon { color: var(--c-accent); margin-top: 2px; }
+
+/* 6 · Responsive ------------------------------------------------------------ */
+@media (max-width: 1180px) {
+  .mk-roles { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1100px) {
+  .mk-editor { grid-template-columns: minmax(0, 1fr); }
+  .mk-editor__side { position: static; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (pointer: coarse), (max-width: 720px) {
+  .mk-copy.btn--icon.btn--sm { width: 40px; min-height: 40px; }   /* copiar el código: área táctil */
+}
+@media (max-width: 720px) {
+  .mk-only-mobile { display: inline-flex; }
+  .mk-cell-sub.mk-only-mobile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 4px; font-size: 0.84rem; font-weight: 400; color: var(--c-muted); }
+  .mk-cell-sub strong { color: var(--c-text); font-variant-numeric: tabular-nums; }
+  .mk-code-cell { max-width: none; }
+  .mk-code { overflow-wrap: anywhere; }   /* un código largo no ensancha la tabla en el celular */
+  /* Botón «Editar» de la fila con su texto, igual que en Productos */
+  .mk-tbl .row-actions .btn--sm:not(.btn--icon) { padding-inline: 10px; }
+  .mk-scope-seg .segmented { display: flex; width: 100%; }
+  .mk-scope-seg .segmented__opt { flex: 1 1 0; min-width: 0; }
+  .mk-scope-seg .segmented__label { justify-content: center; text-align: center; padding: 6px 6px; font-size: 0.84rem; line-height: 1.2; height: 100%; }
+  .mk-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mk-code-cell__desc { display: none; }
+  .mk-editor__side { grid-template-columns: minmax(0, 1fr); }
+  .mk-pp__tools { margin-left: 0; width: 100%; }
+  .mk-pp__list { max-height: 320px; }
+  .mk-sub__count { order: 3; flex-basis: 100%; }
+  .mk-sub__bar .table-toolbar__extra { order: 4; }
+  .mk-sub__email { font-size: 0.88rem; }
+  .mk-perms thead th.is-center { width: 84px; font-size: 0.74rem; }
+  .mk-perms th[scope="row"] { font-size: 0.86rem; padding: 10px 12px; }
+  .mk-user__email { max-width: 56vw; }
+  .mk-sub__email-cell { min-width: 0; }
+}

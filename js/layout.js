@@ -7,6 +7,11 @@
      data-header = "hero" | "solid" | "minimal"     (por defecto "solid")
      data-footer = "full" | "none"                  (por defecto "full")
    API pública: Mercy.layout, Mercy.search, Mercy.discount
+   Todos los textos, logos, redes, categorías y guías de tallas salen del contenido
+   administrable (Mercy.content / Mercy.data / Mercy.config).
+   Acceso al panel (contrato §6): botón con ícono de usuario en el header (settings.showAdminLink)
+   + "Panel administrador" en el menú → admin/login.html (o admin/ con la cookie mercy_admin);
+   con la cookie y el servidor activo, pastilla flotante "Editar esta página" → ruta del panel.
    ========================================================================== */
 window.Mercy = window.Mercy || {};
 
@@ -16,11 +21,41 @@ window.Mercy = window.Mercy || {};
   const D = Mercy.data;
   const S = Mercy.store;
   const C = Mercy.config;
+  const CT = Mercy.content || {};
+  const TX = CT.texts || {};
+  const CAT_TX = TX.catalog || {};
+  const DM = CT.discountModal || {};
   const $ = U.$, $$ = U.$$, esc = U.esc, money = U.money;
+  const BRAND = C.brand;
+  const fill = U.fill, rich = U.rich;
+  /* Agradecimiento cuando la suscripción no trae cupón (modal apagado o sin cupón de bienvenida vigente) */
+  const THANKS = "¡Gracias por suscribirte! Te contaremos las novedades de " + BRAND + ".";
+  function list(v) { return (Array.isArray(v) ? v : []).map(function (x) { return String(x == null ? "" : x).trim(); }).filter(Boolean); }
+  function txt(v, d) { return v == null ? d : String(v); }
 
   const body = document.body;
   const headerMode = body.getAttribute("data-header") || "solid";
   const footerMode = body.getAttribute("data-footer") || "full";
+
+  /* --- Acceso al panel -------------------------------------------------------
+     mercy_admin=1 es una cookie indicadora SIN secreto (contrato §4): solo decide a dónde lleva el
+     botón y si se muestra la barra de edición; la sesión real (mercy_sid, HttpOnly) la valida el servidor. */
+  function cookie(name) {
+    let raw = "";
+    try { raw = document.cookie || ""; } catch (e) { return ""; }
+    const hit = raw.split(/;\s*/).filter(function (c) { return c.indexOf(name + "=") === 0; })[0];
+    if (!hit) return "";
+    try { return decodeURIComponent(hit.slice(name.length + 1)); } catch (e) { return hit.slice(name.length + 1); }
+  }
+  const ADMIN_SESSION = (function () { const v = cookie("mercy_admin"); return !!v && v !== "0"; })();
+  const ADMIN_HREF = ADMIN_SESSION ? "admin/" : "admin/login.html";
+  /* Botón del header. En celular va junto al menú (la derecha ya tiene 3 íconos y el logo debe quedar centrado);
+     desde 900 px va a la derecha, antes de favoritos. Se pintan los dos y el CSS muestra uno. */
+  function adminBtnHTML(where) {
+    if (!C.showAdminLink) return "";
+    return '<a class="icon-btn site-header__admin site-header__admin--' + where + '" href="' + ADMIN_HREF + '" data-admin-link' +
+      ' aria-label="Panel administrador" title="Panel administrador">' + I("user", { size: 24 }) + "</a>";
+  }
 
   /* ======================================================================
      Búsqueda (C1/C2): artículos puntuales o con referencias parecidas
@@ -103,17 +138,20 @@ window.Mercy = window.Mercy || {};
   /* ======================================================================
      Plantillas de la estructura
      ====================================================================== */
+  /* Franja café superior (texts.topStrip, unidas con " · "). Sin frases no se muestra. */
   function topStripHTML() {
-    const txt = 'Viste con propósito <span aria-hidden="true">·</span> Envíos a toda Colombia <span aria-hidden="true">·</span> Compra segura';
+    const items = list(TX.topStrip);
+    if (!items.length) return "";
+    const txt = items.map(esc).join(' <span aria-hidden="true">·</span> ');
     /* En móvil el texto corre en una sola línea (cinta); la copia es decorativa. En escritorio se muestra fijo y centrado. */
     return '<div class="topstrip" role="note"><div class="topstrip__track"><p class="topstrip__text">' + txt + '</p><p class="topstrip__text topstrip__text--dup" aria-hidden="true">' + txt + "</p></div></div>";
   }
 
   function headerHTML() {
     const logo =
-      '<a class="logo" href="index.html" aria-label="Mercy Studio — ir al inicio" data-logo>' +
-      '<img class="logo__img logo__img--dark" src="' + C.logo.terracota + '" alt="Mercy Studio" width="180" height="90" decoding="async">' +
-      '<img class="logo__img logo__img--light" src="' + C.logo.beige + '" alt="" aria-hidden="true" width="180" height="90" decoding="async">' +
+      '<a class="logo" href="index.html" aria-label="' + esc(BRAND) + ' — ir al inicio" data-logo>' +
+      '<img class="logo__img logo__img--dark" src="' + esc(U.safeUrl(C.logo.terracota)) + '" alt="' + esc(BRAND) + '" width="180" height="90" decoding="async">' +
+      '<img class="logo__img logo__img--light" src="' + esc(U.safeUrl(C.logo.beige)) + '" alt="" aria-hidden="true" width="180" height="90" decoding="async">' +
       "</a>";
     if (headerMode === "minimal") {
       return (
@@ -128,37 +166,47 @@ window.Mercy = window.Mercy || {};
       '<header class="site-header site-header--' + headerMode + '" id="site-header"><div class="site-header__inner">' +
       '<div class="site-header__left">' +
       '<button type="button" class="icon-btn icon-btn--label" data-open="menu" aria-label="Abrir menú" aria-haspopup="dialog" aria-controls="menu-drawer">' + I("menu", { size: 26 }) + '<span class="icon-btn__text">Menú</span></button>' +
+      adminBtnHTML("m") +
       "</div>" +
       logo +
       '<div class="site-header__right">' +
       '<button type="button" class="icon-btn" data-open="search" aria-label="Buscar productos" aria-haspopup="dialog" aria-controls="search-panel">' + I("search", { size: 24 }) + "</button>" +
+      adminBtnHTML("d") +
       '<button type="button" class="icon-btn icon-btn--badge" data-open="favs" aria-label="Tus favoritos" title="Tus favoritos" aria-haspopup="dialog" aria-controls="favs-drawer">' + I("heart", { size: 24 }) + '<span class="badge-count" data-fav-count hidden>0</span></button>' +
       '<button type="button" class="icon-btn icon-btn--badge" data-open="cart" aria-label="Abrir carrito" aria-haspopup="dialog" aria-controls="cart-drawer">' + I("cart", { size: 24 }) + '<span class="badge-count" data-cart-count hidden>0</span></button>' +
       "</div></div></header>"
     );
   }
 
+  /* Redes (settings.social): una red sin enlace no se muestra. WhatsApp siempre. */
+  const SOCIAL = [
+    { key: "instagram", name: "Instagram", size: 20 },
+    { key: "tiktok", name: "TikTok", size: 18 },
+    { key: "facebook", name: "Facebook", size: 18 }
+  ].map(function (n) { n.url = U.safeUrl(C.social[n.key]); return n; }).filter(function (n) { return n.url; });
+  const WA_HELLO = U.waLink(U.waGreeting());
+
   function socialLinks(cls) {
     return (
       '<ul class="' + cls + '">' +
-      '<li><a href="' + C.social.instagram + '" target="_blank" rel="noopener" aria-label="Instagram">' + I("instagram", { size: 20 }) + "</a></li>" +
-      '<li><a href="' + C.social.tiktok + '" target="_blank" rel="noopener" aria-label="TikTok">' + I("tiktok", { size: 18 }) + "</a></li>" +
-      '<li><a href="' + C.social.facebook + '" target="_blank" rel="noopener" aria-label="Facebook">' + I("facebook", { size: 18 }) + "</a></li>" +
-      '<li><a href="' + U.waLink("Hola Mercy Studio 👋") + '" target="_blank" rel="noopener" aria-label="WhatsApp">' + I("whatsapp", { size: 19 }) + "</a></li>" +
+      SOCIAL.map(function (n) {
+        return '<li><a href="' + esc(n.url) + '" target="_blank" rel="noopener" aria-label="' + n.name + '">' + I(n.key, { size: n.size }) + "</a></li>";
+      }).join("") +
+      '<li><a href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener" aria-label="WhatsApp">' + I("whatsapp", { size: 19 }) + "</a></li>" +
       "</ul>"
     );
   }
 
   function menuHTML() {
     const cats = D.CATEGORIES.map(function (c) {
-      return '<li><a class="menu__link menu__link--sub" href="catalogo.html?cat=' + c.id + '">' + esc(c.name) + "</a></li>";
+      return '<li><a class="menu__link menu__link--sub" href="catalogo.html?cat=' + encodeURIComponent(c.id) + '">' + esc(c.name) + "</a></li>";
     }).join("");
     return (
       '<header class="drawer__head drawer__head--dark"><h2 class="drawer__title">Tienda</h2>' +
       '<button type="button" class="icon-btn icon-btn--light" data-close aria-label="Cerrar menú">' + I("close", { size: 24 }) + "</button></header>" +
       '<nav class="drawer__body menu" aria-label="Menú principal"><ul>' +
-      '<li><a class="menu__link" href="catalogo.html?vista=novedades">Novedades</a></li>' +
-      '<li><a class="menu__link menu__link--top" href="catalogo.html?vista=mas-vendidos">Los más vendidos<span class="menu__flag">Top</span></a></li>' +
+      '<li><a class="menu__link" href="catalogo.html?vista=novedades">' + esc(txt(CAT_TX.newTitle, "Novedades")) + "</a></li>" +
+      '<li><a class="menu__link menu__link--top" href="catalogo.html?vista=mas-vendidos">' + esc(txt(CAT_TX.bestTitle, "Los más vendidos")) + '<span class="menu__flag">Top</span></a></li>' +
       '<li><a class="menu__link" href="catalogo.html">Toda la colección</a></li>' +
       "</ul>" +
       '<ul class="menu__group">' + cats + "</ul>" +
@@ -167,12 +215,17 @@ window.Mercy = window.Mercy || {};
       '<li><button type="button" class="menu__link menu__link--sub" data-info="tallas">Guía de tallas</button></li>' +
       '<li><button type="button" class="menu__link menu__link--sub" data-info="envios">Envíos</button></li>' +
       '<li><button type="button" class="menu__link menu__link--sub" data-info="cambios">Cambios y devoluciones</button></li>' +
+      (C.showAdminLink
+        ? '<li><a class="menu__link menu__link--sub menu__link--admin" href="' + ADMIN_HREF + '" data-admin-link>' + I("user", { size: 18 }) + "Panel administrador</a></li>"
+        : "") +
       "</ul></nav>" +
       '<footer class="drawer__foot menu__foot">' + socialLinks("social social--menu") +
-      '<a class="menu__wa" href="' + U.waLink("Hola Mercy Studio 👋") + '" target="_blank" rel="noopener">' + I("whatsapp", { size: 18 }) + " Escríbenos por WhatsApp</a></footer>"
+      '<a class="menu__wa" href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener">' + I("whatsapp", { size: 18 }) + " Escríbenos por WhatsApp</a></footer>"
     );
   }
 
+  /* Búsquedas sugeridas (texts.searchSuggestions, 0–10). Sin sugerencias el bloque no se muestra. */
+  const SUGGEST = list(TX.searchSuggestions).slice(0, 10);
   function searchHTML() {
     return (
       '<div class="search-panel__bar"><div class="search-panel__field">' + I("search", { size: 22 }) +
@@ -180,10 +233,12 @@ window.Mercy = window.Mercy || {};
       '<button type="button" class="search-panel__clear" data-search-clear aria-label="Borrar búsqueda" hidden>' + I("close", { size: 18 }) + "</button></div>" +
       '<button type="button" class="search-panel__close" data-close>Cerrar</button></div>' +
       '<div class="search-panel__body">' +
-      '<div class="search-suggest" data-search-suggest><p class="search-label">Búsquedas sugeridas</p><div class="chips">' +
-      ["Camisetas", "Hoodies", "Oversize", "Terracota", "JECVV"].map(function (t) {
-        return '<button type="button" class="chip" data-search-term="' + esc(t) + '">' + esc(t) + "</button>";
-      }).join("") + "</div></div>" +
+      (SUGGEST.length
+        ? '<div class="search-suggest" data-search-suggest><p class="search-label">Búsquedas sugeridas</p><div class="chips">' +
+          SUGGEST.map(function (t) {
+            return '<button type="button" class="chip" data-search-term="' + esc(t) + '">' + esc(t) + "</button>";
+          }).join("") + "</div></div>"
+        : '<div class="search-suggest" data-search-suggest hidden></div>') +
       '<div class="search-results" id="search-results" aria-live="polite"></div></div>'
     );
   }
@@ -205,7 +260,7 @@ window.Mercy = window.Mercy || {};
     const clear = $("[data-search-clear]");
     clear.hidden = !q;
     if (!q.trim()) {
-      suggest.hidden = false;
+      suggest.hidden = !SUGGEST.length;
       const top = D.PRODUCTS.slice().sort(function (a, b) { return a.bestRank - b.bestRank; }).slice(0, 4);
       out.innerHTML = '<p class="search-label">Lo más buscado</p><div class="sr-list">' + top.map(srItem).join("") + "</div>";
       return;
@@ -308,7 +363,7 @@ window.Mercy = window.Mercy || {};
       const p = it.product;
       return (
         '<li class="cart-line" data-key="' + esc(it.key) + '">' +
-        '<a class="cart-line__thumb" href="producto.html?id=' + encodeURIComponent(p.id) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "" }) + "</a>" +
+        '<a class="cart-line__thumb" href="producto.html?id=' + encodeURIComponent(p.id) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId }) + "</a>" +
         '<div class="cart-line__info">' +
         '<a class="cart-line__name" href="producto.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.name) + "</a>" +
         '<p class="cart-line__variant">' + esc(variantText(it)) + "</p>" +
@@ -318,14 +373,28 @@ window.Mercy = window.Mercy || {};
       );
     }).join("") + "</ul>";
 
-    const disc = S.cart.discountAmount();
-    const promo = S.discount.couponApplied()
-      ? '<p class="cart-promo is-on">' + I("tag", { size: 16 }) + " Descuento " + S.discount.percent() + "% aplicado · <strong>" + esc(S.discount.code()) + "</strong></p>"
-      : '<button type="button" class="cart-promo" data-discount-open>' + I("tag", { size: 16 }) + " Obtén un " + S.discount.percent() + "% de descuento en tu primer pedido</button>";
+    /* Cupón aplicado: "Descuento (CÓDIGO)" con el monto; si no llega al mínimo o no aplica, el motivo.
+       Sin cupón: CTA del pop-up (solo si aún no se suscribió, con el modal activo y un cupón de bienvenida vigente);
+       ya suscrita con su código sin aplicar (lo quitó o lo cambió): "Usar mi código X". */
+    const info = S.cart.discountInfo();
+    const mine = S.discount.pendingClaim();
+    let promo = "";
+    if (info.coupon) {
+      promo = info.amount
+        ? '<p class="cart-promo is-on" data-cart-promo>' + I("tag", { size: 16 }) + " <span>Código <strong>" + esc(info.code) + "</strong> aplicado · " + esc(info.label) + " de descuento" +
+          (info.partial ? " en productos participantes" : "") + "</span></p>"
+        : '<p class="cart-promo is-warn" data-cart-promo>' + I("info", { size: 16 }) + " <span>Código <strong>" + esc(info.code) + "</strong> · " + esc(info.message) + "</span></p>";
+    } else if (mine) {
+      promo = '<button type="button" class="cart-promo" data-claimed-apply>' + I("tag", { size: 16 }) + " Usar mi código <strong>" + esc(mine.code) + "</strong> · " + esc(mine.label) + " de descuento</button>";
+    } else if (C.discountEnabled && !S.discount.claimed()) {
+      promo = '<button type="button" class="cart-promo" data-discount-open>' + I("tag", { size: 16 }) + " " + esc(fill(DM.offerText)) + "</button>";
+    }
     foot.innerHTML =
       promo +
       '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(S.cart.subtotal()) + "</dd></div>" +
-      (disc ? '<div class="totals__disc"><dt>Descuento ' + S.discount.percent() + '%</dt><dd>−' + money(disc) + "</dd></div>" : "") +
+      (info.coupon
+        ? '<div class="totals__disc' + (info.amount ? "" : " is-zero") + '" data-cart-disc><dt>Descuento (' + esc(info.code) + ")</dt><dd>" + (info.amount ? "−" + money(info.amount) : money(0)) + "</dd></div>"
+        : "") +
       "</dl>" +
       '<p class="cart-note">El envío y los demás datos se confirman al finalizar tu compra.</p>' +
       '<a class="btn btn--whatsapp btn--block" href="checkout.html">' + I("whatsapp", { size: 20 }) + " Comprar por WhatsApp</a>" +
@@ -335,48 +404,101 @@ window.Mercy = window.Mercy || {};
   /* ======================================================================
      Pop-up de descuento (referencia: "Tu camino de fe comienza…")
      ====================================================================== */
+  /* Textos e imagen desde discountModal (contrato §3); {descuento} = etiqueta del cupón de bienvenida */
   function discountModalHTML() {
+    const img = U.safeUrl(C.discountImage);
     return (
       '<button type="button" class="modal__close modal__close--on-media" data-close aria-label="Cerrar">' + I("close", { size: 24 }) + "</button>" +
-      (C.discountImage
-        ? '<div class="discount__media discount__media--img" aria-hidden="true"><img src="' + esc(C.discountImage) + '" alt="" decoding="async"></div>'
+      (img
+        ? '<div class="discount__media discount__media--img" aria-hidden="true"><img src="' + esc(img) + '" alt="" decoding="async"></div>'
         : '<div class="discount__media" aria-hidden="true"><div class="discount__sun"></div>' +
           '<svg class="discount__crosses" viewBox="0 0 120 60" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M60 8v34M52 17h16M30 24v22M25 30h10M90 24v22M85 30h10"/><path d="M0 52c16-5 30-4 44 0s28 5 44 1 22-5 32-1" stroke-width="2.4"/></svg></div>') +
       '<div class="discount__body">' +
       '<div class="discount__form-wrap">' +
-      '<h2 class="discount__title" id="discount-title">Tu camino de <span class="accent">fe</span> comienza aquí</h2>' +
+      '<h2 class="discount__title" id="discount-title">' + rich(DM.title, { fill: true }) + "</h2>" +
       '<hr class="discount__rule">' +
-      '<p class="discount__offer">Obtén un ' + C.discount.percent + "% de descuento en tu primer pedido</p>" +
+      '<p class="discount__offer">' + rich(DM.offerText, { fill: true, accent: false }) + "</p>" +
       '<form class="discount__form" novalidate data-discount-form>' +
       '<div class="field"><label class="visually-hidden" for="discount-email">Correo electrónico</label>' +
-      '<input class="input input--pill" id="discount-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="Introduce tu correo electrónico" data-autofocus></div>' +
-      '<button type="submit" class="btn btn--primary btn--pill btn--block">Obtén un ' + C.discount.percent + "% de descuento</button></form>" +
-      '<p class="discount__fine">Al registrarte aceptas recibir novedades de Mercy Studio. Puedes darte de baja cuando quieras.</p></div>' +
+      '<input class="input input--pill" id="discount-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="' + esc(DM.placeholder) + '" data-autofocus></div>' +
+      '<button type="submit" class="btn btn--primary btn--pill btn--block">' + esc(fill(DM.buttonLabel)) + "</button></form>" +
+      '<p class="discount__fine">' + rich(DM.fine, { fill: true, accent: false }) + "</p></div>" +
       '<div class="discount__success" data-discount-success hidden>' +
       '<div class="discount__check">' + I("check", { size: 30, stroke: 2.2 }) + "</div>" +
-      '<h2 class="discount__title">¡Bienvenido a Mercy!</h2>' +
-      '<p class="discount__offer">Tu código de ' + C.discount.percent + '% ya está aplicado</p>' +
-      '<div class="discount__code"><strong data-discount-code>' + esc(C.discount.code) + '</strong>' +
-      '<button type="button" class="btn btn--ghost btn--sm" data-copy-code>' + I("copy", { size: 16 }) + " Copiar</button></div>" +
-      '<p class="discount__fine">Se descuenta automáticamente en tu primer pedido.</p>' +
-      '<button type="button" class="btn btn--primary btn--pill btn--block" data-close>Seguir mirando</button></div>' +
+      '<h2 class="discount__title">' + rich(DM.successTitle, { fill: true }) + "</h2>" +
+      '<div class="discount__with-code" data-discount-with-code>' +
+      '<p class="discount__offer" data-discount-applied-msg>' + rich(DM.successOffer, { fill: true, accent: false }) + "</p>" +
+      /* Código recibido pero NO aplicado ahora (lo quitó o lo cambió por otro): no se dice «ya está aplicado» */
+      '<p class="discount__offer" data-discount-pending-msg hidden>Este es tu código de bienvenida:</p>' +
+      '<div class="discount__code"><strong data-discount-code></strong>' +
+      '<button type="button" class="btn btn--ghost btn--sm" data-copy-code aria-label="Copiar el código de descuento">' + I("copy", { size: 16 }) + " Copiar</button></div>" +
+      '<p class="discount__fine" data-discount-applied-fine>' + rich(DM.successFine, { fill: true, accent: false }) + "</p></div>" +
+      /* Suscrito sin cupón (el de bienvenida dejó de estar vigente justo antes de enviar) */
+      '<p class="discount__offer" data-discount-no-code hidden>' + esc(THANKS) + "</p>" +
+      '<button type="button" class="btn btn--primary btn--pill btn--block" data-close>' + esc(fill(DM.successButton)) + "</button></div>" +
       "</div>"
     );
   }
 
-  /* Enlaza un formulario de descuento (modal o inline). onOk(code) al validar. */
-  function bindDiscountForm(form, onOk) {
+  /* Botón en espera (petición en curso): deshabilitado + texto temporal; busy(btn, false) lo restaura */
+  function busy(btn, on, label) {
+    if (!btn) return;
+    if (on) {
+      if (btn.__label == null) btn.__label = btn.innerHTML;
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+      btn.textContent = label || "Enviando…";
+    } else {
+      btn.disabled = false;
+      btn.removeAttribute("aria-busy");
+      if (btn.__label != null) { btn.innerHTML = btn.__label; btn.__label = null; }
+    }
+  }
+
+  /* Enlaza un formulario de suscripción (pop-up o Comunidad). source: "popup" | "community".
+     Registra el correo (Mercy.store.discount.claim → API o modo local) y llama a onOk(resultado) solo si salió bien;
+     los errores (correo inválido, sin red, demasiados intentos) se muestran en el campo. */
+  function bindDiscountForm(form, onOk, source) {
     if (form.__bound) return;
     form.__bound = true;
     const input = $('input[type="email"]', form);
+    const btn = $('button[type="submit"]', form);
+    let sending = false;
     input.addEventListener("input", function () { if (input.getAttribute("aria-invalid")) U.setError(input, U.validators.email(input.value)); });
     form.addEventListener("submit", function (e) {
       e.preventDefault();
+      if (sending) return;
       const msg = U.validators.email(input.value);
       if (!U.setError(input, msg)) { input.focus(); return; }   /* C31: no avanza si falta el dato */
-      const code = S.discount.claim(input.value);
-      onOk && onOk(code);
+      sending = true;
+      busy(btn, true, "Enviando…");
+      form.setAttribute("aria-busy", "true");
+      S.discount.claim(input.value, source || "popup").then(function (r) {
+        sending = false;
+        busy(btn, false);
+        form.removeAttribute("aria-busy");
+        if (!r.ok) { U.setError(input, r.message); input.focus(); return; }
+        onOk && onOk(r);
+      });
     });
+  }
+
+  /* Estado del pop-up: formulario o éxito (con el código REAL recibido, o solo agradecimiento si no hubo cupón).
+     «Tu código … ya está aplicado» (successOffer/successFine) solo si ese código es el aplicado ahora. */
+  function syncDiscountModal() {
+    const el = discountUI.el;
+    if (!el) return;
+    const claimed = S.discount.claimed();
+    const code = S.discount.claimedCode();
+    const applied = S.discount.claimedApplied();
+    $("[data-discount-form]", el).closest(".discount__form-wrap").hidden = claimed;
+    $("[data-discount-success]", el).hidden = !claimed;
+    $("[data-discount-code]", el).textContent = code;
+    $("[data-discount-with-code]", el).hidden = !code;
+    $("[data-discount-no-code]", el).hidden = !!code;
+    $("[data-discount-applied-msg]", el).hidden = !applied;
+    $("[data-discount-applied-fine]", el).hidden = !applied;
+    $("[data-discount-pending-msg]", el).hidden = applied;
   }
 
   const discountUI = {
@@ -385,14 +507,14 @@ window.Mercy = window.Mercy || {};
       const el = discountUI.el;
       if (U.overlay.isOpen(el)) return;
       const claimed = S.discount.claimed();
-      $("[data-discount-form]", el).closest(".discount__form-wrap").hidden = claimed;
-      $("[data-discount-success]", el).hidden = !claimed;
+      if (!claimed && !C.discountEnabled) return;          /* modal apagado o sin cupón de bienvenida vigente */
+      syncDiscountModal();
       U.overlay.open(el);
     },
     close: function () { U.overlay.close(discountUI.el); },
     /* Auto-apertura en el Inicio (una vez por sesión) */
     scheduleAutoOpen: function (ms) {
-      if (S.discount.claimed() || S.session.get("popupSeen")) return;
+      if (!C.discountAutoOpen || S.discount.claimed() || S.session.get("popupSeen")) return;
       setTimeout(function () {
         if (S.discount.claimed() || S.session.get("popupSeen") || U.overlay.top()) return;
         S.session.set("popupSeen", "1");
@@ -406,64 +528,84 @@ window.Mercy = window.Mercy || {};
      Footer (C15–C19)
      ====================================================================== */
   function footerHTML() {
+    const tagline = txt(TX.footerTagline, "");
+    const legal = txt(TX.footerLegal, "");
     return (
       '<footer class="site-footer"><div class="site-footer__inner">' +
       '<div class="site-footer__brand">' +
-      '<a class="footer-logo" href="index.html" aria-label="Mercy Studio — inicio"><img src="' + C.logo.beige + '" alt="Mercy Studio" width="170" height="85" loading="lazy" decoding="async"></a>' +
-      '<p class="site-footer__tagline">La moda es el medio. Cristo es el mensaje</p>' +
+      '<a class="footer-logo" href="index.html" aria-label="' + esc(BRAND) + ' — inicio"><img src="' + esc(U.safeUrl(C.logo.beige)) + '" alt="' + esc(BRAND) + '" width="170" height="85" loading="lazy" decoding="async"></a>' +
+      (tagline.trim() ? '<p class="site-footer__tagline">' + rich(tagline, { accent: false }) + "</p>" : "") +
       socialLinks("social social--footer") + "</div>" +
       '<nav class="site-footer__col" aria-label="Tienda"><h2 class="site-footer__h">Tienda</h2><ul>' +
-      '<li><a href="catalogo.html?vista=novedades">Novedades</a></li>' +
-      D.CATEGORIES.filter(function (c) { return c.id !== "gorras"; }).map(function (c) { return '<li><a href="catalogo.html?cat=' + c.id + '">' + esc(c.name) + "</a></li>"; }).join("") +
+      '<li><a href="catalogo.html?vista=novedades">' + esc(txt(CAT_TX.newTitle, "Novedades")) + "</a></li>" +
+      D.CATEGORIES.filter(function (c) { return c.inFooter; }).map(function (c) { return '<li><a href="catalogo.html?cat=' + encodeURIComponent(c.id) + '">' + esc(c.name) + "</a></li>"; }).join("") +
       "</ul></nav>" +
       '<nav class="site-footer__col" aria-label="Ayuda"><h2 class="site-footer__h">Ayuda</h2><ul>' +
       '<li><button type="button" data-info="tallas">Guía de tallas</button></li>' +
       '<li><button type="button" data-info="envios">Envíos</button></li>' +
       '<li><button type="button" data-info="cambios">Cambios y devoluciones</button></li>' +
-      '<li><a href="' + U.waLink("Hola Mercy Studio 👋") + '" target="_blank" rel="noopener">WhatsApp: ' + esc(C.whatsappDisplay) + "</a></li></ul></nav>" +
+      '<li><a href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener">WhatsApp' + (C.whatsappDisplay ? ": " + esc(C.whatsappDisplay) : "") + "</a></li></ul></nav>" +
       '<nav class="site-footer__col site-footer__col--follow" aria-label="Síguenos"><h2 class="site-footer__h">Síguenos</h2><ul>' +
-      '<li><a href="' + C.social.instagram + '" target="_blank" rel="noopener">Instagram</a></li>' +
-      '<li><a href="' + C.social.tiktok + '" target="_blank" rel="noopener">TikTok</a></li>' +
-      '<li><a href="' + C.social.facebook + '" target="_blank" rel="noopener">Facebook</a></li>' +
-      '<li><a href="' + U.waLink("Hola Mercy Studio 👋") + '" target="_blank" rel="noopener">WhatsApp</a></li></ul></nav>' +
+      SOCIAL.map(function (n) { return '<li><a href="' + esc(n.url) + '" target="_blank" rel="noopener">' + n.name + "</a></li>"; }).join("") +
+      '<li><a href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener">WhatsApp</a></li></ul></nav>' +
       "</div>" +
-      '<div class="site-footer__legal"><p>© 2026 Mercy Studio · Hecho con propósito en Colombia</p></div></footer>'
+      (legal.trim() ? '<div class="site-footer__legal"><p>' + rich(legal, { accent: false }) + "</p></div>" : "") + "</footer>"
     );
   }
 
   /* ======================================================================
      Modales informativos: guía de tallas, envíos y cambios
      ====================================================================== */
-  function sizeTableHTML(category, fit) {
-    const chart = D.SIZE_CHARTS[category];
+  /* Guía de tallas: `chartId` = id de la guía (categories[].sizeChart). Pestañas = guías (nombre), hormas = claves de rows. */
+  function unitLabel(chart) { return chart && chart.unit ? " (" + esc(chart.unit) + ")" : ""; }
+  /* Medida con coma decimal (es-CO): 52.5 → "52,5"; en textos ("50.5-52") solo decimales de 1–2 cifras (no toca "1.000") */
+  function measure(v) {
+    if (typeof v === "number") return isFinite(v) ? String(v).replace(".", ",") : "";
+    return String(v == null ? "" : v).replace(/(\d)\.(\d{1,2})(?!\d)/g, "$1,$2");
+  }
+  function sizeTableHTML(chartId, fit) {
+    const chart = D.SIZE_CHARTS[chartId];
     if (!chart) return "";
-    const rows = chart[fit] || chart.regular;
+    const rows = chart[fit] || chart.regular || chart[chart.fits[0]] || [];
+    const cols = chart.head.length;
     return (
-      '<table class="size-table"><thead><tr>' + chart.head.map(function (h, i) { return "<th" + (i ? ' scope="col"' : ' scope="col"') + ">" + esc(h) + (i ? " (cm)" : "") + "</th>"; }).join("") + "</tr></thead><tbody>" +
-      rows.map(function (r) { return "<tr><th scope=\"row\">" + esc(r[0]) + "</th>" + r.slice(1).map(function (v) { return "<td>" + v + "</td>"; }).join("") + "</tr>"; }).join("") +
+      '<table class="size-table"><thead><tr>' + chart.head.map(function (h, i) { return '<th scope="col">' + esc(h) + (i ? unitLabel(chart) : "") + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      rows.map(function (r) {
+        const cells = r.slice(1, Math.max(cols, 1));
+        while (cells.length < cols - 1) cells.push("");
+        return '<tr><th scope="row">' + esc(r[0]) + "</th>" + cells.map(function (v) { return "<td>" + esc(measure(v)) + "</td>"; }).join("") + "</tr>";
+      }).join("") +
       "</tbody></table>"
     );
   }
-  function openSizeGuide(category, fit) {
-    const cats = Object.keys(D.SIZE_CHARTS);
-    category = D.SIZE_CHARTS[category] ? category : "camisetas";
-    function render(cat, f) {
-      const chart = D.SIZE_CHARTS[cat];
-      const fits = Object.keys(chart).filter(function (k) { return k !== "head"; });
+  /* Nota de la guía (texts.sizeGuideNote). Un paréntesis final se muestra en cursiva, como "(Valores de ejemplo.)" */
+  function sizeNoteHTML(cls) {
+    const note = txt(TX.sizeGuideNote, "").trim();
+    if (!note) return "";
+    return '<p class="' + cls + '">' + esc(note).replace(/\s*(\([^()]*\))$/, " <em>$1</em>") + "</p>";
+  }
+  function openSizeGuide(chartId, fit) {
+    const ids = D.SIZE_CHART_IDS.slice();
+    if (!ids.length) {
+      U.infoModal("size-guide", "Guía de tallas", "<p>Pronto publicaremos la guía de tallas. Si tienes dudas con tu talla, escríbenos por WhatsApp.</p>");
+      return;
+    }
+    chartId = D.SIZE_CHARTS[chartId] ? chartId : ids[0];
+    function render(id, f) {
+      const chart = D.SIZE_CHARTS[id];
+      const fits = chart.fits;
       f = fits.indexOf(f) > -1 ? f : fits[0];
-      const names = { camisetas: "Camisetas", blusas: "Blusas", hoodies: "Hoodies" };
-      const tabs = '<div class="seg" role="tablist" aria-label="Categoría">' + cats.map(function (c) {
-        return '<button type="button" role="tab" class="seg__btn' + (c === cat ? " is-on" : "") + '" aria-selected="' + (c === cat) + '" data-sg-cat="' + c + '">' + names[c] + "</button>";
+      const tabs = '<div class="seg" role="tablist" aria-label="Categoría">' + ids.map(function (c) {
+        return '<button type="button" role="tab" class="seg__btn' + (c === id ? " is-on" : "") + '" aria-selected="' + (c === id) + '" data-sg-cat="' + esc(c) + '">' + esc(D.SIZE_CHARTS[c].name) + "</button>";
       }).join("") + "</div>";
       const fitTabs = '<div class="seg seg--sm" role="tablist" aria-label="Horma">' + fits.map(function (k) {
-        return '<button type="button" role="tab" class="seg__btn' + (k === f ? " is-on" : "") + '" aria-selected="' + (k === f) + '" data-sg-fit="' + k + '">' + D.FITS[k] + "</button>";
+        return '<button type="button" role="tab" class="seg__btn' + (k === f ? " is-on" : "") + '" aria-selected="' + (k === f) + '" data-sg-fit="' + esc(k) + '">' + esc(D.FITS[k] || k) + "</button>";
       }).join("") + "</div>";
-      return tabs + fitTabs + '<div class="size-guide__table">' + sizeTableHTML(cat, f) + "</div>" +
-        '<p class="modal__note">Medidas de la prenda en centímetros, tomadas en plano. Pueden variar ±1 cm. <em>(Valores de ejemplo.)</em></p>';
+      return tabs + fitTabs + '<div class="size-guide__table">' + sizeTableHTML(id, f) + "</div>" + sizeNoteHTML("modal__note");
     }
-    const el = U.infoModal("size-guide", "Guía de tallas", render(category, fit));
+    const el = U.infoModal("size-guide", "Guía de tallas", render(chartId, fit));
     const content = $(".modal__content", el);
-    let curCat = category, curFit = fit;
+    let curCat = chartId, curFit = fit;
     content.onclick = function (e) {
       const c = e.target.closest("[data-sg-cat]"), f = e.target.closest("[data-sg-fit]");
       if (c) { curCat = c.getAttribute("data-sg-cat"); curFit = null; }
@@ -476,11 +618,11 @@ window.Mercy = window.Mercy || {};
     if (kind === "tallas") return openSizeGuide(extra && extra.category, extra && extra.fit);
     if (kind === "envios") {
       return U.infoModal("info-envios", "Envíos",
-        "<p>" + esc(D.SHIPPING_INFO) + "</p>" +
+        (D.SHIPPING_INFO.trim() ? "<p>" + rich(D.SHIPPING_INFO, { accent: false }) + "</p>" : "") +
         '<ul class="check-list"><li>' + I("truck", { size: 18 }) + "<span><strong>Envío gratis</strong> si al menos una prenda de tu carrito lo incluye.</span></li>" +
         "<li>" + I("info", { size: 18 }) + "<span><strong>Envío no incluido</strong> cuando ninguna prenda lo incluye: el costo adicional se coordina por WhatsApp.</span></li></ul>");
     }
-    if (kind === "cambios") return U.infoModal("info-cambios", "Cambios y devoluciones", "<p>" + esc(D.RETURNS_INFO) + "</p>");
+    if (kind === "cambios") return U.infoModal("info-cambios", "Cambios y devoluciones", "<p>" + rich(D.RETURNS_INFO, { accent: false }) + "</p>");
   }
 
   /* ======================================================================
@@ -489,6 +631,7 @@ window.Mercy = window.Mercy || {};
   const layout = {
     headerMode: headerMode,
     sizeTableHTML: sizeTableHTML,
+    sizeNoteHTML: sizeNoteHTML,
     openSizeGuide: openSizeGuide,
     openInfo: openInfo,
     cartEl: null, menuEl: null, searchEl: null, favsEl: null,
@@ -519,6 +662,37 @@ window.Mercy = window.Mercy || {};
     renderFavs: renderFavs
   };
 
+  /* ======================================================================
+     Barra de edición (sesión del panel abierta + servidor activo)
+     Pastilla flotante abajo a la izquierda: "Editar esta página" → ruta del panel (contrato §7) · "Panel".
+     ====================================================================== */
+  function adminRoute() {
+    const path = location.pathname;
+    if (/(^|\/)catalogo\.html$/.test(path)) return "#/productos";
+    if (/(^|\/)producto\.html$/.test(path)) {
+      const raw = (U.qs().get("id") || "").trim();
+      const p = raw ? D.byId(raw) : null;            /* id anterior de un producto renombrado → el actual */
+      const id = p ? p.id : raw;
+      return id ? "#/productos/" + encodeURIComponent(id) : "#/productos";
+    }
+    if (/(^|\/)checkout\.html$/.test(path)) return "#/descuento";
+    return "#/inicio";
+  }
+  function mountEditBar() {
+    if (!ADMIN_SESSION || !(Mercy.api && Mercy.api.enabled)) return;
+    const bar = document.createElement("nav");
+    bar.className = "edit-bar";
+    bar.setAttribute("aria-label", "Edición del sitio");
+    bar.setAttribute("data-edit-bar", "");
+    bar.innerHTML =
+      '<a class="edit-bar__link edit-bar__link--main" href="admin/' + esc(adminRoute()) + '" data-edit-link>' + I("edit", { size: 16 }) +
+      '<span>Editar<span class="edit-bar__more"> esta página</span></span></a>' +
+      '<span class="edit-bar__sep" aria-hidden="true"></span>' +
+      '<a class="edit-bar__link" href="admin/" data-edit-panel>Panel</a>';
+    body.appendChild(bar);
+    body.classList.add("has-edit-bar");
+  }
+
   function updateBadges() {
     const n = S.cart.count();
     $$("[data-cart-count]").forEach(function (b) { b.textContent = n > 99 ? "99+" : n; b.hidden = n === 0; });
@@ -538,6 +712,8 @@ window.Mercy = window.Mercy || {};
     shell.className = "shell-top";
     shell.innerHTML = (headerMode === "minimal" ? "" : topStripHTML()) + headerHTML();
     body.insertBefore(shell, skip.nextSibling);
+    /* Sin franja superior (texts.topStrip vacío) el hero ocupa toda la pantalla */
+    if (!$(".topstrip", shell)) document.documentElement.style.setProperty("--strip-h", "0px");
     body.classList.add("has-header-" + headerMode);
 
     if (footerMode !== "none") {
@@ -561,21 +737,22 @@ window.Mercy = window.Mercy || {};
 
     discountUI.el = U.createModal({ id: "discount-modal", cls: "modal--discount", label: "Descuento de bienvenida", html: discountModalHTML() });
     $(".modal__box", discountUI.el).classList.add("discount");
-    bindDiscountForm($("[data-discount-form]", discountUI.el), function () {
-      $("[data-discount-form]", discountUI.el).closest(".discount__form-wrap").hidden = true;
-      $("[data-discount-success]", discountUI.el).hidden = false;
-      U.toast("¡Listo! Tu descuento del " + C.discount.percent + "% quedó aplicado", { icon: "check" });
+    bindDiscountForm($("[data-discount-form]", discountUI.el), function (r) {
+      syncDiscountModal();
+      U.toast(r.coupon ? "¡Listo! Tu descuento del " + r.coupon.label + " quedó aplicado" : THANKS, { icon: "check" });
       const closeBtn = $("[data-discount-success] [data-close]", discountUI.el); if (closeBtn) closeBtn.focus();
-    });
+    }, "popup");
+    syncDiscountModal();
 
     /* WhatsApp flotante (no en checkout) */
     if (headerMode !== "minimal") {
       const fab = document.createElement("a");
-      fab.className = "wa-fab"; fab.href = U.waLink("Hola Mercy Studio 👋, quiero más información");
+      fab.className = "wa-fab"; fab.href = U.waLink(U.waGreeting(", quiero más información"));
       fab.target = "_blank"; fab.rel = "noopener"; fab.setAttribute("aria-label", "Escríbenos por WhatsApp");
       fab.innerHTML = I("whatsapp", { size: 28 });
       body.appendChild(fab);
     }
+    mountEditBar();
 
     /* Header: estado transparente sobre el hero / sólido al hacer scroll */
     const header = $("#site-header");
@@ -614,7 +791,7 @@ window.Mercy = window.Mercy || {};
         const id = fav.getAttribute("data-fav");
         const on = S.favs.toggle(id);
         const p = D.byId(id);
-        if (on && !fav.closest(".drawer")) U.toast("Guardado en tus favoritos: " + p.name, { icon: "heart-fill" });
+        if (on && p && !fav.closest(".drawer")) U.toast("Guardado en tus favoritos: " + p.name, { icon: "heart-fill" });
         return;
       }
 
@@ -623,13 +800,31 @@ window.Mercy = window.Mercy || {};
 
       if (e.target.closest("[data-discount-open]")) { e.preventDefault(); discountUI.open(); return; }
 
+      /* «Usar mi código X» (carrito): aplica de verdad el código que recibió al suscribirse (se vuelve a validar) */
+      const useMine = e.target.closest("[data-claimed-apply]");
+      if (useMine && layout.cartEl && layout.cartEl.contains(useMine)) {
+        e.preventDefault();
+        const mine = S.discount.pendingClaim();
+        if (!mine || useMine.disabled) return;
+        useMine.disabled = true;
+        S.discount.applyCoupon(mine.code).then(function (r) {
+          useMine.disabled = false;
+          if (r.ok) U.toast(r.message, { icon: "check" });
+          else U.toast(r.message, { icon: "info", ms: 4200 });
+        });
+        return;
+      }
+
       const sterm = e.target.closest("[data-search-term]");
       if (sterm) { const inp = $("#search-input"); inp.value = sterm.getAttribute("data-search-term"); renderSearch(inp.value); inp.focus(); return; }
       if (e.target.closest("[data-search-clear]")) { const inp = $("#search-input"); inp.value = ""; renderSearch(""); inp.focus(); return; }
 
+      /* Copiar el código REAL que se muestra junto al botón (pop-up o Comunidad) */
       const copy = e.target.closest("[data-copy-code]");
       if (copy) {
-        const code = C.discount.code;
+        const shown = copy.parentElement && copy.parentElement.querySelector("strong");
+        const code = ((shown && shown.textContent) || S.discount.claimedCode() || S.discount.code()).trim();
+        if (!code) return;
         const done = function () { U.toast("Código copiado: " + code, { icon: "check" }); };
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, done); else done();
         return;
@@ -678,7 +873,7 @@ window.Mercy = window.Mercy || {};
     /* Reacciones al estado */
     document.addEventListener("mercy:cart", function () { updateBadges(); if (U.overlay.isOpen(layout.cartEl) || layout.cartEl) renderCart(); });
     document.addEventListener("mercy:favs", function () { updateBadges(); U.syncFavButtons(); renderFavs(); });
-    document.addEventListener("mercy:discount", function () { renderCart(); });
+    document.addEventListener("mercy:discount", function () { renderCart(); if (!U.overlay.isOpen(discountUI.el)) syncDiscountModal(); });
     updateBadges(); renderCart(); renderFavs();
 
     /* Foco sobre el ancla al cargar con #hash (header sticky) */

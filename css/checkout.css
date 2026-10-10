@@ -113,6 +113,8 @@
 .ship-card__name { font-size: var(--fs-md); }
 .ship-card__desc { font-size: var(--fs-sm); color: #6f6050; line-height: 1.4; }
 .ship-card__status { grid-area: status; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); }
+/* Rótulo y nota en renglones distintos (antes la nota quedaba pegada: «ENVÍO NO INCLUIDOTiene un…») */
+.ship-status { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
 .ship-status__label { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .ship-status__label .icon { flex: none; }
 .ship-status__note { color: #6f6050; font-size: var(--fs-xs); line-height: 1.45; }
@@ -121,6 +123,14 @@
 @media (min-width: 560px) {
   .ship-card { grid-template-columns: auto minmax(0, 1fr) minmax(0, auto); grid-template-areas: "radio body status"; }
   .ship-card__status { align-items: flex-end; text-align: right; max-width: 240px; }
+  .ship-status { align-items: flex-end; }
+}
+/* Columna del formulario angosta (900–1099 px): el estado va debajo de la descripción (como en el celular)
+   para que «Envío a domicilio» no quede de una palabra por renglón */
+@media (min-width: 900px) and (max-width: 1099px) {
+  .ship-card { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "radio body" ". status"; }
+  .ship-card__status { align-items: flex-start; text-align: left; max-width: none; }
+  .ship-status { align-items: flex-start; }
 }
 
 .co-note { margin-top: 16px; }
@@ -190,12 +200,20 @@
 .coupon__applied > .icon { flex: none; }
 .coupon__applied > span { flex: 1; min-width: 0; }
 .coupon__applied .co-link { color: var(--verde-oscuro); flex: none; }
+.coupon__applied.is-pending { background: #f4ece0; border-color: var(--borde-fuerte); color: var(--tinta); }
+.coupon__applied.is-pending .co-link { color: var(--terracota); }
+/* Aviso del cupón aplicado: compra mínima no alcanzada / productos no participantes */
+.coupon__note { display: flex; align-items: flex-start; gap: 8px; font-size: var(--fs-sm); line-height: 1.45; color: var(--terracota-oscuro); }
+.coupon__note > .icon { flex: none; margin-top: 2px; }
+.coupon__note--soft { color: var(--cafe-suave); font-size: var(--fs-xs); }
+.coupon[aria-busy] .coupon__row .btn { opacity: 0.7; cursor: progress; }
 
 .sum-totals { margin: 0; display: grid; gap: 8px; }
 .sum-totals > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .sum-totals dt { color: var(--cafe-suave); }
 .sum-totals dd { margin: 0; text-align: right; font-weight: 400; }
 .sum-totals .is-disc dt, .sum-totals .is-disc dd { color: var(--verde-oscuro); }
+.sum-totals .is-disc.is-zero dt, .sum-totals .is-disc.is-zero dd { color: var(--cafe-suave); }
 .sum-totals .is-ship-free { color: var(--verde-oscuro); font-weight: 700; }
 .sum-totals .is-total { margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--borde); align-items: center; }
 .sum-totals .is-total dt { color: var(--tinta); font-weight: 700; font-size: var(--fs-lg); }

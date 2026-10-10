@@ -88,7 +88,7 @@
             </svg>
             <span>Reseñas de Google</span>
             <span class="stars" data-reviews-stars role="img" aria-label="5 de 5 estrellas"></span>
-            <span class="reviews__score">4.9 · 320 reseñas</span>
+            <span class="reviews__score">4,9 · 320 reseñas</span>
           </h2>
         </div>
         <div class="reviews__scroller" data-reviews-scroller tabindex="0" role="region" aria-label="Reseñas de clientes">
@@ -98,7 +98,7 @@
       </div>
     </section>
 
-    <!-- 5 · COMUNIDAD + 15 % DE DESCUENTO (C20, C21, P22) -->
+    <!-- 5 · COMUNIDAD + CUPÓN DE BIENVENIDA (C20, C21, P22) -->
     <section class="community" id="comunidad" aria-labelledby="community-title">
       <div class="container">
         <div class="community__card on-dark">
@@ -122,7 +122,7 @@
               <span class="community__check" aria-hidden="true"></span>
               <p class="community__done-title">¡Bienvenido a Mercy!</p>
               <div class="community__code">
-                <strong data-community-code>MERCY15</strong>
+                <strong data-community-code></strong><!-- código real: lo pone home.js (nunca se publica en el HTML) -->
                 <button type="button" class="btn btn--ghost btn--sm" data-copy-code aria-label="Copiar el código de descuento"><span data-copy-icon></span>Copiar</button>
               </div>
               <p class="community__done-msg">Ya está aplicado a tu carrito</p>
@@ -135,6 +135,9 @@
 
   </main>
 
+  <!-- Contenido administrable: con servidor define window.MercyContent; sin servidor (file://) falla y se usa js/defaults.js -->
+  <script defer src="api/public/content.js"></script>
+  <script defer src="js/defaults.js"></script>
   <script defer src="js/config.js"></script>
   <script defer src="js/data.js"></script>
   <script defer src="js/icons.js"></script>
