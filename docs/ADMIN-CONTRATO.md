@@ -82,7 +82,10 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     giftMaxChars: 180,                          // 20–1000
     pageSize: 6,                                // 2–48 productos por "página" del catálogo
     showPhotos: true,                           // false = tarjetas con degradado + texto (antes stockPhotos)
-    showAdminLink: true                         // botón de acceso al panel en el header de la tienda
+    showAdminLink: true,                        // botón de acceso al panel en el header de la tienda
+    paymentMethods: [                           // 1–8 medios de pago del checkout (transferencia); el elegido viaja en el mensaje de WhatsApp
+      { id: "nequi", name: "Nequi", hint: "Transferencia desde la app Nequi", logo: "nequi" }   // logo: nequi | breb | bancolombia | none
+    ]                                           //   (sin id, el servidor lo deriva del nombre; ids únicos)
   },
 
   home: {
@@ -143,12 +146,35 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     care: ["Lávala en agua fría…", …],                // cuidados por defecto de todas las prendas
     sizeGuideNote: "Medidas de la prenda en centímetros, tomadas en plano. Pueden variar ±1 cm.",
     catalog: {
-      eyebrow: "Catálogo",
+      eyebrow: "Catálogo",                           // también <title>, migas y etiqueta móvil (vacío → «Catálogo»)
       allTitle: "Toda la *Colección*",                // (acento)
       subtitle: "Fe, propósito y misericordia",
-      bestTitle: "Los más vendidos",
-      newTitle: "Novedades"
-    }
+      bestTitle: "Los más vendidos",                 // vista, menú lateral, selector «Ordenar por» y sugerencias
+      newTitle: "Novedades",
+      metaDescription: "…{marca}…", loadMore: "Ver más productos", seeAll: "Ver toda la colección",
+      similarTitle, similarText, similarSearchText: "…“{busqueda}”…",
+      emptyFiltersTitle, emptyFiltersText, emptySearchTitle: "…“{busqueda}”", emptySearchText
+    },
+    // ---- Textos de INTERFAZ (etiquetas, avisos, estados vacíos). Vacío o ausente = texto de fábrica (js/defaults.js):
+    //      la tienda nunca queda sin etiqueta (Mercy.ui.tx). Variables: {marca}, {descuento}, {busqueda}, {n}. **negrita** = <strong>.
+    menu: { title: "Tienda", allLabel: "Toda la colección", whatsappLabel: "Escríbenos por WhatsApp" },
+    help: { sizeGuide: "Guía de tallas", shipping: "Envíos", returns: "Cambios y devoluciones" },   // menú, pie, ventanas y pestañas del producto
+    footerShopTitle: "Tienda", footerHelpTitle: "Ayuda", footerFollowTitle: "Síguenos",
+    search: { placeholder, suggestionsTitle, topTitle, emptyText: "…“{busqueda}”…", similarTitle, maybeTitle },
+    favorites: { title, subtitle, emptyTitle, emptyText, emptyCta },
+    cart: { title, emptyTitle, emptyText, emptyCta, note, checkoutLabel, continueLabel },
+    shipping: { badge: "Envío gratis", lineFree, cartFree: "Tu pedido tiene **ENVÍO GRATIS**", cartPaid: "**ENVÍO NO INCLUIDO** · …",
+      productFree, productPaid, detailFree, detailPaid, ruleFree: "**Envío gratis** si…", rulePaid: "**Envío no incluido** cuando…",
+      method: "Envío a domicilio", time: "2–4 días hábiles", coordination, checkoutFree, checkoutPaid, checkoutPaidNote, pending },
+    product: { collectionLabel: "Colección", stockIn, stockOut, lowStockOne, lowStockMany: "Quedan {n} unidades", videoChip, videoSoonTitle,
+      videoSoonText, detailsTitle, careTitle, sizesTitle, sizeGuideLink, detailsEmpty, careEmpty, storyTitle, reviewsTitle,
+      reviewsSource: "reseñas en Google", verifiedLabel: "Compra verificada" /* vacío = sin insignia (Inicio y ficha) */, relatedTitle, metaSuffix },
+    checkout: { metaDescription: "…{marca}…", strip, title: "Finalizar *compra*", subtitle, emptyTitle, emptyText, emptyCta,
+      successTitle: "¡Gracias por tu *pedido*!", successText, successHome, successCta, shipTitle, note, giftTitle, giftHint, giftLabel,
+      giftPlaceholder, payTitle, payLead, payHint: "…{marca}…", confirmLabel, confirmHelp, previewTitle: "¡Tu pedido *está* listo!",
+      previewText, openLabel, copyLabel, afterOpenText, waIntro: ", quiero confirmar mi pedido:", waClosing, noCodeCta: "…{descuento}…" },
+    subscribe: { thanks: "…{marca}.", codeHint, popupCodeHint, appliedToast: "…{descuento}…", subscribeLabel: "Suscribirme" },
+    whatsappFabText: ", quiero más información"                 // botón flotante: va después del saludo (settings.whatsappGreeting)
   },
 
   colors:      [ { id: "negro", name: "Negro", hex: "#2a1e14" }, … ],          // paleta global
@@ -207,6 +233,9 @@ Reglas de integridad (el servidor las valida; el panel las previene):
   siempre gana sobre un alias).
 - *(servidor)* Reseñas sin `id` reciben uno (`r-…`). Listas de textos (`topStrip`, `care`, `details`, `tags`…) descartan las líneas vacías.
   Guardar una sección o producto sin cambios responde 200 y NO crea revisión.
+- *(servidor)* Claves NUEVAS del esquema (p. ej. un texto de `texts` agregado en una versión posterior, `settings.paymentMethods`) que no
+  existen en un `content.json` ya creado se completan UNA vez al arrancar con el valor de fábrica (solo lo ausente; nada guardado cambia;
+  log «campo(s) nuevo(s) del esquema completados»). La tienda además usa el texto de fábrica cuando un texto de interfaz está vacío.
 
 ### Cupones (`coupons.json`, `Mercy.DEFAULT_COUPONS`)
 ```js
@@ -475,7 +504,9 @@ Orden de scripts en las 4 páginas (todos `defer`):
 `#/suscriptores` · `#/medios` · `#/usuarios` · `#/actividad` · `#/revisiones` · `#/ajustes` · `#/perfil`.
 `admin/login.html?next=<hash>`: si ya hay sesión, redirige al panel.
 *(panel)* Precisiones: `next` solo acepta rutas del panel (`#/…`; otra cosa → `#/`). Extras de la URL de ingreso: `&motivo=sesion`
-(aviso "Tu sesión expiró…", lo agrega el panel al recibir un 401) y `?salida=1` (aviso "Cerraste sesión"). Sin la cookie `mercy_admin`
+(aviso "Tu sesión expiró…", lo agrega el panel al recibir un 401 en una lectura sin cambios pendientes; en una acción o con cambios sin
+guardar el panel no sale de la página: abre el diálogo «Tu sesión se cerró» para escribir la clave y repite la petición, `core/reauth.js`)
+y `?salida=1` (aviso "Cerraste sesión"). Sin la cookie `mercy_admin`
 el panel va directo al ingreso sin llamar a `/api/auth/me`. Ruta desconocida → "Página no encontrada"; ruta sin permiso para el rol →
 "Sin permiso" (el menú lateral oculta lo que el rol no puede abrir). El Escritorio enlaza a `#/productos?estado=agotados` y
 `#/productos?estado=poco-stock` (la lista de productos puede usarlos como filtro inicial). Framework de vistas (registro de rutas,

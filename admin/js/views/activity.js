@@ -150,10 +150,12 @@ export default [
       function fillUsers() {
         const known = new Map((refs.users || []).map((u) => [u.id, { name: u.name, note: u.active === false ? " (desactivado)" : "" }]));
         for (const e of st.items) if (e.user?.id && !known.has(e.user.id)) known.set(e.user.id, { name: e.user.name || "Usuario", note: " (eliminado)" });
-        if (st.userId && !known.has(st.userId)) known.set(st.userId, { name: "Persona filtrada", note: "" });
+        if (st.userId && st.userId !== "system" && !known.has(st.userId)) known.set(st.userId, { name: "Persona filtrada", note: "" });
         const opts = [...known].sort((a, b) => a[1].name.localeCompare(b[1].name, "es"));
         replace(userSel,
           h("option", { value: "" }, "Todas las personas"),
+          // Acciones automáticas del servidor (user.id null): creación del primer administrador, ADMIN_RESET…
+          h("option", { value: "system", selected: st.userId === "system" }, "Sistema (acciones automáticas)"),
           opts.map(([id, u]) => h("option", { value: id, selected: id === st.userId }, `${u.name}${u.note}`)));
       }
       fillUsers();

@@ -41,10 +41,24 @@ window.Mercy = window.Mercy || {};
   function fill(text) {
     const dm = Mercy.content && Mercy.content.discountModal;
     const label = dm && dm.welcome && dm.welcome.label ? String(dm.welcome.label) : "";
-    const s = String(text == null ? "" : text);
+    const s = String(text == null ? "" : text).replace(/\{marca\}/g, (Mercy.config && Mercy.config.brand) || "");
     if (label) return s.replace(/\{descuento\}/g, label);
     return s.replace(/[ \t]*\{descuento\}/g, "").replace(/[ \t]{2,}/g, " ").trim();
   }
+  /* Texto administrable de interfaz (Mercy.content.texts.<ruta>, contrato §3 «texts»): vacío o ausente = texto de fábrica `d`.
+     Son etiquetas, avisos y estados vacíos: la dueña los cambia desde el panel (Textos del sitio) pero no los puede dejar en blanco. */
+  function tx(path, d) {
+    let v = Mercy.content && Mercy.content.texts;
+    const parts = String(path).split(".");
+    for (let i = 0; i < parts.length && v != null; i++) v = v[parts[i]];
+    return v != null && String(v).trim() ? String(v) : (d == null ? "" : d);
+  }
+  /* Variables de esos textos: fill() ({descuento}, {marca}) + las de cada pantalla ({busqueda}, {n}…). */
+  function vars(text, map) {
+    return fill(text).replace(/\{(\w+)\}/g, function (m, k) { return map && map[k] != null ? String(map[k]) : m; });
+  }
+  /* Negrita explícita: **así** → <strong>así</strong> (todo lo demás escapado). */
+  function strong(text) { return esc(String(text == null ? "" : text)).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>"); }
   function rich(text, opts) {
     opts = opts || {};
     let s = String(text == null ? "" : text).replace(/\r\n?/g, "\n");
@@ -152,7 +166,7 @@ window.Mercy = window.Mercy || {};
       ? '<p class="pcard__meta">' + esc((fitName ? fitName + " · " : "") + pluralize(p.colors.length, "color", "colores")) + "</p>"
       : "";
     const ship = p.envioGratis
-      ? '<p class="pcard__ship">' + icon("truck", { size: 14 }) + " Envío gratis</p>"
+      ? '<p class="pcard__ship">' + icon("truck", { size: 14 }) + " " + esc(tx("shipping.badge", "Envío gratis")) + "</p>"
       : "";
     return (
       '<article class="pcard' + (p.soldOut ? " is-soldout" : "") + '" data-id="' + esc(p.id) + '">' +
@@ -434,7 +448,7 @@ window.Mercy = window.Mercy || {};
   Mercy.ui = {
     $: $, $$: $$, esc: esc, money: money, norm: norm, qs: qs, debounce: debounce, waLink: waLink,
     pluralize: pluralize, thousands: thousands, icon: icon, logoHTML: logoHTML, waGreeting: waGreeting,
-    rich: rich, fill: fill, plain: plain, safeUrl: safeUrl,
+    rich: rich, fill: fill, plain: plain, safeUrl: safeUrl, tx: tx, vars: vars, strong: strong,
     tileHTML: tileHTML, cardHTML: cardHTML, syncFavButtons: syncFavButtons, stepperHTML: stepperHTML,
     overlay: overlay, createDrawer: createDrawer, createModal: createModal, infoModal: infoModal,
     initAccordions: initAccordions, setAcc: setAcc, toast: toast,

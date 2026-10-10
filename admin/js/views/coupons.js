@@ -24,6 +24,8 @@ import { pexelsSized } from "../core/media.js";
 const CODE_RE = /^[A-Z0-9_-]{3,30}$/;
 const CODE_MSG = "Usa de 3 a 30 caracteres: letras sin tildes ni ñ, números, guion (-) o guion bajo (_).";
 const enc = encodeURIComponent;
+/** Concurrencia optimista (§4.3): X-Base-Updated-At = updatedAt leído; si otra persona lo cambió el servidor responde 409 conflict con `current`. */
+const baseHeaders = (c) => (c?.updatedAt ? { "X-Base-Updated-At": c.updatedAt } : {});
 const MESES = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sept.", "oct.", "nov.", "dic."];
 
 /* ---------- Estado y textos de un cupón ---------- */
@@ -329,12 +331,13 @@ async function toggleCoupon(c, welcomeCode) {
     if (!ok) return null;
   }
   try {
-    const { item } = await api.put(`/api/admin/coupons/${enc(c.id)}`, { ...payloadOf(c), active: !c.active });
+    const { item } = await api.put(`/api/admin/coupons/${enc(c.id)}`, { ...payloadOf(c), active: !c.active }, { headers: baseHeaders(c) });
     toast(item.active ? `Cupón ${item.code} activado.` : `Cupón ${item.code} desactivado: la tienda ya no lo acepta.`);
     return item;
   } catch (e) {
     showApiError(e);
-    return null;
+    // Otra persona lo cambió mientras el listado estaba abierto: la fila pasa a mostrar la versión vigente (no se guardó nada)
+    return e.isConflict ? e.data.current : null;
   }
 }
 
@@ -555,9 +558,19 @@ async function editorView(el, id, ctx) {
       }
       let r;
       try {
-        r = item ? await api.put(`/api/admin/coupons/${enc(item.id)}`, body) : await api.post("/api/admin/coupons", body);
+        r = item ? await api.put(`/api/admin/coupons/${enc(item.id)}`, body, { headers: baseHeaders(item) }) : await api.post("/api/admin/coupons", body);
       } catch (e) {
         if (e.isValidation && e.fields) e.fields = explainMissing(e.fields, body, data);
+        if (e.isConflict) {
+          // Otra persona guardó este cupón mientras se editaba: no se pisa su versión; se ofrece verla
+          modal({
+            title: "Alguien más cambió este cupón",
+            size: "sm",
+            content: [h("p.modal__text", e.message), h("p.muted", "Si abres la versión actual, lo que escribiste aquí se descarta.")],
+            actions: [{ label: "Seguir editando" }, { label: "Ver versión actual", variant: "primary", onClick: () => ctx.navigate(`/cupones/${enc(item.id)}`, { replace: true, force: true }) }],
+          });
+          throw new DOMException("Conflicto de edición", "AbortError"); // sigue editando, sin guardar
+        }
         throw e;
       }
       const prevId = item?.id;
@@ -699,7 +712,7 @@ async function editorView(el, id, ctx) {
     });
     if (!ok) return;
     try {
-      const { item: next } = await withBusy(btn, () => api.put(`/api/admin/coupons/${enc(item.id)}`, { ...payloadOf(item), resetUses: true }), { label: "Reiniciando…" });
+      const { item: next } = await withBusy(btn, () => api.put(`/api/admin/coupons/${enc(item.id)}`, { ...payloadOf(item), resetUses: true }, { headers: baseHeaders(item) }), { label: "Reiniciando…" });
       item = next;
       all = all.map((c) => (c.id === item.id ? item : c));
       renderSide();

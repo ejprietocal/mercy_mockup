@@ -15,6 +15,10 @@
   const $ = U.$, $$ = U.$$, esc = U.esc, money = U.money;
 
   const SUFFIX = " — " + M.config.brand;
+  const tx = U.tx;
+  /* Insignia «Compra verificada» de cada reseña (texts.product.verifiedLabel): vacío = sin insignia */
+  const VERIFIED = (function () { const t = M.content && M.content.texts && M.content.texts.product; const v = t ? t.verifiedLabel : undefined; return v == null ? "Compra verificada" : String(v).trim(); })();
+  function verifiedHTML() { return VERIFIED ? '<span class="review-card__verified">' + I("check", { size: 14, stroke: 2.2 }) + " " + esc(VERIFIED) + "</span>" : ""; }
   const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   const id = U.qs().get("id");
@@ -105,11 +109,11 @@
   /* ------------------------------------------------------------------ */
   /* Cabecera de la información                                           */
   /* ------------------------------------------------------------------ */
-  setMeta(p.name + SUFFIX, (p.desc ? p.desc + " " : "") + p.name + (p.collection ? " — colección " + p.collection : "") + ". Ropa con propósito cristiano, hecha en Colombia.");
+  setMeta(p.name + SUFFIX, (p.desc ? p.desc + " " : "") + p.name + (p.collection ? " — colección " + p.collection : "") + ". " + U.fill(tx("product.metaSuffix", "Ropa con propósito cristiano, hecha en Colombia.")));
   renderCrumbs(p.name);
 
   /* Sin colección no se muestra "Colección …" */
-  $("#p-eyebrow").textContent = p.collection ? ("Colección " + p.collection).toUpperCase() : "";
+  $("#p-eyebrow").textContent = p.collection ? (tx("product.collectionLabel", "Colección") + " " + p.collection).toUpperCase() : "";
   $("#p-eyebrow").hidden = !p.collection;
   if (p.rating > 0 || p.reviews > 0) {
     $("#p-rating").innerHTML =
@@ -275,10 +279,10 @@
       return;
     }
     U.infoModal("video-modal", p.name,
-      '<div class="video-ph" role="img" aria-label="Video próximamente">' +
+      '<div class="video-ph" role="img" aria-label="' + esc(tx("product.videoSoonTitle", "Video próximamente")) + '">' +
       '<div class="video-ph__bg">' + U.tileHTML(p, { variant: 2, index: 2, size: "large", alt: "", color: st.color }) + "</div>" +
       '<div class="video-ph__msg"><span class="video-ph__icon">' + I("play", { size: 34 }) + "</span>" +
-      "<strong>Video próximamente</strong><span>Estamos preparando el video de esta prenda.</span></div></div>");
+      "<strong>" + esc(tx("product.videoSoonTitle", "Video próximamente")) + "</strong><span>" + esc(tx("product.videoSoonText", "Estamos preparando el video de esta prenda.")) + "</span></div></div>");
   }
 
   /* ------------------------------------------------------------------ */
@@ -314,7 +318,7 @@
 
     if (hasChart) {
       const g = $("#size-guide-btn");
-      g.innerHTML = I("ruler", { size: 16 }) + "<span>Guía de tallas</span>";
+      g.innerHTML = I("ruler", { size: 16 }) + "<span>" + esc(tx("help.sizeGuide", "Guía de tallas")) + "</span>";
       g.hidden = false;
     }
     $("#qty-slot").innerHTML = U.stepperHTML(1);
@@ -368,14 +372,14 @@
     const stock = $("#p-stock");
     stock.className = "status__stock " + (ok ? "is-in" : "is-out");
     stock.innerHTML = ok
-      ? '<span class="status__dot" aria-hidden="true"></span><span>En stock · listo para enviar</span>'
-      : I("ban", { size: 17, cls: "status__ban" }) + "<span>No disponible</span>";
+      ? '<span class="status__dot" aria-hidden="true"></span><span>' + esc(tx("product.stockIn", "En stock · listo para enviar")) + "</span>"
+      : I("ban", { size: 17, cls: "status__ban" }) + "<span>" + esc(tx("product.stockOut", "No disponible")) + "</span>";
 
     const ship = $("#p-ship");
     ship.className = "status__ship " + (p.envioGratis ? "is-free" : "is-paid");
     ship.innerHTML = p.envioGratis
-      ? I("truck", { size: 18 }) + "<span>Envío gratis incluido</span>"
-      : I("truck", { size: 18 }) + "<span>Envío no incluido · se coordina por WhatsApp</span>";
+      ? I("truck", { size: 18 }) + "<span>" + esc(tx("shipping.productFree", "Envío gratis incluido")) + "</span>"
+      : I("truck", { size: 18 }) + "<span>" + esc(tx("shipping.productPaid", "Envío no incluido · se coordina por WhatsApp")) + "</span>";
   }
 
   function renderQty() {
@@ -389,7 +393,7 @@
     minus.disabled = off || st.qty <= 1;
     plus.disabled = off || st.qty >= max;
     const hint = $("#qty-hint");
-    hint.textContent = isAvailable() && stock <= 5 ? (stock === 1 ? "Queda 1 unidad" : "Quedan " + stock + " unidades") : "";
+    hint.textContent = isAvailable() && stock <= 5 ? (stock === 1 ? tx("product.lowStockOne", "Queda 1 unidad") : U.vars(tx("product.lowStockMany", "Quedan {n} unidades"), { n: stock })) : "";
   }
 
   function ctaState() {
@@ -426,7 +430,7 @@
       '<p class="measures__intro">Medidas de la prenda' + (unit ? " en " + esc(unit) : "") + (fitName ? ' para el fit <strong>' + esc(fitName) + "</strong>" : "") + ".</p>" +
       '<div class="table-scroll">' + M.layout.sizeTableHTML(p.sizeChart, st.fit) + "</div>" +
       M.layout.sizeNoteHTML("measures__note") +
-      '<button type="button" class="link-arrow measures__guide" data-guide>Ver guía de tallas completa ' + I("arrow-right", { size: 16 }) + "</button>";
+      '<button type="button" class="link-arrow measures__guide" data-guide>' + esc(tx("product.sizeGuideLink", "Ver guía de tallas completa")) + " " + I("arrow-right", { size: 16 }) + "</button>";
     markCurrentRow();
   }
   function markCurrentRow() {
@@ -505,17 +509,29 @@
   function renderContent() {
     $$("[data-chev]").forEach(function (n) { n.innerHTML = I("chevron-down", { size: 20 }); });
 
+    /* Títulos administrables de la ficha (texts.product / texts.help) */
+    const setT = function (sel, t) { const n = $(sel); if (n) n.textContent = t; };
+    setT("#acc-detalles-h > span:first-child", tx("product.detailsTitle", "Detalles"));
+    setT("#acc-cuidados-h > span:first-child", tx("product.careTitle", "Cuidados de la prenda"));
+    setT("#acc-medidas-h > span:first-child", tx("product.sizesTitle", "Medidas / Tallas"));
+    setT("#acc-envios-h > span:first-child", tx("help.shipping", "Envíos"));
+    setT("#acc-cambios-h > span:first-child", tx("help.returns", "Cambios y devoluciones"));
+    setT("#story-title", tx("product.storyTitle", "La historia del diseño"));
+    setT("#reviews-title", tx("product.reviewsTitle", "Reseñas verificadas"));
+    setT("#related-title", tx("product.relatedTitle", "También te puede gustar"));
+    setT("#gallery-video > span:last-child", tx("product.videoChip", "Ver video"));
+
     $("#p-details").innerHTML = p.details.length
       ? '<ul class="bullet-list">' + p.details.map(function (d) { return "<li>" + esc(d) + "</li>"; }).join("") + "</ul>"
-      : "<p>Pronto sumaremos más detalles de esta prenda.</p>";
+      : "<p>" + esc(tx("product.detailsEmpty", "Pronto sumaremos más detalles de esta prenda.")) + "</p>";
     $("#p-care").innerHTML = p.care.length
       ? '<ul class="bullet-list">' + p.care.map(function (d) { return "<li>" + esc(d) + "</li>"; }).join("") + "</ul>"
-      : "<p>Lava la prenda con cuidado, en agua fría y al revés.</p>";
+      : "<p>" + esc(tx("product.careEmpty", "Lava la prenda con cuidado, en agua fría y al revés.")) + "</p>";
     renderMeasures();
     $("#p-shipping").innerHTML =
       (D.SHIPPING_INFO.trim() ? "<p>" + U.rich(D.SHIPPING_INFO, { accent: false }) + "</p>" : "") +
       '<p class="ship-flag ' + (p.envioGratis ? "is-free" : "is-paid") + '">' + I("truck", { size: 18 }) +
-      "<span>" + (p.envioGratis ? "Esta prenda incluye envío gratis." : "El envío de esta prenda no está incluido: se coordina por WhatsApp.") + "</span></p>";
+      "<span>" + esc(p.envioGratis ? tx("shipping.detailFree", "Esta prenda incluye envío gratis.") : tx("shipping.detailPaid", "El envío de esta prenda no está incluido: se coordina por WhatsApp.")) + "</span></p>";
     $("#p-returns").innerHTML = "<p>" + U.rich(D.RETURNS_INFO, { accent: false }) + "</p>";
     U.initAccordions($("#p-acc"));
 
@@ -526,7 +542,8 @@
     /* Reseñas verificadas */
     $("#g-logo").innerHTML =
       '<svg class="g-logo" viewBox="0 0 48 48" width="32" height="32" role="img" aria-label="Google"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
-    $("#reviews-meta").textContent = p.reviews > 0 ? p.rating.toFixed(1).replace(".", ",") + " · " + U.pluralize(p.reviews, "reseña", "reseñas") + " en Google" : "";
+    const src = tx("product.reviewsSource", "reseñas en Google");
+    $("#reviews-meta").textContent = p.reviews > 0 ? p.rating.toFixed(1).replace(".", ",") + " · " + U.thousands(p.reviews) + " " + (p.reviews === 1 ? src.replace(/^reseñas\b/i, "reseña") : src) : "";
     $("#reviews-grid").innerHTML = D.REVIEWS.slice(0, 3).map(function (r) {
       return (
         '<article class="review-card">' +
@@ -534,7 +551,7 @@
         '<span class="review-card__id"><strong>' + esc(r.name) + "</strong>" + (r.city ? "<span>" + esc(r.city) + "</span>" : "") + "</span></div>" +
         '<span class="stars" role="img" aria-label="' + r.stars + ' de 5 estrellas">' + new Array(r.stars + 1).join(I("star", { size: 16 })) + "</span>" +
         '<p class="review-card__text">' + esc(r.text) + "</p>" +
-        '<span class="review-card__verified">' + I("check", { size: 14, stroke: 2.2 }) + " Compra verificada</span>" +
+        verifiedHTML() +
         "</article>"
       );
     }).join("");

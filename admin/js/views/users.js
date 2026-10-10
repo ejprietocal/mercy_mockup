@@ -18,6 +18,8 @@ import { badge, button, card, confirmDialog, dataTable, modal, pageHeader, showA
 import { date, dateTime, initials, plural, relativeTime } from "../core/format.js";
 
 const enc = encodeURIComponent;
+/** Concurrencia optimista (§4.3): X-Base-Updated-At = updatedAt leído; si otra persona lo cambió el servidor responde 409 conflict con `current`. */
+const baseHeaders = (u) => (u?.updatedAt ? { "X-Base-Updated-At": u.updatedAt } : {});
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const LAST_ADMIN = "Debe quedar al menos un administrador activo. Dale el rol Administrador a otra persona antes de cambiar este usuario.";
 
@@ -139,7 +141,7 @@ function userDialog(user, { resetPassword = false } = {}) {
       const body = { name: v.name.trim(), email: v.email.trim(), role: v.role, active: !!v.active };
       if (withPassword && v.password) body.password = v.password;
       try {
-        const r = isNew ? await api.post("/api/admin/users", body) : await api.put(`/api/admin/users/${enc(user.id)}`, body);
+        const r = isNew ? await api.post("/api/admin/users", body) : await api.put(`/api/admin/users/${enc(user.id)}`, body, { headers: baseHeaders(user) });
         saved = r.item;
         sentPassword = body.password || "";
       } catch (e) {
@@ -313,10 +315,11 @@ export default [
           if (!ok) return;
         }
         try {
-          const { item } = await api.put(`/api/admin/users/${enc(u.id)}`, { name: u.name, email: u.email, role: u.role, active: !u.active });
+          const { item } = await api.put(`/api/admin/users/${enc(u.id)}`, { name: u.name, email: u.email, role: u.role, active: !u.active }, { headers: baseHeaders(u) });
           upsert(item);
           toast(item.active ? `${item.name} ya puede entrar al panel.` : `${item.name} ya no puede entrar al panel.`);
         } catch (e) {
+          if (e.isConflict) upsert(e.data.current); // otra persona lo cambió: la fila muestra la versión vigente
           conflictDialog(e, "No se pudo cambiar el acceso");
         }
       }

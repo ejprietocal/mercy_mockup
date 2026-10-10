@@ -55,6 +55,7 @@ window.Mercy = window.Mercy || {};
   };
 
   /* Insignias de bancos (C35). PLACEHOLDERS tipográficos; reemplazar por logos oficiales en assets/img/banks/ */
+  const BANK_GENERIC = '<svg class="bank-logo bank-logo--generic" viewBox="0 0 110 30" role="img" aria-label="Transferencia"><rect x="1" y="3" width="24" height="24" rx="6" fill="#6e5847"/><path d="M7 12.5h12M7 17.5h8" stroke="#fff" stroke-width="2" stroke-linecap="round"/><text x="31" y="21" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#6e5847" letter-spacing="-.2">Transferencia</text></svg>';
   const BANKS = {
     nequi:
       '<svg class="bank-logo" viewBox="0 0 92 30" role="img" aria-label="Nequi"><rect x="1" y="3" width="24" height="24" rx="6" fill="#DA0081"/><path d="M8 20V10h2.2l5.6 6.6V10H18v10h-2.2L10.2 13.4V20z" fill="#fff"/><text x="31" y="21.5" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#200020" letter-spacing="-.3">nequi</text></svg>',
@@ -78,7 +79,8 @@ window.Mercy = window.Mercy || {};
 
   Mercy.icons = {
     svg: svg,
-    bank: function (id) { return BANKS[id] || ""; },
+    /* `logo` de settings.paymentMethods: insignia conocida o la genérica («Transferencia») */
+    bank: function (id) { return BANKS[id] || BANK_GENERIC; },
     names: Object.keys(S).concat(Object.keys(F))
   };
 })();

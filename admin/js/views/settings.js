@@ -11,6 +11,8 @@ import { button, pageHeader, section } from "../core/ui.js";
 import { dateTime, relativeTime } from "../core/format.js";
 
 const digits = (v) => String(v ?? "").replace(/\D/g, "");
+/** Número → texto visible: 573001234567 → «+57 300 123 4567»; otros países → «+<dígitos>». */
+const fmtPhone = (d) => (d.length === 12 && d.startsWith("57") ? `+57 ${d.slice(2, 5)} ${d.slice(5, 8)} ${d.slice(8)}` : d ? `+${d}` : "");
 
 export default [
   {
@@ -29,9 +31,11 @@ export default [
       const waLink = button({ label: "Probar enlace", icon: "external", size: "sm", variant: "secondary", href: "#", target: "_blank" });
       const waCode = h("code");
       const updWa = () => {
-        const url = `https://wa.me/${digits(form.get("whatsapp"))}${form.get("whatsappGreeting") ? `?text=${encodeURIComponent(form.get("whatsappGreeting"))}` : ""}`;
-        waLink.href = url;
-        waCode.textContent = `wa.me/${digits(form.get("whatsapp")) || "…"}`;
+        // Mismo formato que la tienda (Mercy.ui.waLink): api.whatsapp.com conserva los emojis del saludo; wa.me los daña en su redirección
+        const phone = digits(form.get("whatsapp"));
+        const greeting = form.get("whatsappGreeting");
+        waLink.href = `https://api.whatsapp.com/send?phone=${encodeURIComponent(phone)}${greeting ? `&text=${encodeURIComponent(greeting)}` : ""}`;
+        waCode.textContent = `api.whatsapp.com/send?phone=${phone || "…"}`;
       };
 
       /* --- Vista previa en buscadores --- */
@@ -67,7 +71,7 @@ export default [
                 help: "Solo números, con el indicativo del país. Ej.: 573001234567.",
                 validate: (v) => (/^[\d\s+().-]*$/.test(String(v ?? "")) && /^\d{8,15}$/.test(digits(v)) ? null : "Escribe entre 8 y 15 dígitos, con el indicativo (57 para Colombia)."),
               }),
-              f.text(form, "whatsappDisplay", { label: "Cómo se muestra", maxlength: 30, placeholder: "+57 300 000 0000", help: "Texto visible en la tienda." }),
+              f.text(form, "whatsappDisplay", { label: "Cómo se muestra", maxlength: 30, placeholder: "+57 300 000 0000", help: "Texto visible en el pie de la tienda. Se actualiza solo al cambiar el número, salvo que lo escribas a tu manera." }),
             ),
             f.textarea(form, "whatsappGreeting", { label: "Saludo inicial del mensaje", maxlength: 300, rows: 2, help: "Con este texto empieza el mensaje que la persona envía desde la tienda." }),
             h("div.wa-preview", waCode, waLink),
@@ -110,6 +114,24 @@ export default [
         }),
 
         section({
+          title: "Medios de pago",
+          description: "Opciones de transferencia que la persona elige al finalizar la compra. El método elegido viaja en el mensaje de WhatsApp: la tienda no cobra.",
+          body: f.list(form, "paymentMethods", {
+            label: "Métodos de pago",
+            help: "Entre 1 y 8, en el orden en que se muestran. La insignia es el logo que acompaña al nombre.",
+            min: 1, max: 8, addLabel: "Agregar medio de pago",
+            newItem: () => ({ id: "", name: "", hint: "", logo: "none" }),
+            itemLabel: (it, i) => String(it?.name || "").trim() || `Medio de pago ${i + 1}`,
+            renderItem: (p) => h("div.stack-sm",
+              f.row(
+                f.text(form, `${p}.name`, { label: "Nombre", required: true, maxlength: 40, placeholder: "Nequi" }),
+                f.select(form, `${p}.logo`, { label: "Insignia", options: [{ value: "nequi", label: "Nequi" }, { value: "breb", label: "Bre-B" }, { value: "bancolombia", label: "Bancolombia" }, { value: "none", label: "Genérica (transferencia)" }] }),
+              ),
+              f.text(form, `${p}.hint`, { label: "Descripción corta", maxlength: 120, placeholder: "Transferencia desde la app Nequi" })),
+          }),
+        }),
+
+        section({
           title: "Tienda",
           description: "Opciones generales del catálogo, el checkout y el acceso al panel.",
           body: [
@@ -121,6 +143,15 @@ export default [
             f.switch(form, "showAdminLink", { label: "Mostrar el acceso al panel en la tienda", help: "Ícono de usuario en el encabezado y enlace en el menú lateral." }),
           ],
         })));
+      /* Al cambiar el número, «Cómo se muestra» lo sigue, salvo que la persona lo haya escrito a su manera */
+      let lastDigits = digits(form.get("whatsapp"));
+      form.on("change", ({ path }) => {
+        if (path !== "whatsapp") return;
+        const now = digits(form.get("whatsapp"));
+        const shown = String(form.get("whatsappDisplay") || "").trim();
+        if (now !== lastDigits && (!shown || shown === fmtPhone(lastDigits))) form.set("whatsappDisplay", fmtPhone(now));
+        lastDigits = now;
+      });
       updWa();
       updSerp();
     },

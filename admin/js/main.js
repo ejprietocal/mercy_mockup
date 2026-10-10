@@ -35,6 +35,9 @@ function showFatal(err) {
 }
 
 async function boot() {
+  // Fuentes de marca (vistas previas): el <link> carga como "print" para no bloquear el render y aquí pasa a "all"
+  const brandFonts = $("#brand-fonts");
+  if (brandFonts) brandFonts.media = "all";
   // "Saltar al contenido" sin tocar la ruta (#main no es una ruta del panel)
   $(".skip-link")?.addEventListener("click", (e) => {
     e.preventDefault();

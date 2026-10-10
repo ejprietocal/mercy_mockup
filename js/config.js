@@ -98,7 +98,8 @@ window.Mercy = window.Mercy || {};
 
     /* Número de WhatsApp en formato internacional, sin "+" */
     whatsapp: String(st.whatsapp || "").replace(/\D/g, ""),
-    whatsappDisplay: st.whatsappDisplay || "",
+    /* Texto visible del número (pie de página): si no se escribió, se arma con el número (573001234567 → +57 300 123 4567) */
+    whatsappDisplay: st.whatsappDisplay || (function (d) { return d.length === 12 && d.indexOf("57") === 0 ? "+57 " + d.slice(2, 5) + " " + d.slice(5, 8) + " " + d.slice(8) : (d ? "+" + d : ""); })(String(st.whatsapp || "").replace(/\D/g, "")),
     whatsappGreeting: st.whatsappGreeting || "Hola " + (st.brand || "Mercy Studio"),
 
     /* Descuento de bienvenida (compatibilidad). `code` solo se conoce sin servidor (el servidor nunca publica el código).

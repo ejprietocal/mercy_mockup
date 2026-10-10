@@ -12,7 +12,10 @@
   const U = Mercy.ui, D = Mercy.data, C = Mercy.config;
   const I = U.icon, $ = U.$, $$ = U.$$, esc = U.esc, money = U.money;
   const TXC = (Mercy.content && Mercy.content.texts && Mercy.content.texts.catalog) || {};
+  const tx = U.tx;
   function txt(v, d) { return v == null ? d : String(v); }
+  /* «Catálogo» en el <title>, las migas y la etiqueta del móvil = texts.catalog.eyebrow (si está vacío, «Catálogo») */
+  const CAT_LABEL = U.plain(txt(TXC.eyebrow, "")).trim() || "Catálogo";
 
   /* --- Constantes (calculadas de los productos publicados) -------------------- */
   const STEP = 5000;
@@ -39,8 +42,9 @@
   const VISTAS = ["mas-vendidos", "novedades"];
   const SORTS = [
     { id: "relevancia", label: "Relevancia", onlyQ: true },
-    { id: "mas-vendidos", label: "Más vendidos", fn: function (a, b) { return a.bestRank - b.bestRank; } },
-    { id: "novedades", label: "Novedades", fn: function (a, b) { return a.newRank - b.newRank; } },
+    /* Las vistas toman su nombre del panel (texts.catalog.bestTitle / newTitle), como el menú y el título */
+    { id: "mas-vendidos", label: U.plain(txt(TXC.bestTitle, "Los más vendidos")), fn: function (a, b) { return a.bestRank - b.bestRank; } },
+    { id: "novedades", label: U.plain(txt(TXC.newTitle, "Novedades")), fn: function (a, b) { return a.newRank - b.newRank; } },
     { id: "precio-asc", label: "Precio: menor a mayor", fn: function (a, b) { return a.price - b.price || a.bestRank - b.bestRank; } },
     { id: "precio-desc", label: "Precio: mayor a menor", fn: function (a, b) { return b.price - a.price || a.bestRank - b.bestRank; } },
     { id: "nombre", label: "Nombre A–Z", fn: function (a, b) { return a.name.localeCompare(b.name, "es"); } }
@@ -302,12 +306,12 @@
     const t = titleParts();
     el.title.innerHTML = t.html;
     el.title.classList.toggle("cat-title--sm", !!t.small);
-    document.title = (t.def ? "" : t.plain + " · ") + "Catálogo — " + C.brand;
+    document.title = (t.def ? "" : t.plain + " · ") + CAT_LABEL + " — " + C.brand;
     el.n.textContent = U.pluralize(total, "diseño", "diseños");
     el.qclear.hidden = !state.q;
     el.crumbs.innerHTML = t.def
-      ? '<li><a href="index.html">Inicio</a></li><li aria-current="page">Catálogo</li>'
-      : '<li><a href="index.html">Inicio</a></li><li><a href="catalogo.html">Catálogo</a></li><li aria-current="page">' + esc(t.plain) + "</li>";
+      ? '<li><a href="index.html">Inicio</a></li><li aria-current="page">' + esc(CAT_LABEL) + "</li>"
+      : '<li><a href="index.html">Inicio</a></li><li><a href="catalogo.html">' + esc(CAT_LABEL) + '</a></li><li aria-current="page">' + esc(t.plain) + "</li>";
   }
 
   function chipHTML(k, v, label) {
@@ -357,8 +361,8 @@
     el.similar.hidden = !show;
     if (!show) { el.similarGrid.innerHTML = ""; return; }
     el.similarText.textContent = res.list.length
-      ? "Otras prendas que podrían interesarte."
-      : "No encontramos coincidencias exactas para “" + state.q + "”, pero estas se parecen.";
+      ? tx("catalog.similarText", "Otras prendas que podrían interesarte.")
+      : U.vars(tx("catalog.similarSearchText", "No encontramos coincidencias exactas para “{busqueda}”, pero estas se parecen."), { busqueda: state.q });
     el.similarGrid.innerHTML = cards(res.similar);
   }
 
@@ -367,12 +371,14 @@
     el.empty.hidden = !empty;
     if (!empty) return;
     const hasFilters = filterCount() > 0;
-    if (state.q) {
-      el.emptyTitle.textContent = hasFilters ? "No encontramos prendas con esos filtros" : "No encontramos prendas para “" + state.q + "”";
-      el.emptyText.textContent = hasFilters ? "Prueba quitando algún filtro o mira lo que más gusta de la colección." : "Revisa la escritura, prueba con otro nombre, color o referencia, o explora lo más vendido.";
+    const fTitle = tx("catalog.emptyFiltersTitle", "No encontramos prendas con esos filtros");
+    const fText = tx("catalog.emptyFiltersText", "Prueba quitando algún filtro o mira lo que más gusta de la colección.");
+    if (state.q && !hasFilters) {
+      el.emptyTitle.textContent = U.vars(tx("catalog.emptySearchTitle", "No encontramos prendas para “{busqueda}”"), { busqueda: state.q });
+      el.emptyText.textContent = U.vars(tx("catalog.emptySearchText", "Revisa la escritura, prueba con otro nombre, color o referencia, o explora lo más vendido."), { busqueda: state.q });
     } else {
-      el.emptyTitle.textContent = "No encontramos prendas con esos filtros";
-      el.emptyText.textContent = "Prueba quitando algún filtro o mira lo que más gusta de la colección.";
+      el.emptyTitle.textContent = fTitle;
+      el.emptyText.textContent = fText;
     }
     el.emptyClear.hidden = !hasFilters;
     el.emptyAll.hidden = hasFilters;
@@ -543,6 +549,17 @@
     }
     const sug = $(".cat-suggest__title");
     if (sug) sug.textContent = U.plain(txt(TXC.bestTitle, "Los más vendidos"));
+    /* Botones, títulos y descripción para buscadores (texts.catalog) */
+    el.moreBtn.textContent = tx("catalog.loadMore", "Ver más productos");
+    el.qclear.textContent = tx("catalog.seeAll", "Ver toda la colección");
+    el.emptyAll.textContent = tx("catalog.seeAll", "Ver toda la colección");
+    const simT = $("#cat-similar-title");
+    if (simT) simT.textContent = tx("catalog.similarTitle", "Referencias parecidas");
+    const ebm = $(".cat-eyebrow");
+    if (ebm && !ebm.textContent.trim()) { ebm.textContent = CAT_LABEL; ebm.hidden = false; }
+    let meta = $('meta[name="description"]');
+    if (!meta) { meta = document.createElement("meta"); meta.name = "description"; document.head.appendChild(meta); }
+    meta.setAttribute("content", U.fill(tx("catalog.metaDescription", "Toda la colección de {marca}: ropa con propósito cristiano.")));
   }
 
   /* --- Arranque ------------------------------------------------------------------------ */

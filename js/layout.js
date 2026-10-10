@@ -29,7 +29,17 @@ window.Mercy = window.Mercy || {};
   const BRAND = C.brand;
   const fill = U.fill, rich = U.rich;
   /* Agradecimiento cuando la suscripción no trae cupón (modal apagado o sin cupón de bienvenida vigente) */
-  const THANKS = "¡Gracias por suscribirte! Te contaremos las novedades de " + BRAND + ".";
+  const tx = U.tx;
+  const THANKS = U.fill(tx("subscribe.thanks", "¡Gracias por suscribirte! Te contaremos las novedades de {marca}."));
+  /* Etiquetas de ayuda (texts.help): menú lateral, pie de página, ventanas y pestañas del producto */
+  const HELP = { tallas: tx("help.sizeGuide", "Guía de tallas"), envios: tx("help.shipping", "Envíos"), cambios: tx("help.returns", "Cambios y devoluciones") };
+  /* Nota «Compra segura coordinada por WhatsApp» del header del checkout (texts.checkout.strip): las dos primeras
+     palabras siempre; el resto solo en pantallas anchas */
+  function secureNoteHTML() {
+    const words = tx("checkout.strip", "Compra segura coordinada por WhatsApp").trim().split(/\s+/);
+    const head = words.slice(0, 2).join(" "), rest = words.slice(2).join(" ");
+    return "<span>" + esc(head) + (rest ? ' <span class="secure-note__long">' + esc(rest) + "</span>" : "") + "</span>";
+  }
   function list(v) { return (Array.isArray(v) ? v : []).map(function (x) { return String(x == null ? "" : x).trim(); }).filter(Boolean); }
   function txt(v, d) { return v == null ? d : String(v); }
 
@@ -158,7 +168,7 @@ window.Mercy = window.Mercy || {};
         '<header class="site-header site-header--minimal" id="site-header"><div class="site-header__inner">' +
         '<div class="site-header__left"><a class="icon-btn" href="catalogo.html" data-back aria-label="Volver">' + I("arrow-left", { size: 24 }) + "</a></div>" +
         logo +
-        '<div class="site-header__right"><p class="secure-note">' + I("lock", { size: 16 }) + '<span>Compra segura <span class="secure-note__long">coordinada por WhatsApp</span></span></p></div>' +
+        '<div class="site-header__right"><p class="secure-note">' + I("lock", { size: 16 }) + secureNoteHTML() + "</p></div>" +
         "</div></header>"
       );
     }
@@ -202,25 +212,26 @@ window.Mercy = window.Mercy || {};
       return '<li><a class="menu__link menu__link--sub" href="catalogo.html?cat=' + encodeURIComponent(c.id) + '">' + esc(c.name) + "</a></li>";
     }).join("");
     return (
-      '<header class="drawer__head drawer__head--dark"><h2 class="drawer__title">Tienda</h2>' +
+      '<header class="drawer__head drawer__head--dark"><h2 class="drawer__title">' + esc(tx("menu.title", "Tienda")) + "</h2>" +
       '<button type="button" class="icon-btn icon-btn--light" data-close aria-label="Cerrar menú">' + I("close", { size: 24 }) + "</button></header>" +
       '<nav class="drawer__body menu" aria-label="Menú principal"><ul>' +
       '<li><a class="menu__link" href="catalogo.html?vista=novedades">' + esc(txt(CAT_TX.newTitle, "Novedades")) + "</a></li>" +
       '<li><a class="menu__link menu__link--top" href="catalogo.html?vista=mas-vendidos">' + esc(txt(CAT_TX.bestTitle, "Los más vendidos")) + '<span class="menu__flag">Top</span></a></li>' +
-      '<li><a class="menu__link" href="catalogo.html">Toda la colección</a></li>' +
+      '<li><a class="menu__link" href="catalogo.html">' + esc(tx("menu.allLabel", "Toda la colección")) + "</a></li>" +
       "</ul>" +
       '<ul class="menu__group">' + cats + "</ul>" +
       '<ul class="menu__group">' +
-      '<li><a class="menu__link menu__link--sub" href="index.html#proposito">Nuestra historia</a></li>' +
-      '<li><button type="button" class="menu__link menu__link--sub" data-info="tallas">Guía de tallas</button></li>' +
-      '<li><button type="button" class="menu__link menu__link--sub" data-info="envios">Envíos</button></li>' +
-      '<li><button type="button" class="menu__link menu__link--sub" data-info="cambios">Cambios y devoluciones</button></li>' +
+      /* «Nuestra historia» = título de la ventana del propósito (home.purpose.storyTitle) */
+      '<li><a class="menu__link menu__link--sub" href="index.html#proposito">' + esc(String((CT.home && CT.home.purpose && CT.home.purpose.storyTitle) || "").trim() || "Nuestra historia") + "</a></li>" +
+      '<li><button type="button" class="menu__link menu__link--sub" data-info="tallas">' + esc(HELP.tallas) + "</button></li>" +
+      '<li><button type="button" class="menu__link menu__link--sub" data-info="envios">' + esc(HELP.envios) + "</button></li>" +
+      '<li><button type="button" class="menu__link menu__link--sub" data-info="cambios">' + esc(HELP.cambios) + "</button></li>" +
       (C.showAdminLink
         ? '<li><a class="menu__link menu__link--sub menu__link--admin" href="' + ADMIN_HREF + '" data-admin-link>' + I("user", { size: 18 }) + "Panel administrador</a></li>"
         : "") +
       "</ul></nav>" +
       '<footer class="drawer__foot menu__foot">' + socialLinks("social social--menu") +
-      '<a class="menu__wa" href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener">' + I("whatsapp", { size: 18 }) + " Escríbenos por WhatsApp</a></footer>"
+      '<a class="menu__wa" href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener">' + I("whatsapp", { size: 18 }) + " " + esc(tx("menu.whatsappLabel", "Escríbenos por WhatsApp")) + "</a></footer>"
     );
   }
 
@@ -229,12 +240,12 @@ window.Mercy = window.Mercy || {};
   function searchHTML() {
     return (
       '<div class="search-panel__bar"><div class="search-panel__field">' + I("search", { size: 22 }) +
-      '<input id="search-input" type="search" data-autofocus placeholder="Busca por nombre, referencia o color…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Buscar productos">' +
+      '<input id="search-input" type="search" data-autofocus placeholder="' + esc(tx("search.placeholder", "Busca por nombre, referencia o color…")) + '" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Buscar productos">' +
       '<button type="button" class="search-panel__clear" data-search-clear aria-label="Borrar búsqueda" hidden>' + I("close", { size: 18 }) + "</button></div>" +
       '<button type="button" class="search-panel__close" data-close>Cerrar</button></div>' +
       '<div class="search-panel__body">' +
       (SUGGEST.length
-        ? '<div class="search-suggest" data-search-suggest><p class="search-label">Búsquedas sugeridas</p><div class="chips">' +
+        ? '<div class="search-suggest" data-search-suggest><p class="search-label">' + esc(tx("search.suggestionsTitle", "Búsquedas sugeridas")) + '</p><div class="chips">' +
           SUGGEST.map(function (t) {
             return '<button type="button" class="chip" data-search-term="' + esc(t) + '">' + esc(t) + "</button>";
           }).join("") + "</div></div>"
@@ -262,7 +273,7 @@ window.Mercy = window.Mercy || {};
     if (!q.trim()) {
       suggest.hidden = !SUGGEST.length;
       const top = D.PRODUCTS.slice().sort(function (a, b) { return a.bestRank - b.bestRank; }).slice(0, 4);
-      out.innerHTML = '<p class="search-label">Lo más buscado</p><div class="sr-list">' + top.map(srItem).join("") + "</div>";
+      out.innerHTML = '<p class="search-label">' + esc(tx("search.topTitle", "Lo más buscado")) + '</p><div class="sr-list">' + top.map(srItem).join("") + "</div>";
       return;
     }
     suggest.hidden = true;
@@ -274,12 +285,13 @@ window.Mercy = window.Mercy || {};
       html += '<div class="search-head"><p class="search-label">' + U.pluralize(r.exact.length, "resultado", "resultados") + ' para “' + esc(q.trim()) + "”</p>" + all + "</div>";
       html += '<div class="sr-list">' + r.exact.slice(0, 8).map(srItem).join("") + "</div>";
     } else {
-      html += '<p class="search-empty">No encontramos nada para “<strong>' + esc(q.trim()) + "</strong>”. Prueba con otro nombre, color o referencia.</p>";
+      /* {busqueda} = lo escrito, en negrita */
+      html += '<p class="search-empty">' + esc(U.fill(tx("search.emptyText", "No encontramos nada para “{busqueda}”. Prueba con otro nombre, color o referencia."))).replace(/\{busqueda\}/g, "<strong>" + esc(q.trim()) + "</strong>") + "</p>";
     }
     let sims = r.similar.slice(0, 4);
     if (!r.exact.length && !sims.length) sims = D.PRODUCTS.slice().sort(function (a, b) { return a.bestRank - b.bestRank; }).slice(0, 4);
     if (sims.length) {
-      html += '<p class="search-label search-label--sub">' + (r.exact.length ? "Referencias parecidas" : "Quizá te interese") + '</p><div class="sr-list">' + sims.map(srItem).join("") + "</div>";
+      html += '<p class="search-label search-label--sub">' + esc(r.exact.length ? tx("search.similarTitle", "Referencias parecidas") : tx("search.maybeTitle", "Quizá te interese")) + '</p><div class="sr-list">' + sims.map(srItem).join("") + "</div>";
     }
     out.innerHTML = html;
   }
@@ -287,9 +299,9 @@ window.Mercy = window.Mercy || {};
   /* --- Favoritos ---------------------------------------------------------- */
   function favsHTML() {
     return (
-      '<header class="drawer__head"><h2 class="drawer__title">Tus favoritos <span class="drawer__count" data-fav-count-text></span></h2>' +
+      '<header class="drawer__head"><h2 class="drawer__title">' + esc(tx("favorites.title", "Tus favoritos")) + ' <span class="drawer__count" data-fav-count-text></span></h2>' +
       '<button type="button" class="icon-btn" data-close aria-label="Cerrar favoritos">' + I("close", { size: 24 }) + "</button></header>" +
-      '<p class="drawer__lead">Guarda las prendas que te gustan con el corazón y vuelve a ellas cuando quieras.</p>' +
+      (tx("favorites.subtitle", "").trim() ? '<p class="drawer__lead">' + esc(tx("favorites.subtitle", "")) + "</p>" : "") +
       '<div class="drawer__body" data-favs-body></div>'
     );
   }
@@ -301,9 +313,9 @@ window.Mercy = window.Mercy || {};
     count.textContent = list.length ? "(" + list.length + ")" : "";
     if (!list.length) {
       body.innerHTML =
-        '<div class="empty">' + I("heart", { size: 42, stroke: 1.2 }) + '<p class="empty__title">Aún no tienes favoritos</p>' +
-        '<p class="empty__text">Toca el corazón en cualquier prenda para guardarla aquí.</p>' +
-        '<a class="btn btn--primary" href="catalogo.html">Ver colección</a></div>';
+        '<div class="empty">' + I("heart", { size: 42, stroke: 1.2 }) + '<p class="empty__title">' + esc(tx("favorites.emptyTitle", "Aún no tienes favoritos")) + "</p>" +
+        '<p class="empty__text">' + esc(tx("favorites.emptyText", "Toca el corazón en cualquier prenda para guardarla aquí.")) + "</p>" +
+        '<a class="btn btn--primary" href="catalogo.html">' + esc(tx("favorites.emptyCta", "Ver colección")) + "</a></div>";
       return;
     }
     body.innerHTML = '<ul class="fav-list">' + list.map(function (p) {
@@ -320,12 +332,17 @@ window.Mercy = window.Mercy || {};
   /* --- Carrito (C44: overlay de derecha a izquierda) ------------------------ */
   function cartHTML() {
     return (
-      '<header class="drawer__head"><h2 class="drawer__title">Carrito de compra <span class="drawer__count" data-cart-count-text></span></h2>' +
+      '<header class="drawer__head"><h2 class="drawer__title">' + esc(tx("cart.title", "Carrito de compra")) + ' <span class="drawer__count" data-cart-count-text></span></h2>' +
       '<button type="button" class="icon-btn" data-close aria-label="Cerrar carrito">' + I("close", { size: 24 }) + "</button></header>" +
       '<div class="cart-ship" data-cart-ship hidden></div>' +
       '<div class="drawer__body" data-cart-body></div>' +
       '<footer class="drawer__foot cart-foot" data-cart-foot></footer>'
     );
+  }
+  function cartPaidHTML() {
+    const t = tx("shipping.cartPaid", "**ENVÍO NO INCLUIDO** · costo adicional, se coordina por WhatsApp").trim();
+    const m = /^\*\*([^*]+)\*\*(.*)$/.exec(t);
+    return m ? "<strong>" + esc(m[1]) + "</strong>" + (m[2].trim() ? "<span>" + esc(m[2]) + "</span>" : "") : U.strong(t);
   }
   function variantText(it) {
     return [it.color.name, it.fitName, it.size === "Única" ? "" : "Talla " + it.size, it.print ? "Estampado " + it.print.name : ""]
@@ -343,9 +360,9 @@ window.Mercy = window.Mercy || {};
     if (!items.length) {
       ship.hidden = true;
       bodyEl.innerHTML =
-        '<div class="empty">' + I("cart", { size: 44, stroke: 1.2 }) + '<p class="empty__title">Tu carrito está vacío</p>' +
-        '<p class="empty__text">Cuando agregues prendas las verás aquí.</p>' +
-        '<button type="button" class="btn btn--primary" data-close>Seguir mirando</button></div>';
+        '<div class="empty">' + I("cart", { size: 44, stroke: 1.2 }) + '<p class="empty__title">' + esc(tx("cart.emptyTitle", "Tu carrito está vacío")) + "</p>" +
+        '<p class="empty__text">' + esc(tx("cart.emptyText", "Cuando agregues prendas las verás aquí.")) + "</p>" +
+        '<button type="button" class="btn btn--primary" data-close>' + esc(tx("cart.emptyCta", "Seguir mirando")) + "</button></div>";
       foot.innerHTML = "";
       foot.hidden = true;
       return;
@@ -355,9 +372,10 @@ window.Mercy = window.Mercy || {};
     const sh = S.cart.shipping();
     ship.hidden = false;
     ship.setAttribute("data-state", sh.status);
+    /* texts.shipping.cartFree / cartPaid: **negrita** explícita; en el pagado, lo que sigue a la negrita va en color suave */
     ship.innerHTML = sh.status === "free"
-      ? I("truck", { size: 22 }) + '<p>Tu pedido tiene <strong>ENVÍO GRATIS</strong></p>'
-      : I("truck", { size: 22 }) + '<p><strong>ENVÍO NO INCLUIDO</strong><span> · costo adicional, se coordina por WhatsApp</span></p>';
+      ? I("truck", { size: 22 }) + "<p>" + U.strong(tx("shipping.cartFree", "Tu pedido tiene **ENVÍO GRATIS**")) + "</p>"
+      : I("truck", { size: 22 }) + "<p>" + cartPaidHTML() + "</p>";
 
     bodyEl.innerHTML = '<ul class="cart-lines">' + items.map(function (it) {
       const p = it.product;
@@ -367,7 +385,7 @@ window.Mercy = window.Mercy || {};
         '<div class="cart-line__info">' +
         '<a class="cart-line__name" href="producto.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.name) + "</a>" +
         '<p class="cart-line__variant">' + esc(variantText(it)) + "</p>" +
-        (p.envioGratis ? '<p class="cart-line__ship">' + I("truck", { size: 13 }) + " Incluye envío gratis</p>" : "") +
+        (p.envioGratis ? '<p class="cart-line__ship">' + I("truck", { size: 13 }) + " " + esc(tx("shipping.lineFree", "Incluye envío gratis")) + "</p>" : "") +
         '<div class="cart-line__row">' + U.stepperHTML(it.qty) + '<span class="cart-line__price">' + money(it.lineTotal) + "</span></div></div>" +
         '<button type="button" class="icon-btn icon-btn--sm cart-line__remove" data-remove aria-label="Quitar ' + esc(p.name) + ' del carrito">' + I("trash", { size: 18 }) + "</button></li>"
       );
@@ -396,9 +414,9 @@ window.Mercy = window.Mercy || {};
         ? '<div class="totals__disc' + (info.amount ? "" : " is-zero") + '" data-cart-disc><dt>Descuento (' + esc(info.code) + ")</dt><dd>" + (info.amount ? "−" + money(info.amount) : money(0)) + "</dd></div>"
         : "") +
       "</dl>" +
-      '<p class="cart-note">El envío y los demás datos se confirman al finalizar tu compra.</p>' +
-      '<a class="btn btn--whatsapp btn--block" href="checkout.html">' + I("whatsapp", { size: 20 }) + " Comprar por WhatsApp</a>" +
-      '<button type="button" class="btn btn--outline btn--block" data-close>Seguir mirando</button>';
+      (tx("cart.note", "").trim() ? '<p class="cart-note">' + esc(tx("cart.note", "")) + "</p>" : "") +
+      '<a class="btn btn--whatsapp btn--block" href="checkout.html">' + I("whatsapp", { size: 20 }) + " " + esc(tx("cart.checkoutLabel", "Comprar por WhatsApp")) + "</a>" +
+      '<button type="button" class="btn btn--outline btn--block" data-close>' + esc(tx("cart.continueLabel", "Seguir mirando")) + "</button>";
   }
 
   /* ======================================================================
@@ -429,7 +447,7 @@ window.Mercy = window.Mercy || {};
       '<div class="discount__with-code" data-discount-with-code>' +
       '<p class="discount__offer" data-discount-applied-msg>' + rich(DM.successOffer, { fill: true, accent: false }) + "</p>" +
       /* Código recibido pero NO aplicado ahora (lo quitó o lo cambió por otro): no se dice «ya está aplicado» */
-      '<p class="discount__offer" data-discount-pending-msg hidden>Este es tu código de bienvenida:</p>' +
+      '<p class="discount__offer" data-discount-pending-msg hidden>' + esc(tx("subscribe.popupCodeHint", "Este es tu código de bienvenida:")) + "</p>" +
       '<div class="discount__code"><strong data-discount-code></strong>' +
       '<button type="button" class="btn btn--ghost btn--sm" data-copy-code aria-label="Copiar el código de descuento">' + I("copy", { size: 16 }) + " Copiar</button></div>" +
       '<p class="discount__fine" data-discount-applied-fine>' + rich(DM.successFine, { fill: true, accent: false }) + "</p></div>" +
@@ -536,16 +554,16 @@ window.Mercy = window.Mercy || {};
       '<a class="footer-logo" href="index.html" aria-label="' + esc(BRAND) + ' — inicio"><img src="' + esc(U.safeUrl(C.logo.beige)) + '" alt="' + esc(BRAND) + '" width="170" height="85" loading="lazy" decoding="async"></a>' +
       (tagline.trim() ? '<p class="site-footer__tagline">' + rich(tagline, { accent: false }) + "</p>" : "") +
       socialLinks("social social--footer") + "</div>" +
-      '<nav class="site-footer__col" aria-label="Tienda"><h2 class="site-footer__h">Tienda</h2><ul>' +
+      '<nav class="site-footer__col" aria-label="' + esc(tx("footerShopTitle", "Tienda")) + '"><h2 class="site-footer__h">' + esc(tx("footerShopTitle", "Tienda")) + "</h2><ul>" +
       '<li><a href="catalogo.html?vista=novedades">' + esc(txt(CAT_TX.newTitle, "Novedades")) + "</a></li>" +
       D.CATEGORIES.filter(function (c) { return c.inFooter; }).map(function (c) { return '<li><a href="catalogo.html?cat=' + encodeURIComponent(c.id) + '">' + esc(c.name) + "</a></li>"; }).join("") +
       "</ul></nav>" +
-      '<nav class="site-footer__col" aria-label="Ayuda"><h2 class="site-footer__h">Ayuda</h2><ul>' +
-      '<li><button type="button" data-info="tallas">Guía de tallas</button></li>' +
-      '<li><button type="button" data-info="envios">Envíos</button></li>' +
-      '<li><button type="button" data-info="cambios">Cambios y devoluciones</button></li>' +
+      '<nav class="site-footer__col" aria-label="' + esc(tx("footerHelpTitle", "Ayuda")) + '"><h2 class="site-footer__h">' + esc(tx("footerHelpTitle", "Ayuda")) + "</h2><ul>" +
+      '<li><button type="button" data-info="tallas">' + esc(HELP.tallas) + "</button></li>" +
+      '<li><button type="button" data-info="envios">' + esc(HELP.envios) + "</button></li>" +
+      '<li><button type="button" data-info="cambios">' + esc(HELP.cambios) + "</button></li>" +
       '<li><a href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener">WhatsApp' + (C.whatsappDisplay ? ": " + esc(C.whatsappDisplay) : "") + "</a></li></ul></nav>" +
-      '<nav class="site-footer__col site-footer__col--follow" aria-label="Síguenos"><h2 class="site-footer__h">Síguenos</h2><ul>' +
+      '<nav class="site-footer__col site-footer__col--follow" aria-label="' + esc(tx("footerFollowTitle", "Síguenos")) + '"><h2 class="site-footer__h">' + esc(tx("footerFollowTitle", "Síguenos")) + "</h2><ul>" +
       SOCIAL.map(function (n) { return '<li><a href="' + esc(n.url) + '" target="_blank" rel="noopener">' + n.name + "</a></li>"; }).join("") +
       '<li><a href="' + esc(WA_HELLO) + '" target="_blank" rel="noopener">WhatsApp</a></li></ul></nav>' +
       "</div>" +
@@ -587,7 +605,7 @@ window.Mercy = window.Mercy || {};
   function openSizeGuide(chartId, fit) {
     const ids = D.SIZE_CHART_IDS.slice();
     if (!ids.length) {
-      U.infoModal("size-guide", "Guía de tallas", "<p>Pronto publicaremos la guía de tallas. Si tienes dudas con tu talla, escríbenos por WhatsApp.</p>");
+      U.infoModal("size-guide", HELP.tallas, "<p>Pronto publicaremos la guía de tallas. Si tienes dudas con tu talla, escríbenos por WhatsApp.</p>");
       return;
     }
     chartId = D.SIZE_CHARTS[chartId] ? chartId : ids[0];
@@ -603,7 +621,7 @@ window.Mercy = window.Mercy || {};
       }).join("") + "</div>";
       return tabs + fitTabs + '<div class="size-guide__table">' + sizeTableHTML(id, f) + "</div>" + sizeNoteHTML("modal__note");
     }
-    const el = U.infoModal("size-guide", "Guía de tallas", render(chartId, fit));
+    const el = U.infoModal("size-guide", HELP.tallas, render(chartId, fit));
     const content = $(".modal__content", el);
     let curCat = chartId, curFit = fit;
     content.onclick = function (e) {
@@ -617,18 +635,19 @@ window.Mercy = window.Mercy || {};
   function openInfo(kind, extra) {
     if (kind === "tallas") return openSizeGuide(extra && extra.category, extra && extra.fit);
     if (kind === "envios") {
-      return U.infoModal("info-envios", "Envíos",
+      return U.infoModal("info-envios", HELP.envios,
         (D.SHIPPING_INFO.trim() ? "<p>" + rich(D.SHIPPING_INFO, { accent: false }) + "</p>" : "") +
-        '<ul class="check-list"><li>' + I("truck", { size: 18 }) + "<span><strong>Envío gratis</strong> si al menos una prenda de tu carrito lo incluye.</span></li>" +
-        "<li>" + I("info", { size: 18 }) + "<span><strong>Envío no incluido</strong> cuando ninguna prenda lo incluye: el costo adicional se coordina por WhatsApp.</span></li></ul>");
+        '<ul class="check-list"><li>' + I("truck", { size: 18 }) + "<span>" + U.strong(tx("shipping.ruleFree", "**Envío gratis** si al menos una prenda de tu carrito lo incluye.")) + "</span></li>" +
+        "<li>" + I("info", { size: 18 }) + "<span>" + U.strong(tx("shipping.rulePaid", "**Envío no incluido** cuando ninguna prenda lo incluye: el costo adicional se coordina por WhatsApp.")) + "</span></li></ul>");
     }
-    if (kind === "cambios") return U.infoModal("info-cambios", "Cambios y devoluciones", "<p>" + rich(D.RETURNS_INFO, { accent: false }) + "</p>");
+    if (kind === "cambios") return U.infoModal("info-cambios", HELP.cambios, "<p>" + rich(D.RETURNS_INFO, { accent: false }) + "</p>");
   }
 
   /* ======================================================================
      Inicialización
      ====================================================================== */
   const layout = {
+    help: HELP,
     headerMode: headerMode,
     sizeTableHTML: sizeTableHTML,
     sizeNoteHTML: sizeNoteHTML,
@@ -739,7 +758,7 @@ window.Mercy = window.Mercy || {};
     $(".modal__box", discountUI.el).classList.add("discount");
     bindDiscountForm($("[data-discount-form]", discountUI.el), function (r) {
       syncDiscountModal();
-      U.toast(r.coupon ? "¡Listo! Tu descuento del " + r.coupon.label + " quedó aplicado" : THANKS, { icon: "check" });
+      U.toast(r.coupon ? U.fill(tx("subscribe.appliedToast", "¡Listo! Tu descuento del {descuento} quedó aplicado").replace(/\{descuento\}/g, r.coupon.label)) : THANKS, { icon: "check" });
       const closeBtn = $("[data-discount-success] [data-close]", discountUI.el); if (closeBtn) closeBtn.focus();
     }, "popup");
     syncDiscountModal();
@@ -747,8 +766,8 @@ window.Mercy = window.Mercy || {};
     /* WhatsApp flotante (no en checkout) */
     if (headerMode !== "minimal") {
       const fab = document.createElement("a");
-      fab.className = "wa-fab"; fab.href = U.waLink(U.waGreeting(", quiero más información"));
-      fab.target = "_blank"; fab.rel = "noopener"; fab.setAttribute("aria-label", "Escríbenos por WhatsApp");
+      fab.className = "wa-fab"; fab.href = U.waLink(U.waGreeting(tx("whatsappFabText", ", quiero más información")));
+      fab.target = "_blank"; fab.rel = "noopener"; fab.setAttribute("aria-label", tx("menu.whatsappLabel", "Escríbenos por WhatsApp"));
       fab.innerHTML = I("whatsapp", { size: 28 });
       body.appendChild(fab);
     }

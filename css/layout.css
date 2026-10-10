@@ -339,7 +339,7 @@ body.is-locked .toasts { bottom: auto; top: calc(16px + env(safe-area-inset-top,
    hero (Inicio) y con la barra de compra fija del producto (móvil), como el botón de WhatsApp. */
 .edit-bar {
   position: fixed; left: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-fab);
-  display: inline-flex; align-items: center; height: 40px; padding: 0 4px;
+  display: inline-flex; align-items: center; height: 48px; padding: 0 4px;
   background: rgba(42, 30, 20, 0.9); color: var(--crema);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 245, 228, 0.16); border-radius: var(--radius-pill); box-shadow: var(--shadow-md);
@@ -347,7 +347,8 @@ body.is-locked .toasts { bottom: auto; top: calc(16px + env(safe-area-inset-top,
   opacity: 0.88; transition: opacity var(--t-fast) var(--ease), bottom var(--t-med) var(--ease);
 }
 .edit-bar:hover, .edit-bar:focus-within { opacity: 1; }
-.edit-bar__link { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--radius-pill); white-space: nowrap; }
+/* 44 px de alto en celular (área de toque); en escritorio la pastilla es más baja (ver min-width: 900px) */
+.edit-bar__link { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: var(--radius-pill); white-space: nowrap; }
 .edit-bar__link:hover { background: rgba(255, 245, 228, 0.14); }
 .edit-bar__link .icon { flex: none; color: #f0a98a; }
 .edit-bar__sep { width: 1px; height: 18px; background: rgba(255, 245, 228, 0.28); }

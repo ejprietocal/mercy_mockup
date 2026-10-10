@@ -28,6 +28,26 @@ export const BASELINE_SUMMARY = "Contenido existente al arrancar (sin historial 
 export const LOW_STOCK = 10; // unidades totales o menos = "poco stock" en el escritorio
 
 /** Ejecuta js/defaults.js en un sandbox y devuelve copias JSON puras de DEFAULT_CONTENT / DEFAULT_COUPONS. */
+/** Completa en `target` (secciones-objeto) las claves que existen en `factory` y faltan (undefined) en el contenido
+ *  guardado: solo agrega, nunca cambia un valor existente. Devuelve las rutas agregadas. Así un campo nuevo del esquema
+ *  (p. ej. un texto administrable agregado en una versión posterior) aparece en el panel con su valor de fábrica. */
+export function fillMissing(target, factory, sections) {
+  const added = [];
+  const walk = (t, f, path) => {
+    for (const k of Object.keys(f)) {
+      const p = path ? `${path}.${k}` : k;
+      if (t[k] === undefined) { t[k] = structuredClone(f[k]); added.push(p); }
+      else if (isPlainObject(f[k]) && isPlainObject(t[k])) walk(t[k], f[k], p);
+    }
+  };
+  for (const s of sections) {
+    if (!isPlainObject(factory[s])) continue;
+    if (!isPlainObject(target[s])) { target[s] = structuredClone(factory[s]); added.push(s); continue; }
+    walk(target[s], factory[s], s);
+  }
+  return added;
+}
+
 export function loadFactoryDefaults(file) {
   const code = readFileSync(file, "utf8");
   const sandbox = { window: {} };
@@ -77,8 +97,9 @@ export class ContentService {
   get data() { return this.db.get("content"); }
 
   /* ---------- Arranque / siembra ----------
-     · js/defaults.js SOLO se lee si falta content.json o coupons.json (nunca se vuelve a sembrar encima
-       de datos existentes: cambiar js/defaults.js no toca un sitio ya en marcha).
+     · js/defaults.js siembra content.json / coupons.json cuando faltan (nunca se vuelve a sembrar encima de datos
+       existentes: cambiar js/defaults.js no toca un sitio ya en marcha). Con contenido existente solo se COMPLETAN
+       las claves nuevas del esquema que aún no existan (fillMissing), sin cambiar ningún valor guardado.
      · Revisiones: «Contenido inicial» (fijada) al sembrar la primera vez; si content.json se borró y se
        vuelve a crear, otra instantánea fijada «Contenido de fábrica (…)»; si hay contenido pero no historial,
        una revisión base (no es el contenido de fábrica, por eso no se llama «Contenido inicial»). */
@@ -108,6 +129,18 @@ export class ContentService {
       await this.db.set("content", value);
       log(`[datos] content.json creado con el contenido de fábrica (${value.products.length} productos).`);
     } else {
+      // Campos NUEVOS del esquema que no existen en content.json (textos administrables agregados después, medios de
+      // pago…): se completan UNA sola vez con el valor de fábrica. Lo que ya tiene valor no se toca.
+      let factoryContent = null;
+      try { factoryContent = getFactory().content; } catch (e) { log(`[datos] Aviso: no se pudo leer js/defaults.js para completar campos nuevos del esquema (${e.message}).`); }
+      if (factoryContent) {
+        const next = structuredClone(this.data);
+        const added = fillMissing(next, factoryContent, ["settings", "home", "discountModal", "texts"]);
+        if (added.length) {
+          await this.db.set("content", next);
+          log(`[datos] content.json: ${added.length} campo(s) nuevo(s) del esquema completados con el valor de fábrica (${added.slice(0, 6).join(", ")}${added.length > 6 ? ", …" : ""}).`);
+        }
+      }
       const { fields } = validateContent(this.data, { couponCodes: new Set(this.db.get("coupons").map((c) => c.code)) });
       if (hasErrors(fields)) log(`[datos] Aviso: content.json tiene ${Object.keys(fields).length} campo(s) fuera del esquema (se sirven igual):\n${fieldsList(fields, 5)}`);
     }

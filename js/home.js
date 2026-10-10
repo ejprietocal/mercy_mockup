@@ -37,6 +37,9 @@
 
   function renderHeroText() {
     const hero = H.hero || {};
+    /* Marca del placeholder del hero (sin video ni imagen): primera palabra del nombre de la marca */
+    const mark = $(".hero__mark");
+    if (mark) mark.textContent = String(C.brand || "").trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0); }).join("").toUpperCase();
     put($(".hero__eyebrow"), txt(hero.eyebrow, ""), true);
     const title = $("#hero-title");
     if (title) {
@@ -225,6 +228,9 @@
     for (let i = 0; i < n; i++) h += I("star", { size: size || 16 });
     return h;
   }
+  /* Insignia «Compra verificada» de cada reseña (texts.product.verifiedLabel): vacío = sin insignia */
+  const VERIFIED = (function () { const v = CT.texts && CT.texts.product ? CT.texts.product.verifiedLabel : undefined; return v == null ? "Compra verificada" : String(v).trim(); })();
+  function verifiedHTML() { return VERIFIED ? '<span class="review-card__verified">' + I("check", { size: 14, stroke: 2.2 }) + " " + esc(VERIFIED) + "</span>" : ""; }
   function renderReviews() {
     const list = $("[data-reviews-list]");
     const head = $("[data-reviews-stars]");
@@ -255,7 +261,7 @@
         '<blockquote class="review-card__quote">“' + esc(r.quote) + "”</blockquote>" +
         '<div class="review-card__who"><span class="review-card__avatar" aria-hidden="true">' + esc(r.name.charAt(0).toUpperCase()) + "</span>" +
         '<span class="review-card__name"><strong>' + esc(r.name) + "</strong>" + (r.city ? "<span>" + esc(r.city) + "</span>" : "") + "</span>" +
-        '<span class="review-card__verified">' + I("check", { size: 14, stroke: 2.2 }) + " Compra verificada</span></div>" +
+        verifiedHTML() + "</div>" +
         "</article></li>"
       );
     }).join("");
@@ -299,7 +305,7 @@
     const submit = $(".community__submit");
     if (submit) {
       let label = txt(cm.buttonLabel, "");
-      if (!C.discountEnabled && /\{descuento\}/.test(label)) label = "Suscribirme";
+      if (!C.discountEnabled && /\{descuento\}/.test(label)) label = U.tx("subscribe.subscribeLabel", "Suscribirme");
       submit.textContent = fill(label);
     }
     put($(".community__fine"), rich(txt(cm.fine, ""), { fill: true, accent: false }));
@@ -324,9 +330,9 @@
     const doneMsg = $(".community__done-msg", done);
     const doneMsgHTML = doneMsg ? doneMsg.innerHTML : "";
     /* Suscrito sin cupón (modal de descuento apagado o sin cupón de bienvenida vigente): solo agradecimiento */
-    const THANKS = "¡Gracias por suscribirte! Te contaremos las novedades de " + (C.brand || "Mercy Studio") + ".";
+    const THANKS = U.fill(U.tx("subscribe.thanks", "¡Gracias por suscribirte! Te contaremos las novedades de {marca}."));
     /* Con código pero sin aplicar ahora (lo quitó o lo cambió por otro): no se dice «Ya está aplicado a tu carrito» */
-    const PENDING = "Este es tu código de bienvenida. Escríbelo en el checkout para usarlo.";
+    const PENDING = U.tx("subscribe.codeHint", "Este es tu código de bienvenida. Escríbelo en el checkout para usarlo.");
 
     function sync() {
       const claimed = S.discount.claimed();
@@ -362,7 +368,7 @@
     /* bindForm valida el correo (obligatorio, formato), lo registra (API o modo local) y llama a onOk solo si salió bien */
     Mercy.discount.bindForm(form, function (r) {
       sync();
-      U.toast(r.coupon ? "¡Listo! Tu descuento del " + r.coupon.label + " quedó aplicado" : THANKS, { icon: "check" });
+      U.toast(r.coupon ? U.fill(U.tx("subscribe.appliedToast", "¡Listo! Tu descuento del {descuento} quedó aplicado").replace(/\{descuento\}/g, r.coupon.label)) : THANKS, { icon: "check" });
       const copy = $("[data-copy-code]", done);
       const go = $(".community__go", done);
       if (r.coupon && copy) copy.focus(); else if (go && !go.hidden) go.focus();

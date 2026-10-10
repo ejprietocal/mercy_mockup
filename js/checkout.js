@@ -19,6 +19,7 @@
   const U = M.ui, S = M.store, D = M.data, C = M.config, I = M.icons.svg, V = U.validators;
   const $ = U.$, $$ = U.$$, esc = U.esc, money = U.money;
   const STORE_KEY = "checkout";
+  const tx = U.tx;
 
   /* --- Elementos ---------------------------------------------------------- */
   const form = $("#co-form");
@@ -149,7 +150,7 @@
         '<label class="pay-row">' +
         '<input type="radio" name="pago" value="' + esc(m.id) + '">' +
         '<span class="pay-row__txt"><strong>' + esc(m.name) + "</strong><small>" + esc(m.hint) + "</small></span>" +
-        '<span class="pay-row__logo" aria-hidden="true">' + M.icons.bank(m.id) + "</span></label>"
+        '<span class="pay-row__logo" aria-hidden="true">' + M.icons.bank(m.logo || m.id) + "</span></label>"
       );
     }).join("");
     syncPayRows();
@@ -207,10 +208,10 @@
   function renderShipping() {
     const sh = S.cart.shipping();
     if (sh.status === "free") {
-      shipEl.innerHTML = '<div class="ship-status ship-status--free"><span class="ship-status__label">' + I("truck", { size: 18 }) + "ENVÍO GRATIS</span></div>";
+      shipEl.innerHTML = '<div class="ship-status ship-status--free"><span class="ship-status__label">' + I("truck", { size: 18 }) + esc(tx("shipping.checkoutFree", "ENVÍO GRATIS")) + "</span></div>";
     } else if (sh.status === "not-included") {
       shipEl.innerHTML = '<div class="ship-status ship-status--not"><span class="ship-status__label">' + I("truck", { size: 18 }) +
-        'ENVÍO NO INCLUIDO</span><span class="ship-status__note">Tiene un costo adicional que se coordina por WhatsApp</span></div>';
+        esc(tx("shipping.checkoutPaid", "ENVÍO NO INCLUIDO")) + '</span><span class="ship-status__note">' + esc(tx("shipping.checkoutPaidNote", "Tiene un costo adicional que se coordina por WhatsApp")) + "</span></div>";
     } else {
       shipEl.innerHTML = "";
     }
@@ -230,7 +231,7 @@
         ? '<div class="is-disc' + (info.amount ? "" : " is-zero") + '" data-co-disc><dt>' + esc(discLabel(info)) + "</dt><dd>" + (info.amount ? "−" + money(info.amount) : money(0)) + "</dd></div>"
         : "") +
       "<div><dt>Envío</dt><dd" + (sh.status === "free" ? ' class="is-ship-free"' : "") + ">" + (sh.status === "free" ? "Gratis" : "No incluido") + "</dd></div>" +
-      '<div class="is-total"><dt>Total</dt><dd>' + money(S.cart.total()) + (notIncluded ? "<small>+ envío por coordinar</small>" : "") + "</dd></div>";
+      '<div class="is-total"><dt>Total</dt><dd>' + money(S.cart.total()) + (notIncluded ? "<small>" + esc(tx("shipping.pending", "+ envío por coordinar")) + "</small>" : "") + "</dd></div>";
   }
 
   /* Código de descuento: aplicado (con aviso si no llega al mínimo / no aplica) o campo para escribirlo.
@@ -259,7 +260,7 @@
     const ask = mine
       ? '<button type="button" class="co-link coupon__ask" data-claimed-apply>Usar mi código ' + esc(mine.code) + " (" + esc(mine.label) + " de descuento)</button>"
       : !S.discount.claimed() && C.discountEnabled && S.discount.welcomeLabel()
-        ? '<button type="button" class="co-link coupon__ask" data-discount-open>¿Aún no tienes código? Obtén ' + esc(S.discount.welcomeLabel()) + " de descuento</button>"
+        ? '<button type="button" class="co-link coupon__ask" data-discount-open>' + esc(U.fill(tx("checkout.noCodeCta", "¿Aún no tienes código? Obtén {descuento} de descuento"))) + "</button>"
         : "";
     couponEl.innerHTML =
       '<label class="visually-hidden" for="co-coupon">Código de descuento</label>' +
@@ -328,7 +329,7 @@
     const F = {}; FIELDS.forEach(function (f) { F[f.key] = val(f); });
     const pay = D.PAYMENT_METHODS.filter(function (m) { return m.id === currentPay(); })[0];
     const L = [];
-    L.push(U.waGreeting(", quiero confirmar mi pedido:"), "", "*MI PEDIDO*");
+    L.push(U.waGreeting(U.fill(tx("checkout.waIntro", ", quiero confirmar mi pedido:"))), "", "*MI PEDIDO*");
     items.forEach(function (it, i) {
       L.push((i + 1) + ". " + it.product.name + " — " + variantText(it) + " — x" + it.qty + " — " + money(it.lineTotal));
     });
@@ -338,12 +339,12 @@
     L.push("*TOTAL: " + money(S.cart.total()) + "*" + (sh.status === "free" ? "" : " + envío por coordinar"));
     L.push("", "*DATOS DEL CLIENTE*", "Nombre: " + F.name, "Cédula: " + F.cedula.replace(/\D/g, ""), "Celular: " + groupPhone(F.phone));
     const addr = [F.address, F.building, F.apt].filter(Boolean).join(", ");
-    L.push("", "*DIRECCIÓN DE ENTREGA*", addr, "Barrio: " + F.barrio, F.city + ", " + F.dept, "Envío a domicilio (2–4 días hábiles)");
+    L.push("", "*DIRECCIÓN DE ENTREGA*", addr, "Barrio: " + F.barrio, F.city + ", " + F.dept, tx("shipping.method", "Envío a domicilio") + " (" + tx("shipping.time", "2–4 días hábiles") + ")");
     if (giftOn) {
       L.push("", "*REGALO*: Sí");
       L.push(giftMsg.value.trim() ? "Mensaje: “" + giftMsg.value.trim() + "”" : "Sin mensaje personalizado");
     }
-    L.push("", "*MÉTODO DE PAGO*: " + (pay ? pay.name + " (transferencia)" : ""), "", "¡Gracias! Quedo atento(a) para coordinar el pago y el envío.");
+    L.push("", "*MÉTODO DE PAGO*: " + (pay ? pay.name + " (transferencia)" : ""), "", U.fill(tx("checkout.waClosing", "¡Gracias! Quedo atento(a) para coordinar el pago y el envío.")));
     return L.join("\n");
   }
 
@@ -368,12 +369,12 @@
         id: "co-modal", cls: "modal--order", label: "Tu pedido está listo",
         html:
           '<button type="button" class="modal__close" data-close aria-label="Cerrar">' + I("close", { size: 22 }) + "</button>" +
-          '<h2 class="co-modal__title">¡Tu pedido <span class="accent">está</span> listo!</h2>' +
-          '<p class="co-modal__lead">Este es el mensaje que enviaremos a WhatsApp. Revísalo: allí coordinamos el pago y el envío contigo.</p>' +
+          '<h2 class="co-modal__title">' + U.rich(tx("checkout.previewTitle", "¡Tu pedido *está* listo!")) + "</h2>" +
+          '<p class="co-modal__lead">' + U.rich(tx("checkout.previewText", "Este es el mensaje que enviaremos a WhatsApp. Revísalo: allí coordinamos el pago y el envío contigo."), { accent: false, fill: true }) + "</p>" +
           '<pre class="co-preview" data-co-preview tabindex="0" aria-label="Vista previa del mensaje de WhatsApp"></pre>' +
           '<div class="co-modal__actions">' +
-          '<a class="btn btn--whatsapp btn--lg" data-co-open-wa data-autofocus target="_blank" rel="noopener" href="#">' + I("whatsapp", { size: 20 }) + "Abrir WhatsApp</a>" +
-          '<button type="button" class="btn btn--outline btn--lg" data-co-copy>' + I("copy", { size: 18 }) + "Copiar mensaje</button></div>" +
+          '<a class="btn btn--whatsapp btn--lg" data-co-open-wa data-autofocus target="_blank" rel="noopener" href="#">' + I("whatsapp", { size: 20 }) + esc(tx("checkout.openLabel", "Abrir WhatsApp")) + "</a>" +
+          '<button type="button" class="btn btn--outline btn--lg" data-co-copy>' + I("copy", { size: 18 }) + esc(tx("checkout.copyLabel", "Copiar mensaje")) + "</button></div>" +
           '<p class="co-modal__status" role="status" data-co-modal-status></p>'
       });
       $(".co-modal__title", modal).id = "co-modal-title";
@@ -389,7 +390,7 @@
           clearSaved();
           S.cart.clear();
           S.discount.removeCoupon();          /* el código ya se usó en este pedido */
-          $("[data-co-modal-status]", modal).textContent = "Abrimos WhatsApp en otra pestaña. Cuando termines, cierra esta ventana.";
+          $("[data-co-modal-status]", modal).textContent = tx("checkout.afterOpenText", "Abrimos WhatsApp en otra pestaña. Cuando termines, cierra esta ventana.");
         }
       });
     }
@@ -600,7 +601,40 @@
     if (wide.addEventListener) wide.addEventListener("change", place); else if (wide.addListener) wide.addListener(place);
   }
 
+  /* Textos administrables de la página (texts.checkout / texts.shipping): el HTML trae los de fábrica y aquí se reemplazan */
+  function applyTexts() {
+    const fill = U.fill;
+    const set = function (sel, val, html) { const n = $(sel); if (!n) return; if (html) n.innerHTML = val; else n.textContent = val; };
+    document.title = U.plain(tx("checkout.title", "Finalizar *compra*")) + " — " + C.brand;
+    let meta = $('meta[name="description"]');
+    if (!meta) { meta = document.createElement("meta"); meta.name = "description"; document.head.appendChild(meta); }
+    meta.setAttribute("content", fill(tx("checkout.metaDescription", "Finaliza tu compra en {marca} como invitado: completa tus datos, elige el pago y confirma tu pedido por WhatsApp.")));
+    set(".co__title", U.rich(tx("checkout.title", "Finalizar *compra*")), true);
+    set(".co__sub", fill(tx("checkout.subtitle", "Compra como invitado — sin registro obligatorio.")));
+    set("#co-empty-title", tx("checkout.emptyTitle", "Tu carrito está vacío"));
+    set("[data-co-empty] .empty__text", tx("checkout.emptyText", "Agrega tus prendas favoritas para poder finalizar tu compra."));
+    set("[data-co-empty] .btn", tx("checkout.emptyCta", "Seguir mirando"));
+    set("#co-success-title", U.rich(tx("checkout.successTitle", "¡Gracias por tu *pedido*!")), true);
+    set(".co-success__text", fill(tx("checkout.successText", "Lo enviamos a WhatsApp. Allí coordinamos contigo el pago por transferencia y el envío a tu dirección.")));
+    set(".co-success__actions .btn--primary", tx("checkout.successHome", "Volver al inicio"));
+    set(".co-success__actions .btn--outline", tx("checkout.successCta", "Seguir mirando"));
+    set("#h-ship", tx("checkout.shipTitle", "Método de envío"));
+    set(".ship-card__name", tx("shipping.method", "Envío a domicilio"));
+    set(".ship-card__desc", [tx("shipping.time", "2–4 días hábiles"), tx("shipping.coordination", "Coordinamos por WhatsApp")].filter(function (s) { return s.trim(); }).join(" · "));
+    set(".co-note p", fill(tx("checkout.note", "Verifica que la dirección de entrega, productos y tallas seleccionados estén correctos y completos.")));
+    set("#gift-label", tx("checkout.giftTitle", "¿Es un regalo?"));
+    set("#gift-hint", tx("checkout.giftHint", "Agrega un mensaje personalizado (opcional)."));
+    set('label[for="gift-msg"]', esc(tx("checkout.giftLabel", "Mensaje personalizado")) + ' <span class="opt">(opcional)</span>', true);
+    if (giftMsg) giftMsg.setAttribute("placeholder", tx("checkout.giftPlaceholder", "Escribe aquí el mensaje que acompañará tu regalo…"));
+    set("#h-pay", tx("checkout.payTitle", "Pago"));
+    set("#pay-lead", tx("checkout.payLead", "Elige cómo vas a pagar por transferencia:"));
+    set("#pay-hint span:last-child", fill(tx("checkout.payHint", "Aquí no se cobra nada. El método que elijas llega a {marca} dentro de tu mensaje de WhatsApp y por ese chat te enviamos los datos para transferir.")));
+    set("#co-confirm span:last-child", tx("checkout.confirmLabel", "Confirmar pedido por WhatsApp"));
+    set(".co__legal", fill(tx("checkout.confirmHelp", "Te llevaremos a WhatsApp con el resumen de tu pedido para coordinar pago y envío.")));
+  }
+
   function init() {
+    applyTexts();
     placeSummaryBox();
     $$("[data-icon]").forEach(function (el) {
       el.innerHTML = I(el.getAttribute("data-icon"), { size: parseInt(el.getAttribute("data-size"), 10) || 20, stroke: parseFloat(el.getAttribute("data-stroke")) || undefined });

@@ -267,12 +267,27 @@ window.Mercy = window.Mercy || {};
     "Vichada": ["Puerto Carreño"]
   };
 
-  /* --- Medios de pago por transferencia (C35: sin Nu, con logos) --------- */
-  const PAYMENT_METHODS = [
-    { id: "nequi",       name: "Nequi",                hint: "Transferencia desde la app Nequi" },
-    { id: "breb",        name: "Bre-B",                hint: "Transferencia con llave Bre-B" },
-    { id: "bancolombia", name: "Bancolombia Ahorros",  hint: "Transferencia a cuenta de ahorros" }
+  /* --- Medios de pago por transferencia (settings.paymentMethods, panel → Ajustes; C35) ---------
+     `logo`: nequi | breb | bancolombia | none (insignia tipográfica de icons.js). Sin lista válida → los de siempre. */
+  const PAYMENT_DEFAULT = [
+    { id: "nequi",       name: "Nequi",                hint: "Transferencia desde la app Nequi",  logo: "nequi" },
+    { id: "breb",        name: "Bre-B",                hint: "Transferencia con llave Bre-B",     logo: "breb" },
+    { id: "bancolombia", name: "Bancolombia Ahorros",  hint: "Transferencia a cuenta de ahorros", logo: "bancolombia" }
   ];
+  const PAYMENT_METHODS = (function () {
+    const raw = CT.settings && Array.isArray(CT.settings.paymentMethods) ? CT.settings.paymentMethods : [];
+    const seen = {};
+    const list = raw.map(function (m, i) {
+      m = m && typeof m === "object" ? m : {};
+      const name = str(m.name).trim();
+      if (!name) return null;
+      let id = /^[a-z0-9-]{1,60}$/.test(str(m.id)) ? str(m.id) : "pago-" + (i + 1);
+      if (seen[id]) id = id + "-" + (i + 1);
+      seen[id] = true;
+      return { id: id, name: name, hint: str(m.hint).trim(), logo: str(m.logo).trim() || "none" };
+    }).filter(Boolean);
+    return list.length ? list : PAYMENT_DEFAULT;
+  })();
 
   Mercy.data = {
     COLORS: COLORS,

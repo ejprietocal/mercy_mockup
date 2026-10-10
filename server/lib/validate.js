@@ -6,7 +6,7 @@
    · devuelve { value, fields } donde fields = { "colors.1.photos": "Máximo 4 fotos por color." }.
    Clave ausente → valor por defecto del campo; tipo incorrecto → error.
    ========================================================================== */
-import { isPlainObject, newId } from "./util.js";
+import { isPlainObject, newId, slugify } from "./util.js";
 
 /* ---------- Constantes del contrato ---------- */
 export const SECTIONS = ["settings", "home", "discountModal", "texts", "colors", "fits", "categories", "collections", "sizeCharts", "reviews"];
@@ -271,7 +271,37 @@ function vSettings(c, v) {
     pageSize: c.int("pageSize", o.pageSize, { min: 2, max: 48, def: 6 }),
     showPhotos: c.bool("showPhotos", o.showPhotos, true),
     showAdminLink: c.bool("showAdminLink", o.showAdminLink, true),
+    paymentMethods: vPaymentMethods(c, o.paymentMethods),
   };
+}
+
+/** Medios de pago del checkout (settings.paymentMethods): 1–8, id único, nombre obligatorio, logo conocido o ninguno. */
+const PAYMENT_LOGOS = ["nequi", "breb", "bancolombia", "none"];
+function vPaymentMethods(c, v) {
+  if (v === undefined) {
+    // Contenido anterior a este campo: se completa con los medios de siempre (ver también Content#init)
+    return [
+      { id: "nequi", name: "Nequi", hint: "Transferencia desde la app Nequi", logo: "nequi" },
+      { id: "breb", name: "Bre-B", hint: "Transferencia con llave Bre-B", logo: "breb" },
+      { id: "bancolombia", name: "Bancolombia Ahorros", hint: "Transferencia a cuenta de ahorros", logo: "bancolombia" },
+    ];
+  }
+  const out = c.list("paymentMethods", v, {
+    min: 1, max: 8, minMsg: "Agrega al menos un medio de pago.",
+    item: (p, x, i) => {
+      const o = c.obj(p, x);
+      // Sin id (medio nuevo creado en el panel): se deriva del nombre
+      const rawId = typeof o.id === "string" && o.id.trim() ? o.id : slugify(String(o.name || "")) || `pago-${i + 1}`;
+      return {
+        id: c.slug(J(p, "id"), rawId),
+        name: c.text(J(p, "name"), o.name, { max: 40, required: true }),
+        hint: c.text(J(p, "hint"), o.hint, { max: 120 }),
+        logo: c.oneOf(J(p, "logo"), o.logo, PAYMENT_LOGOS, "none"),
+      };
+    },
+  });
+  c.uniqueBy("paymentMethods", out, "id");
+  return out;
 }
 
 function vHome(c, v) {
@@ -370,6 +400,12 @@ function vDiscountModal(c, v, refs) {
 function vTexts(c, v) {
   const o = c.obj("", v);
   const cat = c.obj("catalog", o.catalog);
+  const menu = c.obj("menu", o.menu), help = c.obj("help", o.help), search = c.obj("search", o.search);
+  const fav = c.obj("favorites", o.favorites), cart = c.obj("cart", o.cart), ship = c.obj("shipping", o.shipping);
+  const prod = c.obj("product", o.product), co = c.obj("checkout", o.checkout), sub = c.obj("subscribe", o.subscribe);
+  // Textos de interfaz (etiquetas, avisos, estados vacíos): vacío = la tienda usa el texto de fábrica (js/defaults.js)
+  const t = (path, val, max = 160) => c.text(path, val, { max });
+  const tm = (path, val, max = 500) => c.text(path, val, { max, multiline: true });
   return {
     topStrip: c.textList("topStrip", o.topStrip, { min: 1, max: 6, itemMax: 80 }),
     footerTagline: c.text("footerTagline", o.footerTagline),
@@ -385,7 +421,127 @@ function vTexts(c, v) {
       subtitle: c.text("catalog.subtitle", cat.subtitle, { max: 300 }),
       bestTitle: c.text("catalog.bestTitle", cat.bestTitle),
       newTitle: c.text("catalog.newTitle", cat.newTitle),
+      metaDescription: t("catalog.metaDescription", cat.metaDescription, 320),
+      loadMore: t("catalog.loadMore", cat.loadMore, 60),
+      seeAll: t("catalog.seeAll", cat.seeAll, 60),
+      similarTitle: t("catalog.similarTitle", cat.similarTitle),
+      similarText: t("catalog.similarText", cat.similarText, 300),
+      similarSearchText: t("catalog.similarSearchText", cat.similarSearchText, 300),
+      emptyFiltersTitle: t("catalog.emptyFiltersTitle", cat.emptyFiltersTitle),
+      emptyFiltersText: t("catalog.emptyFiltersText", cat.emptyFiltersText, 300),
+      emptySearchTitle: t("catalog.emptySearchTitle", cat.emptySearchTitle),
+      emptySearchText: t("catalog.emptySearchText", cat.emptySearchText, 300),
     },
+    menu: { title: t("menu.title", menu.title, 40), allLabel: t("menu.allLabel", menu.allLabel, 60), whatsappLabel: t("menu.whatsappLabel", menu.whatsappLabel, 60) },
+    help: { sizeGuide: t("help.sizeGuide", help.sizeGuide, 60), shipping: t("help.shipping", help.shipping, 60), returns: t("help.returns", help.returns, 60) },
+    footerShopTitle: t("footerShopTitle", o.footerShopTitle, 40),
+    footerHelpTitle: t("footerHelpTitle", o.footerHelpTitle, 40),
+    footerFollowTitle: t("footerFollowTitle", o.footerFollowTitle, 40),
+    search: {
+      placeholder: t("search.placeholder", search.placeholder, 80),
+      suggestionsTitle: t("search.suggestionsTitle", search.suggestionsTitle, 60),
+      topTitle: t("search.topTitle", search.topTitle, 60),
+      emptyText: t("search.emptyText", search.emptyText, 300),
+      similarTitle: t("search.similarTitle", search.similarTitle, 60),
+      maybeTitle: t("search.maybeTitle", search.maybeTitle, 60),
+    },
+    favorites: {
+      title: t("favorites.title", fav.title, 60),
+      subtitle: t("favorites.subtitle", fav.subtitle, 300),
+      emptyTitle: t("favorites.emptyTitle", fav.emptyTitle),
+      emptyText: t("favorites.emptyText", fav.emptyText, 300),
+      emptyCta: t("favorites.emptyCta", fav.emptyCta, 40),
+    },
+    cart: {
+      title: t("cart.title", cart.title, 60),
+      emptyTitle: t("cart.emptyTitle", cart.emptyTitle),
+      emptyText: t("cart.emptyText", cart.emptyText, 300),
+      emptyCta: t("cart.emptyCta", cart.emptyCta, 40),
+      note: t("cart.note", cart.note, 300),
+      checkoutLabel: t("cart.checkoutLabel", cart.checkoutLabel, 40),
+      continueLabel: t("cart.continueLabel", cart.continueLabel, 40),
+    },
+    shipping: {
+      badge: t("shipping.badge", ship.badge, 40),
+      lineFree: t("shipping.lineFree", ship.lineFree, 60),
+      cartFree: t("shipping.cartFree", ship.cartFree),
+      cartPaid: t("shipping.cartPaid", ship.cartPaid),
+      productFree: t("shipping.productFree", ship.productFree),
+      productPaid: t("shipping.productPaid", ship.productPaid),
+      detailFree: t("shipping.detailFree", ship.detailFree, 300),
+      detailPaid: t("shipping.detailPaid", ship.detailPaid, 300),
+      ruleFree: t("shipping.ruleFree", ship.ruleFree, 300),
+      rulePaid: t("shipping.rulePaid", ship.rulePaid, 300),
+      method: t("shipping.method", ship.method, 60),
+      time: t("shipping.time", ship.time, 60),
+      coordination: t("shipping.coordination", ship.coordination, 80),
+      checkoutFree: t("shipping.checkoutFree", ship.checkoutFree, 40),
+      checkoutPaid: t("shipping.checkoutPaid", ship.checkoutPaid, 40),
+      checkoutPaidNote: t("shipping.checkoutPaidNote", ship.checkoutPaidNote),
+      pending: t("shipping.pending", ship.pending, 60),
+    },
+    product: {
+      collectionLabel: t("product.collectionLabel", prod.collectionLabel, 40),
+      stockIn: t("product.stockIn", prod.stockIn, 80),
+      stockOut: t("product.stockOut", prod.stockOut, 80),
+      lowStockOne: t("product.lowStockOne", prod.lowStockOne, 80),
+      lowStockMany: t("product.lowStockMany", prod.lowStockMany, 80),
+      videoChip: t("product.videoChip", prod.videoChip, 40),
+      videoSoonTitle: t("product.videoSoonTitle", prod.videoSoonTitle, 80),
+      videoSoonText: t("product.videoSoonText", prod.videoSoonText, 300),
+      detailsTitle: t("product.detailsTitle", prod.detailsTitle, 60),
+      careTitle: t("product.careTitle", prod.careTitle, 60),
+      sizesTitle: t("product.sizesTitle", prod.sizesTitle, 60),
+      sizeGuideLink: t("product.sizeGuideLink", prod.sizeGuideLink, 80),
+      detailsEmpty: t("product.detailsEmpty", prod.detailsEmpty, 300),
+      careEmpty: t("product.careEmpty", prod.careEmpty, 300),
+      storyTitle: t("product.storyTitle", prod.storyTitle, 80),
+      reviewsTitle: t("product.reviewsTitle", prod.reviewsTitle, 80),
+      reviewsSource: t("product.reviewsSource", prod.reviewsSource, 60),
+      verifiedLabel: t("product.verifiedLabel", prod.verifiedLabel, 60),
+      relatedTitle: t("product.relatedTitle", prod.relatedTitle, 80),
+      metaSuffix: t("product.metaSuffix", prod.metaSuffix, 200),
+    },
+    checkout: {
+      metaDescription: t("checkout.metaDescription", co.metaDescription, 320),
+      strip: t("checkout.strip", co.strip, 80),
+      title: t("checkout.title", co.title, 80),
+      subtitle: t("checkout.subtitle", co.subtitle),
+      emptyTitle: t("checkout.emptyTitle", co.emptyTitle),
+      emptyText: t("checkout.emptyText", co.emptyText, 300),
+      emptyCta: t("checkout.emptyCta", co.emptyCta, 40),
+      successTitle: t("checkout.successTitle", co.successTitle, 80),
+      successText: tm("checkout.successText", co.successText),
+      successHome: t("checkout.successHome", co.successHome, 40),
+      successCta: t("checkout.successCta", co.successCta, 40),
+      shipTitle: t("checkout.shipTitle", co.shipTitle, 60),
+      note: tm("checkout.note", co.note),
+      giftTitle: t("checkout.giftTitle", co.giftTitle, 60),
+      giftHint: t("checkout.giftHint", co.giftHint),
+      giftLabel: t("checkout.giftLabel", co.giftLabel, 60),
+      giftPlaceholder: t("checkout.giftPlaceholder", co.giftPlaceholder),
+      payTitle: t("checkout.payTitle", co.payTitle, 60),
+      payLead: t("checkout.payLead", co.payLead),
+      payHint: tm("checkout.payHint", co.payHint),
+      confirmLabel: t("checkout.confirmLabel", co.confirmLabel, 60),
+      confirmHelp: t("checkout.confirmHelp", co.confirmHelp, 300),
+      previewTitle: t("checkout.previewTitle", co.previewTitle, 80),
+      previewText: tm("checkout.previewText", co.previewText),
+      openLabel: t("checkout.openLabel", co.openLabel, 40),
+      copyLabel: t("checkout.copyLabel", co.copyLabel, 40),
+      afterOpenText: t("checkout.afterOpenText", co.afterOpenText, 300),
+      waIntro: t("checkout.waIntro", co.waIntro),
+      waClosing: tm("checkout.waClosing", co.waClosing, 300),
+      noCodeCta: t("checkout.noCodeCta", co.noCodeCta),
+    },
+    subscribe: {
+      thanks: t("subscribe.thanks", sub.thanks, 300),
+      codeHint: t("subscribe.codeHint", sub.codeHint, 300),
+      popupCodeHint: t("subscribe.popupCodeHint", sub.popupCodeHint),
+      appliedToast: t("subscribe.appliedToast", sub.appliedToast),
+      subscribeLabel: t("subscribe.subscribeLabel", sub.subscribeLabel, 40),
+    },
+    whatsappFabText: t("whatsappFabText", o.whatsappFabText, 120),
   };
 }
 
