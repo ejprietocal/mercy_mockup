@@ -33,6 +33,8 @@ Qué se administra:
 - **Modal de descuento** (textos, imagen, cuándo aparece) y **cupones** (porcentaje o valor fijo, vigencia, usos, por categoría o producto).
 - **Suscriptores** (con exportación CSV), **biblioteca de medios** (fotos y videos subidos), **usuarios** con roles y **ajustes** (WhatsApp, redes, logos, SEO, medios de pago).
 - **Historial:** actividad de cada persona y **revisiones** restaurables del contenido.
+- **Pauta en Meta:** las páginas salen con etiquetas Open Graph (foto, título y descripción al compartir o pautar un producto), el píxel de
+  Meta se activa con su identificador en **Ajustes** y el feed del catálogo para Commerce Manager está en `/api/public/feed-meta.csv`.
 
 Contrato técnico (esquema, API, roles, rutas): [`docs/ADMIN-CONTRATO.md`](docs/ADMIN-CONTRATO.md) · framework del panel: [`admin/README.md`](admin/README.md).
 

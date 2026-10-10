@@ -272,7 +272,15 @@ function vSettings(c, v) {
     showPhotos: c.bool("showPhotos", o.showPhotos, true),
     showAdminLink: c.bool("showAdminLink", o.showAdminLink, true),
     paymentMethods: vPaymentMethods(c, o.paymentMethods),
+    metaPixelId: pixelId(c, o.metaPixelId),
   };
+}
+
+/** Identificador del píxel de Meta: vacío (la tienda no carga nada) o solo dígitos. */
+function pixelId(c, v) {
+  const s = c.text("metaPixelId", v, { max: 20 });
+  if (s && !/^\d{5,20}$/.test(s)) c.add("metaPixelId", "Escribe solo los números del identificador del píxel (entre 5 y 20 dígitos).");
+  return s;
 }
 
 /** Medios de pago del checkout (settings.paymentMethods): 1–8, id único, nombre obligatorio, logo conocido o ninguno. */

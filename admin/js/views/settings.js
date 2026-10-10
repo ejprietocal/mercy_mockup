@@ -114,6 +114,22 @@ export default [
         }),
 
         section({
+          title: "Pauta en Meta (Facebook e Instagram)",
+          description: "Para medir la pauta y para el catálogo de productos de Meta. La vista previa al compartir un enlace (foto, título y descripción) ya sale sola: usa los textos de SEO de arriba y la primera foto de cada producto.",
+          body: [
+            f.text(form, "metaPixelId", {
+              label: "Identificador del píxel de Meta", maxlength: 20, inputmode: "numeric", autocomplete: "off", placeholder: "123456789012345",
+              help: "Solo números. Está en Meta Events Manager, en Orígenes de datos. Vacío = la tienda no carga el píxel ni contacta a Meta. Con él se registran PageView, ViewContent, AddToCart, InitiateCheckout, Lead (pedido enviado a WhatsApp) y Contact.",
+              validate: (v) => (!String(v ?? "").trim() || /^\d{5,20}$/.test(String(v).trim()) ? null : "Solo números, entre 5 y 20 dígitos."),
+            }),
+            h("div.stack-sm",
+              h("p.field__label", "Feed del catálogo para Meta"),
+              h("p", h("a", { href: `${location.origin}/api/public/feed-meta.csv`, target: "_blank", rel: "noopener" }, h("code", `${location.origin}/api/public/feed-meta.csv`))),
+              h("p.field__help", "En Commerce Manager: Catálogo, Orígenes de datos, Agregar artículos, Feed de datos, Usar una URL. Pega esta dirección y programa la actualización diaria. Salen los productos publicados con nombre, descripción, precio, disponibilidad y fotos; Meta omite los que no tengan foto.")),
+          ],
+        }),
+
+        section({
           title: "Medios de pago",
           description: "Opciones de transferencia que la persona elige al finalizar la compra. El método elegido viaja en el mensaje de WhatsApp: la tienda no cobra.",
           body: f.list(form, "paymentMethods", {

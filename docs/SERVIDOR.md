@@ -53,6 +53,7 @@ fábrica, ver §2 «Volver al contenido de fábrica».
 | `ADMIN_PASSWORD` | — (se genera) | Clave del primer administrador (mínimo 10 caracteres) |
 | `ADMIN_NAME` | `Administrador` | Nombre del primer administrador |
 | `ADMIN_RESET` | — | `1` = al arrancar restablece la clave de `ADMIN_EMAIL` (ver §5) |
+| `PUBLIC_URL` | — (se usa el host de la petición) | Origen público del sitio, p. ej. `https://mercystudio.co`: enlaces absolutos de las etiquetas para redes (Open Graph) y del feed de Meta. Útil si el proxy no manda `X-Forwarded-Host` |
 | `TRUST_PROXY` | — (Docker: `1`) | `1` = confía en `X-Forwarded-For/Proto` de UN proxy (Easypanel/Traefik). `2` si hay otro delante (p. ej. Cloudflare). `0` si el puerto queda expuesto sin proxy |
 | `GIT_SHA` | `dev` | Versión; la muestran `/version.txt` y `/api/health` |
 | `NODE_ENV` | — (Docker: `production`) | Solo informativo en el log |

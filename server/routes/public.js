@@ -4,6 +4,7 @@
    ========================================================================== */
 import { err, readJson, sendBody } from "../lib/http.js";
 import { publicCoupon } from "../lib/coupons.js";
+import { metaFeedCsv, publicOrigin } from "../lib/social.js";
 
 const HOUR = 60 * 60 * 1000;
 const TEN_MIN = 10 * 60 * 1000;
@@ -52,6 +53,12 @@ export function registerPublic(router, app) {
   router.get("/api/public/content", (ctx) => {
     const p = app.content.publicPayload();
     sendPublic(ctx, p.json, p.etagJson, "application/json; charset=utf-8", p.gzJson);
+  });
+
+  // Feed de catálogo para Meta (Commerce Manager → Catálogo → Orígenes de datos → URL): productos publicados, en CSV
+  router.get("/api/public/feed-meta.csv", (ctx) => {
+    const csv = metaFeedCsv(app.content.data, publicOrigin(ctx));
+    sendBody(ctx, 200, csv, { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-cache", "Content-Disposition": "inline; filename=\"feed-meta.csv\"" });
   });
 
   // Con el modal apagado (discountModal.enabled: false) o sin cupón de bienvenida vigente → coupon: null y couponCode "".

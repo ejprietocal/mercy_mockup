@@ -36,7 +36,7 @@ test("sirve las páginas de la lista blanca", async () => {
     // Tienda: solo se puede enmarcar desde el propio sitio + CSP propia (defensa en profundidad)
     assert.equal(r.headers["x-frame-options"], "SAMEORIGIN", p);
     const csp = r.headers["content-security-policy"] || "";
-    assert.match(csp, /script-src 'self'(;|$)/, p);
+    assert.match(csp, /script-src 'self' https:\/\/connect\.facebook\.net(;|$)/, p); // solo el sitio + el píxel de Meta
     assert.match(csp, /frame-ancestors 'self'/, p);
     assert.match(csp, /object-src 'none'/, p);
     assert.match(csp, /img-src 'self' data: blob: https: http:/, p);

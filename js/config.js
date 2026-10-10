@@ -115,6 +115,9 @@ window.Mercy = window.Mercy || {};
     /* ¿Es un regalo? — máximo de caracteres del mensaje personalizado (C45). */
     giftMaxChars: Math.max(20, Math.min(1000, parseInt(st.giftMaxChars, 10) || 180)),
 
+    /* Píxel de Meta (Facebook e Instagram): solo dígitos; vacío = la tienda no carga el píxel ni contacta a Meta. */
+    metaPixelId: String(st.metaPixelId || "").replace(/\D/g, ""),
+
     /* Productos por "página" en el catálogo ("Ver más productos"). */
     pageSize: Math.max(2, Math.min(48, parseInt(st.pageSize, 10) || 6)),
 

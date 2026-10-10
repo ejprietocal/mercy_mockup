@@ -697,6 +697,43 @@ window.Mercy = window.Mercy || {};
     if (/(^|\/)checkout\.html$/.test(path)) return "#/descuento";
     return "#/inicio";
   }
+  /* ======================================================================
+     Píxel de Meta (settings.metaPixelId; panel → Ajustes → Pauta en Meta)
+     Sin identificador no se carga nada ni se contacta a Meta. Con él: carga fbevents.js (permitido en la CSP de la
+     tienda), PageView en cada página, AddToCart al agregar al carrito y Contact al tocar WhatsApp (botón flotante o
+     menú). La ficha manda ViewContent y el checkout InitiateCheckout y Lead (producto.js / checkout.js).
+     ====================================================================== */
+  const PIXEL_ID = String(C.metaPixelId || "").replace(/\D/g, "");
+  function fbq() { if (PIXEL_ID && typeof window.fbq === "function") { try { window.fbq.apply(null, arguments); } catch (e) {} } }
+  Mercy.pixel = {
+    enabled: !!PIXEL_ID,
+    track: function (name, data) { fbq("track", name, data || {}); },
+    custom: function (name, data) { fbq("trackCustom", name, data || {}); }
+  };
+  function initPixel() {
+    if (!PIXEL_ID) return;
+    if (!window.fbq) {
+      const n = function () { if (n.callMethod) n.callMethod.apply(n, arguments); else n.queue.push(arguments); };
+      n.push = n; n.loaded = true; n.version = "2.0"; n.queue = [];
+      window.fbq = n;
+      if (!window._fbq) window._fbq = n;
+      const s = document.createElement("script");
+      s.async = true; s.src = "https://connect.facebook.net/en_US/fbevents.js";
+      document.head.appendChild(s);
+    }
+    fbq("init", PIXEL_ID);
+    fbq("track", "PageView");
+    document.addEventListener("mercy:cart", function (e) {
+      if (!e.detail || e.detail.action !== "add") return;
+      const line = S.cart.items().filter(function (it) { return it.key === e.detail.key; })[0];
+      if (!line) return;
+      fbq("track", "AddToCart", { content_ids: [line.product.id], content_name: line.product.name, content_type: "product", value: line.product.price, currency: "COP" });
+    });
+    document.addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest(".wa-fab, .menu__wa")) fbq("track", "Contact");
+    });
+  }
+
   function mountEditBar() {
     if (!ADMIN_SESSION || !(Mercy.api && Mercy.api.enabled)) return;
     const bar = document.createElement("nav");
@@ -772,6 +809,7 @@ window.Mercy = window.Mercy || {};
       body.appendChild(fab);
     }
     mountEditBar();
+    initPixel();
 
     /* Header: estado transparente sobre el hero / sólido al hacer scroll */
     const header = $("#site-header");

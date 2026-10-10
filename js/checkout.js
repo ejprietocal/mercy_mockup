@@ -386,6 +386,12 @@
            limpia el formulario guardado. El canje va en segundo plano (keepalive): el enlace se abre igual. */
         if (!sent) {
           sent = true;
+          /* Píxel de Meta: el pedido salió a WhatsApp (Lead estándar + evento propio con el total) */
+          if (M.pixel && M.pixel.enabled) {
+            const ids = S.cart.items().map(function (it) { return it.product.id; });
+            M.pixel.track("Lead", { content_ids: ids, content_type: "product", num_items: S.cart.count(), value: S.cart.total(), currency: "COP" });
+            M.pixel.custom("PedidoWhatsApp", { content_ids: ids, value: S.cart.total(), currency: "COP" });
+          }
           if (S.cart.count() && S.cart.discountInfo().amount) S.discount.redeem();
           clearSaved();
           S.cart.clear();
@@ -644,6 +650,10 @@
     restore();
     bind();
     renderAll();
+    /* Píxel de Meta: llegó al pago con prendas en el carrito */
+    if (M.pixel && M.pixel.enabled && S.cart.count()) {
+      M.pixel.track("InitiateCheckout", { content_ids: S.cart.items().map(function (it) { return it.product.id; }), content_type: "product", num_items: S.cart.count(), value: S.cart.total(), currency: "COP" });
+    }
   }
   init();
 })();

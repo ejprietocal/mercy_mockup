@@ -83,6 +83,8 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     pageSize: 6,                                // 2–48 productos por "página" del catálogo
     showPhotos: true,                           // false = tarjetas con degradado + texto (antes stockPhotos)
     showAdminLink: true,                        // botón de acceso al panel en el header de la tienda
+    metaPixelId: "",                            // píxel de Meta (solo dígitos). Vacío = la tienda no lo carga. Eventos: PageView, ViewContent,
+                                                //   AddToCart, InitiateCheckout, Lead + PedidoWhatsApp (al abrir WhatsApp con el pedido), Contact
     paymentMethods: [                           // 1–8 medios de pago del checkout (transferencia); el elegido viaja en el mensaje de WhatsApp
       { id: "nequi", name: "Nequi", hint: "Transferencia desde la app Nequi", logo: "nequi" }   // logo: nequi | breb | bancolombia | none
     ]                                           //   (sin id, el servidor lo deriva del nombre; ids únicos)
@@ -313,6 +315,13 @@ la primera revisión es "Contenido existente al arrancar (sin historial previo)"
 
 ## 4. API HTTP
 
+**Páginas de la tienda con etiquetas para redes** *(servidor)*: `/`, `/index.html`, `/catalogo.html`, `/producto.html?id=` y `/checkout.html`
+se sirven con el `<head>` completado (título, `meta description`, canónica, Open Graph y Twitter) calculado del contenido: Inicio = `settings.seo`
++ póster del hero; catálogo = `texts.catalog.eyebrow/metaDescription` + primera foto publicada; producto = nombre, precio (`product:price:*`),
+disponibilidad, descripción (como `js/producto.js`) y primera foto del primer color con fotos (id anterior → canónica con el id actual;
+borrador o inexistente → «Prenda no encontrada» + `noindex`); pago = `texts.checkout.*` + `noindex`. Las URL absolutas usan `PUBLIC_URL` o el
+host/protocolo de la petición (`X-Forwarded-*` con `TRUST_PROXY`). Facebook, Instagram y WhatsApp leen estas etiquetas (no ejecutan JS).
+
 Todo JSON (`Content-Type: application/json; charset=utf-8`) salvo subidas y CSV.
 Errores: `{ "error": { "code": Código, "message": "texto en español para mostrar", "fields": { "ruta.del.campo": "mensaje" }? } }`
 Código ∈ `bad_request 400 · validation 422 · unauthorized 401 · forbidden 403 · not_found 404 · conflict 409 · in_use 409 · payload_too_large 413 · unsupported_media 415 · rate_limited 429 · server 500`.
@@ -339,6 +348,7 @@ Código ∈ `bad_request 400 · validation 422 · unauthorized 401 · forbidden 
 | Método y ruta | Entrada | Salida |
 |---|---|---|
 | `GET /api/public/content.js` | — | JavaScript: `window.MercyContent = {…};` (ver contenido público abajo). `Cache-Control: no-cache` + `ETag`. |
+| `GET /api/public/feed-meta.csv` | — | Feed de catálogo para Meta (Commerce Manager): CSV con `id,title,description,availability,condition,price,link,image_link,additional_image_link,brand,product_type`; solo productos publicados con foto; precio `79900.00 COP`; `no-cache` |
 | `GET /api/public/content` | — | El mismo objeto en JSON. |
 | `POST /api/public/subscribe` | `{ email, source }` | `{ ok: true, coupon: CupónPúblico \| null }` (el de bienvenida si está vigente y `discountModal.enabled`; si no → `null` y el suscriptor queda con `couponCode: ""`). Email inválido → 422. |
 | `POST /api/public/coupons/validate` | `{ code }` | `{ ok: true, coupon }` o `{ ok: false, reason, message }`; reason ∈ `not_found, inactive, not_started, expired, exhausted`. Siempre HTTP 200. |

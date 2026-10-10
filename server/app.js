@@ -4,7 +4,7 @@
    · createApp(opts)    → app (sin escuchar en ningún puerto; útil para pruebas)
    · createServer(opts) → { app, server, port, url, close() } ya escuchando
    Opciones: dataDir, rootDir, defaultsPath, port, host, trustProxy, gitSha, adminEmail,
-             adminPassword, adminName, adminReset, log (fn | false), announce (fn).
+             adminPassword, adminName, adminReset, publicUrl, log (fn | false), announce (fn).
    ========================================================================== */
 import http from "node:http";
 import { dirname, join, resolve } from "node:path";
@@ -21,6 +21,7 @@ import { Subscribers } from "./lib/subscribers.js";
 import { RateLimiter } from "./lib/ratelimit.js";
 import { createStatic } from "./lib/static.js";
 import { publicDefaultsJs } from "./lib/public-defaults.js";
+import { createPages, isStorePage } from "./lib/social.js";
 import {
   HttpError, Router, SECURITY_HEADERS, apiSegments, clientIp, err, isSecure, parseCookies, parseTrustProxy,
   sendError, sendJson, splitUrl,
@@ -44,6 +45,8 @@ function resolveConfig(o = {}) {
     host: o.host || "0.0.0.0",
     trustProxy: parseTrustProxy(o.trustProxy),
     gitSha: o.gitSha || "dev",
+    // Origen público del sitio (https://tienda.co) para enlaces absolutos (etiquetas sociales, feed). Vacío = el de la petición.
+    publicUrl: String(o.publicUrl || "").trim().replace(/\/+$/, ""),
     adminEmail: o.adminEmail || "admin@mercystudio.co",
     adminPassword: o.adminPassword || "",
     adminName: o.adminName || "Administrador",
@@ -95,6 +98,9 @@ export async function createApp(options = {}) {
     },
   });
 
+  // Páginas de la tienda con el <head> completado para redes (Open Graph); si el archivo no existe, sigue el estático
+  app.servePage = createPages({ rootDir: config.rootDir });
+
   app.handle = (req, res) => handle(app, router, serveStatic, req, res);
   app.close = async () => {
     await db.flush();
@@ -135,6 +141,8 @@ async function handle(app, router, serveStatic, req, res) {
   try {
     if (pathname === "/api" || pathname.startsWith("/api/")) {
       await handleApi(app, router, ctx);
+    } else if ((req.method === "GET" || req.method === "HEAD") && isStorePage(pathname) && await app.servePage(ctx)) {
+      // servida con etiquetas sociales
     } else {
       await serveStatic(ctx);
     }

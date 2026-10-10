@@ -73,14 +73,15 @@ export const ADMIN_CSP = [
    permitidos (degradados de las tarjetas, posiciones de foto); fotos y videos de cualquier https/http (Pexels,
    URLs pegadas en el panel) o del sitio; las peticiones solo al propio servidor (api/public/*). Solo se puede
    enmarcar desde el propio sitio. */
+/* Píxel de Meta (settings.metaPixelId): solo se carga si hay identificador; la CSP permite su script y sus envíos. */
 export const STORE_CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://connect.facebook.net",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https: http:",
   "media-src 'self' blob: https: http:",
-  "connect-src 'self'",
+  "connect-src 'self' https://www.facebook.com https://connect.facebook.net",
   "object-src 'none'",
   "frame-ancestors 'self'",
   "base-uri 'self'",

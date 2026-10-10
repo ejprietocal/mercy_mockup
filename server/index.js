@@ -3,7 +3,7 @@
    Mercy Studio — server/index.js
    Arranque: node server/index.js   (Node ≥ 22, sin dependencias)
    Variables: PORT, HOST, DATA_DIR, ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME, ADMIN_RESET,
-              TRUST_PROXY, NODE_ENV, GIT_SHA. Ver docs/SERVIDOR.md.
+              TRUST_PROXY, PUBLIC_URL, NODE_ENV, GIT_SHA. Ver docs/SERVIDOR.md.
    ========================================================================== */
 import { join } from "node:path";
 import { createServer, REPO_ROOT } from "./app.js";
@@ -23,6 +23,7 @@ try {
     dataDir: env.DATA_DIR || join(REPO_ROOT, "data"),
     trustProxy: env.TRUST_PROXY,
     gitSha: env.GIT_SHA || "dev",
+    publicUrl: env.PUBLIC_URL,
     adminEmail: env.ADMIN_EMAIL,
     adminPassword: env.ADMIN_PASSWORD,
     adminName: env.ADMIN_NAME,

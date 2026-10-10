@@ -595,6 +595,8 @@
   renderSelectors();
   renderContent();
   bindGallery();
+  /* Píxel de Meta: vista de la prenda */
+  if (M.pixel && M.pixel.enabled) M.pixel.track("ViewContent", { content_ids: [p.id], content_name: p.name, content_type: "product", value: p.price, currency: "COP" });
 
   bindRadio(fitGroup, "data-fit", function (v) {
     st.fit = v;

@@ -27,6 +27,7 @@ Mercy.DEFAULT_CONTENT = {
     pageSize: 6,
     showPhotos: true,
     showAdminLink: true,
+    metaPixelId: "",
     paymentMethods: [
       { id: "nequi", name: "Nequi", hint: "Transferencia desde la app Nequi", logo: "nequi" },
       { id: "breb", name: "Bre-B", hint: "Transferencia con llave Bre-B", logo: "breb" },
