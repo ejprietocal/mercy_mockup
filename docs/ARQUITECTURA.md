@@ -119,7 +119,7 @@ sizeChart (id de la guía de su categoría o ""), details (propios o los de la c
 - Todas las URL del contenido pasan por `Mercy.ui.safeUrl` (bloquea `javascript:`, `data:`, `vbscript:`…).
 
 ### Fotos por color y por estampado (contrato §3 «Fotos de producto»)
-- Cada color de un producto tiene 0–10 fotos **base** `{ src, thumb, alt, zoom, ox, oy }` y, opcionalmente, 1–10 por **combinación con un
+- Cada color de un producto tiene 0–10 fotos **base** `{ src, thumb, alt, zoom, ox, oy, fit? }` y, opcionalmente, 1–10 por **combinación con un
   estampado** (`colors[].printPhotos[idEstampado]`). `data.js` las normaliza en `p.colorPhotos[color]` y `p.printPhotos[color][estampado]`:
   recorta a 10 y descarta las claves de estampados que ya no existen en la prenda y las listas vacías. Los estampados no tienen stock
   propio (el stock sigue siendo color × talla) y en la ficha se eligen con el círculo de color (`hex`).
@@ -149,6 +149,15 @@ sizeChart (id de la guía de su categoría o ""), details (propios o los de la c
 - **Miniaturas:** en escritorio (≥ 900 px) columna con alto máximo = alto del escenario y scroll vertical propio; en móvil, fila con
   scroll horizontal. La miniatura activa se mantiene visible desplazando **su contenedor** (`container.scrollTo` calculado; nunca
   `element.scrollIntoView`, que también movería la página).
+- **Visor «Ver foto completa»** (`openViewer` en `producto.js`, modal `#photo-viewer` creado la primera vez): tocar una foto de la galería
+  (botones `[data-zoom]`, fuera del orden de tabulación), el botón `#gallery-expand` (abajo a la derecha; oculto con degradados o en el
+  video) o Enter en el carrusel abre la foto **entera** (`object-fit: contain`, 2000 px) a pantalla completa. Flechas, ←/→ o deslizar
+  pasan de foto (solo las del juego actual, sin el video); clic de mouse en la foto, doble toque, rueda/pellizco del trackpad o pellizco
+  acercan hasta 4× y se arrastra para mover; +/− desde el teclado; deslizar hacia abajo, clic en el fondo, Esc o «Cerrar» salen. Al cerrar,
+  la galería queda en la última foto vista.
+- **Foto completa en el marco** (`fit: "contain"`, casilla «Mostrar completa (sin recortar)» del editor de fotos del panel): `tileHTML`
+  le pone `.tile__img--full` (`object-fit: contain`, sin acercamiento) en la galería y en las tarjetas; las miniaturas cuadradas
+  (`size: "thumb"`) siguen llenando su marco. Sin la casilla, la foto llena el marco (`cover`, anclada al 20 % superior).
 - `srcset`: fotos de Pexels → `?auto=compress&cs=tinysrgb&w=N`; fotos subidas con miniatura → `thumb 600w, src 2000w`; otras URL → solo `src`. `zoom/ox/oy` → variables CSS `--zoom/--ox/--oy`.
 
 ### Contenido raro o vacío (nunca lanza)
@@ -234,6 +243,7 @@ node _verify/e2e/flow.mjs       # flujo completo escritorio (puerto 9400)
 node _verify/e2e/mobile.mjs     # móvil 390×844, sin desbordes (9401)
 node _verify/e2e/states.mjs     # agotado, estampado, guía de tallas, búsqueda, favoritos (9402)
 node _verify/e2e/content.mjs    # contenido inyectado: textos, fotos por color, borradores, listas vacías (9403)
+node _verify/e2e/viewer.mjs     # visor «Ver foto completa» (clic, flechas, teclado, rueda, gestos táctiles) y fotos con fit «contain» (9405)
 node _verify/e2e/coupons.mjs    # API simulada: cupones %, fijo, categoría, producto, mínimo, motivos, validar al confirmar y canje al
                                 # abrir WhatsApp, revalidación, limpieza del carrito, productos renombrados/en borrador, migración del
                                 # estado viejo (demo / servidor), welcome null / modal apagado, ya suscrita («Usar mi código»),

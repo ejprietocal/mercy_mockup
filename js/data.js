@@ -89,7 +89,7 @@ window.Mercy = window.Mercy || {};
   const RETURNS_INFO = str(TX.returnsInfo);
 
   /* --- Fotos -------------------------------------------------------------------
-     Foto = { src, thumb, alt, zoom, ox, oy } (contrato §3). Pexels → tamaños con ?w=;
+     Foto = { src, thumb, alt, zoom, ox, oy, fit } (contrato §3; fit "contain" | "cover"). Pexels → tamaños con ?w=;
      fotos subidas con miniatura → srcset "thumb 600w, src 2000w"; otras URLs → solo src. */
   const PEXELS = /^https?:\/\/images\.pexels\.com\//i;
   const PCT = /^-?\d{1,3}(?:\.\d+)?%$/;                // punto de origen del acercamiento ("50%")
@@ -97,10 +97,13 @@ window.Mercy = window.Mercy || {};
     if (typeof ph === "string") ph = { src: ph };
     if (!ph || typeof ph !== "object" || !str(ph.src).trim()) return null;
     const zoom = num(ph.zoom, null);
+    /* fit "contain" = foto completa dentro del marco (sin recorte ni acercamiento); si no, llena el marco */
+    const full = ph.fit === "contain";
     return {
       src: str(ph.src).trim(), thumb: str(ph.thumb).trim(), alt: str(ph.alt),
-      zoom: zoom && zoom > 0 ? zoom : null,
-      ox: PCT.test(str(ph.ox)) ? str(ph.ox) : null, oy: PCT.test(str(ph.oy)) ? str(ph.oy) : null
+      zoom: !full && zoom && zoom > 0 ? zoom : null,
+      ox: !full && PCT.test(str(ph.ox)) ? str(ph.ox) : null, oy: !full && PCT.test(str(ph.oy)) ? str(ph.oy) : null,
+      fit: full ? "contain" : "cover"
     };
   }
   /* URL de una foto para un ancho dado. Acepta una foto, una URL o (compatibilidad) un id numérico de Pexels. */

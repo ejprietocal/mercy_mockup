@@ -632,6 +632,8 @@ const normPhoto = (p) => ({
   zoom: p?.zoom === undefined || p?.zoom === "" ? null : p.zoom,
   ox: p?.ox ?? null,
   oy: p?.oy ?? null,
+  // «Mostrar completa»: solo se guarda fit = "contain" (sin la clave = llena el marco, como el servidor)
+  ...(p?.fit === "contain" ? { fit: "contain" } : {}),
 });
 
 /**
@@ -735,7 +737,8 @@ export function photoListField({
     const ph = { ...photos[i] };
     const altId = uid("alt");
     const alt = h("input.input", { id: altId, type: "text", value: ph.alt, maxlength: 160, placeholder: "Ej.: Camiseta Fe color crema, vista de frente" });
-    const useZoom = h("input", { type: "checkbox", id: uid("zc"), class: "check__input", checked: ph.zoom !== null || ph.ox !== null || ph.oy !== null });
+    const full = h("input", { type: "checkbox", id: uid("fc"), class: "check__input", checked: ph.fit === "contain" });
+    const useZoom = h("input", { type: "checkbox", id: uid("zc"), class: "check__input", checked: ph.fit !== "contain" && (ph.zoom !== null || ph.ox !== null || ph.oy !== null) });
     const num = (v, d) => (v === null || v === undefined || v === "" ? d : parseFloat(v));
     const zoom = h("input.range", { type: "range", min: 1, max: 3, step: 0.05, value: num(ph.zoom, 1), "aria-label": "Acercamiento" });
     const ox = h("input.range", { type: "range", min: 0, max: 100, step: 1, value: num(ph.ox, 50), "aria-label": "Posición horizontal del acercamiento" });
@@ -750,8 +753,12 @@ export function photoListField({
       h("label.range-row", h("span", "Acercamiento"), zoom, zv),
       h("label.range-row", h("span", "Horizontal"), ox, xv),
       h("label.range-row", h("span", "Vertical"), oy, yv));
+    const zoomField = h("div.field.field--check", h("label.check", { for: useZoom.id }, useZoom, h("span.check__box", { "aria-hidden": "true" }, icon("check", { size: 14, strokeWidth: 3 })), h("span.check__label", "Usar acercamiento (detalle de la prenda)")));
     const upd = () => {
-      const on = useZoom.checked;
+      // Foto completa y acercamiento se excluyen: con la foto entera no hay recorte que acercar
+      frame.classList.toggle("is-full", full.checked);
+      zoomField.hidden = full.checked;
+      const on = useZoom.checked && !full.checked;
       controls.hidden = !on;
       img.style.transform = on ? `scale(${zoom.value})` : "";
       img.style.transformOrigin = on ? `${ox.value}% ${oy.value}%` : "";
@@ -759,7 +766,7 @@ export function photoListField({
       xv.textContent = `${ox.value} %`;
       yv.textContent = `${oy.value} %`;
     };
-    [zoom, ox, oy, useZoom].forEach((x) => x.addEventListener("input", upd));
+    [zoom, ox, oy, useZoom, full].forEach((x) => x.addEventListener("input", upd));
     upd();
     const m = modal({
       title: `Foto ${i + 1}${i === 0 ? " (principal)" : ""}`,
@@ -768,7 +775,10 @@ export function photoListField({
         frame,
         h("div.stack",
           h("div.field", h("label.field__label", { for: altId }, "Texto alternativo"), alt, h("p.field__help", "Describe la foto para personas que usan lectores de pantalla y para Google.")),
-          h("div.field.field--check", h("label.check", { for: useZoom.id }, useZoom, h("span.check__box", { "aria-hidden": "true" }, icon("check", { size: 14, strokeWidth: 3 })), h("span.check__label", "Usar acercamiento (detalle de la prenda)"))),
+          h("div.field.field--check",
+            h("label.check", { for: full.id }, full, h("span.check__box", { "aria-hidden": "true" }, icon("check", { size: 14, strokeWidth: 3 })), h("span.check__label", "Mostrar completa (sin recortar)")),
+            h("p.field__help", "La foto entra entera en el marco de la tienda, con bandas color arena a los lados si es muy alta o muy ancha. Sin marcar, llena el marco y se recorta lo que sobra. En la ficha, tocar cualquier foto la abre completa.")),
+          zoomField,
           controls)),
       actions: [
         { label: "Cancelar", value: null },
@@ -776,13 +786,15 @@ export function photoListField({
           label: "Aplicar",
           variant: "primary",
           onClick: () => {
-            const on = useZoom.checked;
+            const on = useZoom.checked && !full.checked;
+            const { fit: _fit, ...rest } = ph;
             photos[i] = {
-              ...ph,
+              ...rest,
               alt: alt.value.trim(),
               zoom: on ? Math.round(Number(zoom.value) * 100) / 100 : null,
               ox: on ? `${ox.value}%` : null,
               oy: on ? `${oy.value}%` : null,
+              ...(full.checked ? { fit: "contain" } : {}),
             };
             render();
             emit();
@@ -797,9 +809,10 @@ export function photoListField({
     const kids = photos.map((ph, i) => {
       const n = `Foto ${i + 1}`;
       const li = h("li.photo-tile", { draggable: "true", dataset: { index: i } },
-        h("div.photo-tile__img", mediaThumb({ url: ph.src, thumbUrl: ph.thumb, kind: "image" }, { alt: ph.alt || n })),
+        h("div.photo-tile__img", { class: ph.fit === "contain" && "is-full" }, mediaThumb({ url: ph.src, thumbUrl: ph.thumb, kind: "image" }, { alt: ph.alt || n })),
         i === 0 ? h("span.photo-tile__badge", "Principal") : h("span.photo-tile__num", { "aria-hidden": "true" }, String(i + 1)),
-        ph.zoom ? h("span.photo-tile__zoom", { title: "Con acercamiento" }, icon("focus", { size: 12 })) : null,
+        ph.fit === "contain" ? h("span.photo-tile__zoom", { title: "Se muestra completa (sin recortar)" }, icon("expand", { size: 12 }))
+          : ph.zoom ? h("span.photo-tile__zoom", { title: "Con acercamiento" }, icon("focus", { size: 12 })) : null,
         h("div.photo-tile__bar",
           iconButton({ icon: "arrow-left", label: `Mover ${n} a la izquierda`, size: "sm", disabled: i === 0, className: "photo-tile__left", onClick: () => { move(i, i - 1); grid.children[i - 1]?.querySelector(".photo-tile__left:not([disabled]), .photo-tile__right")?.focus(); } }),
           iconButton({ icon: "arrow-right", label: `Mover ${n} a la derecha`, size: "sm", disabled: i === photos.length - 1, className: "photo-tile__right", onClick: () => { move(i, i + 1); grid.children[i + 1]?.querySelector(".photo-tile__right:not([disabled]), .photo-tile__left")?.focus(); } }),

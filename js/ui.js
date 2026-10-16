@@ -132,7 +132,9 @@ window.Mercy = window.Mercy || {};
       const srcset = Mercy.data.photoSrcset(entry, set);
       const src = Mercy.data.photoUrl(entry, set[1]);
       const alt = opts.alt === undefined ? (entry.alt || p.name) : opts.alt;
-      photo = '<img class="tile__img"' + zoomStyle + ' src="' + esc(safeUrl(src)) + '"' +
+      /* Foto completa (fit "contain"): entra entera en el marco; las miniaturas cuadradas siguen llenando el suyo */
+      const full = entry.fit === "contain" && size !== "thumb";
+      photo = '<img class="tile__img' + (full ? " tile__img--full" : "") + '"' + zoomStyle + ' src="' + esc(safeUrl(src)) + '"' +
         (srcset ? ' srcset="' + esc(srcset) + '" sizes="' + sizes + '"' : "") + ' alt="' + esc(alt) + '" loading="' + (opts.eager ? "eager" : "lazy") + '" decoding="async">';
     }
     return (

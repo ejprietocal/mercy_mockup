@@ -29,8 +29,9 @@ Qué se administra:
 - **Inicio:** video o imagen del hero, título, frases de la franja en movimiento, más vendidos, propósito, reseñas y comunidad.
 - **Textos del sitio:** todo lo que no es de un producto ni del Inicio: franja superior, menú y ayuda, búsqueda, favoritos y carrito, catálogo, avisos de envío, cuidados, guía de tallas, etiquetas de la ficha, página de pago (incluido el inicio y cierre del mensaje de WhatsApp), suscripción y pie de página.
 - **Productos:** precio, tallas, hormas, estampados, stock por color y talla, **hasta 10 fotos por color** y **hasta 10 por combinación
-  color + estampado** (p. ej. Negro + Naranja tiene las suyas y Blanco + Naranja otras), video opcional (sin video, la ficha no muestra
-  la diapositiva ni el botón «Ver video»), borradores y duplicar.
+  color + estampado** (p. ej. Negro + Naranja tiene las suyas y Blanco + Naranja otras), casilla **«Mostrar completa (sin recortar)»** por
+  foto, video opcional (sin video, la ficha no muestra la diapositiva ni el botón «Ver video»), borradores y duplicar. En la ficha, tocar
+  una foto la abre **completa** a pantalla completa (con zoom).
 - **Categorías, colecciones, colores, hormas, guía de tallas y reseñas.**
 - **Modal de descuento** (textos, imagen, cuándo aparece) y **cupones** (porcentaje o valor fijo, vigencia, usos, por categoría o producto).
 - **Suscriptores** (con exportación CSV), **biblioteca de medios** (fotos y videos subidos), **usuarios** con roles y **ajustes** (WhatsApp, redes, logos, SEO, medios de pago).

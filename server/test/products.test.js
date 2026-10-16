@@ -111,6 +111,30 @@ test("hasta 10 fotos por color se aceptan (todas, en orden)", async () => {
   assert.equal((await admin.del("/api/admin/products/diez-fotos")).status, 200);
 });
 
+test("foto completa (fit «contain»): se guarda solo con contain, anula el acercamiento y rechaza otros valores", async () => {
+  const p = { ...baseProduct(), id: "foto-completa", prints: [{ id: "naranja", name: "Naranja", hex: "#e8620a" }] };
+  p.colors[0].photos = [
+    { ...photo(1), fit: "contain", zoom: 2, ox: "40%", oy: "30%" },
+    { ...photo(2), fit: "cover" },
+    { ...photo(3), fit: "" },
+    photo(4),
+  ];
+  p.colors[0].printPhotos = { naranja: [{ ...photo(5), fit: "contain" }] };
+  const r = await admin.post("/api/admin/products", p);
+  assert.equal(r.status, 201, r.text);
+  const [a, b, c, d] = r.data.item.colors[0].photos;
+  assert.deepEqual({ fit: a.fit, zoom: a.zoom, ox: a.ox, oy: a.oy }, { fit: "contain", zoom: null, ox: null, oy: null });
+  for (const x of [b, c, d]) assert.equal(Object.hasOwn(x, "fit"), false);   // llenar el marco = forma de siempre
+  assert.equal(r.data.item.colors[0].printPhotos.naranja[0].fit, "contain");
+
+  const bad = { ...baseProduct(), id: "foto-completa-mal" };
+  bad.colors[0].photos = [{ ...photo(1), fit: "estirar" }];
+  const r2 = await admin.post("/api/admin/products", bad);
+  assert.equal(r2.status, 422);
+  assert.match(r2.data.error.fields["colors.0.photos.0.fit"], /contain/);
+  assert.equal((await admin.del("/api/admin/products/foto-completa")).status, 200);
+});
+
 /* ---------- Fotos por combinación color + estampado (colors[].printPhotos) ---------- */
 const printed = () => ({
   ...baseProduct(),

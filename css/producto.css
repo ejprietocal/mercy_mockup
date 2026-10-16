@@ -37,6 +37,9 @@
 .gallery__track:focus-visible { outline-offset: -3px; }
 .gallery__slide { position: relative; flex: 0 0 100%; aspect-ratio: 8 / 9; scroll-snap-align: start; scroll-snap-stop: always; overflow: hidden; background: var(--crema-3); }
 .gallery__play { display: block; width: 100%; height: 100%; cursor: pointer; }
+/* Diapositiva con foto: tocarla abre el visor «Ver foto completa» */
+.gallery__zoom { display: block; width: 100%; height: 100%; cursor: zoom-in; }
+.gallery__zoom:focus-visible { outline-offset: -4px; }
 .gallery__play:focus-visible { outline-offset: -4px; }
 /* El icono de play del slide de video se agranda como botón central */
 .gallery__slide .tile__play .icon {
@@ -62,6 +65,15 @@
   transition: background var(--t-fast) var(--ease);
 }
 .gallery__chip:hover { background: rgba(54, 36, 24, 0.82); }
+
+/* «Ver foto completa» (abajo a la derecha; los puntos van al centro) */
+.gallery__expand {
+  position: absolute; right: 14px; bottom: 12px; z-index: 3;
+  width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  background: rgba(250, 240, 228, 0.92); color: var(--tinta); box-shadow: var(--shadow-sm);
+  transition: background var(--t-fast) var(--ease);
+}
+.gallery__expand:hover { background: var(--crema); }
 .gallery__chip .icon { flex: none; }
 
 .gallery__nav {
@@ -210,6 +222,50 @@
 /* Reproductor nativo con controles */
 .video-player { position: relative; border-radius: 6px; overflow: hidden; background: var(--tinta-2); }
 .video-player__el { display: block; width: 100%; max-height: 72vh; aspect-ratio: 16 / 9; object-fit: contain; background: #000; }
+
+/* --- Visor «Ver foto completa» (producto.js): la foto entera a pantalla completa ------------------------------ */
+.modal--viewer { padding: 0; }
+.modal--viewer .modal__box {
+  width: 100%; height: 100%; max-width: none; max-height: none; overflow: hidden;
+  border-radius: 0; box-shadow: none; transform: none; background: var(--crema);
+}
+.viewer { position: relative; width: 100%; height: 100%; }
+/* Escenario: la foto centrada y contenida (sin recorte); el gesto lo maneja producto.js (touch-action: none) */
+.viewer__stage {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  padding: calc(64px + env(safe-area-inset-top)) 8px calc(16px + env(safe-area-inset-bottom));
+  touch-action: none; -webkit-user-select: none; user-select: none;
+}
+.viewer__img {
+  display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;
+  mix-blend-mode: multiply;    /* igual que en la galería: el fondo blanco de estudio toma el tono crema */
+  transform-origin: 50% 50%; cursor: zoom-in; -webkit-user-drag: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.viewer__img.is-anim { transition: transform var(--t-med) var(--ease), opacity var(--t-fast) var(--ease); }
+.viewer__img.is-loading { opacity: 0.35; }
+.viewer__stage.is-zoomed .viewer__img { cursor: grab; }
+.viewer__stage.is-zoomed .viewer__img:active { cursor: grabbing; }
+.viewer__bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) 12px 10px; pointer-events: none;
+}
+.viewer__bar > * { pointer-events: auto; }
+.viewer__count { margin-right: auto; padding-left: 6px; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.14em; color: var(--tinta); }
+.viewer__btn, .viewer__nav {
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  background: rgba(255, 245, 228, 0.9); color: var(--tinta); box-shadow: var(--shadow-sm);
+  transition: background var(--t-fast) var(--ease);
+}
+.viewer__btn:hover, .viewer__nav:hover { background: #fff; }
+.viewer__nav { position: absolute; top: 50%; z-index: 2; width: 48px; height: 48px; transform: translateY(-50%); }
+.viewer__nav--prev { left: 10px; }
+.viewer__nav--next { right: 10px; }
+@media (min-width: 700px) {
+  .viewer__stage { padding-inline: 76px; }
+  .viewer__nav--prev { left: 16px; }
+  .viewer__nav--next { right: 16px; }
+}
 
 /* --- No encontrado ------------------------------------------------------------------------- */
 .pdp-missing { padding-block: 24px 24px; }

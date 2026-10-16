@@ -220,7 +220,10 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     createdAt: ISO, updatedAt: ISO, updatedBy: "Nombre"
   } ]
 }
-// Foto = { src: url, thumb: url|"", alt: "", zoom: 1|null, ox: "50%"|null, oy: "50%"|null }   (la misma en photos y en printPhotos)
+// Foto = { src: url, thumb: url|"", alt: "", zoom: 1|null, ox: "50%"|null, oy: "50%"|null, fit?: "contain" }   (la misma en photos y en printPhotos)
+//   fit "contain" = «Mostrar completa (sin recortar)»: la foto entra entera en el marco (sin acercamiento: zoom/ox/oy se guardan null).
+//   Sin la clave (o "cover") = llena el marco y se recorta lo que sobra; el servidor solo guarda la clave con "contain"
+//   (las fotos de siempre conservan su forma). Otro valor → 422 en "….fit".
 ```
 
 Reglas de integridad (el servidor las valida; el panel las previene):
@@ -517,7 +520,9 @@ Orden de scripts en las 4 páginas (todos `defer`):
 - Galería de producto: muestra `photosFor(p, color, estampado)` (§3): las fotos (1–10) de la **combinación color + estampado elegida**
   si tiene; si no, las del **color** (no se mezclan). Se rehace al cambiar de color o de estampado solo si cambia el juego de fotos, y
   vuelve a la foto 1. La diapositiva de video (última), su miniatura ▶, su punto y el botón «Ver video» existen **solo si la prenda
-  tiene video** (`video.src`); sin video no hay ningún aviso. Con una sola diapositiva se ocultan flechas, puntos y miniaturas. `producto.html?id=…&color=<id>&print=<id>`
+  tiene video** (`video.src`); sin video no hay ningún aviso. Con una sola diapositiva se ocultan flechas, puntos y miniaturas. Tocar una
+  foto (o el botón «Ver foto completa», o Enter en el carrusel) abre el **visor**: la foto entera a pantalla completa, con flechas/deslizar
+  para pasar de foto y clic, doble toque, rueda o pellizco para acercar. Las fotos con `fit: "contain"` se ven enteras también en el marco. `producto.html?id=…&color=<id>&print=<id>`
   abre la ficha en esa variante (si el color o el estampado no son del producto, se ignoran). Tarjetas, búsqueda y favoritos usan la
   foto principal (§3); carrito y checkout, la foto de la variante de la línea (color + estampado), y su enlace abre la ficha en esa
   variante. Fotos de Pexels → `srcset` con `?w=`; fotos subidas → `srcset` con `thumb` (600 w) y `src`.

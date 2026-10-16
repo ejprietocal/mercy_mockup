@@ -703,7 +703,7 @@ function vPhoto(c, p, x) {
     if (!m || Number(m[1] + (m[2] || "")) > 100) { c.add(J(p, k), "Usa un porcentaje entre 0% y 100%."); return null; }
     return v.trim();
   };
-  return {
+  const out = {
     src: c.url(J(p, "src"), o.src, { required: true }),
     thumb: c.url(J(p, "thumb"), o.thumb),
     alt: c.text(J(p, "alt"), o.alt),
@@ -711,6 +711,12 @@ function vPhoto(c, p, x) {
     ox: pct("ox"),
     oy: pct("oy"),
   };
+  // Ajuste al marco: "contain" = foto completa, sin recorte (sin acercamiento). Ausente o "cover" = llena el marco
+  // (lo de siempre): la clave solo se guarda con "contain", así las fotos de siempre conservan su forma.
+  const fit = o.fit;
+  if (fit === "contain") { out.fit = "contain"; out.zoom = null; out.ox = null; out.oy = null; }
+  else if (fit !== undefined && fit !== null && fit !== "" && fit !== "cover") c.add(J(p, "fit"), "Usa «cover» (llenar el marco) o «contain» (foto completa).");
+  return out;
 }
 
 /**

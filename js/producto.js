@@ -147,6 +147,8 @@
   let gi = 0;
   let lockUntil = 0;
   let shownKey = null;             /* juego de fotos que muestra la galería ahora (para no rehacerla si no cambia) */
+  let shownPhotos = [];            /* esas fotos (las abre el visor «Ver foto completa») */
+  const expandBtn = $("#gallery-expand");
 
   /* Diapositivas: fotos del color + estampado (hasta 10) + video al final si lo hay.
      Sin fotos (o showPhotos apagado): 3 degradados (+ video si lo hay). */
@@ -160,12 +162,13 @@
   }
   /* Clave del juego de fotos por CONTENIDO (dos variantes pueden traer fotos iguales en listas distintas) */
   function photosKey(photos) {
-    return photos.map(function (ph) { return [ph.src, ph.zoom, ph.ox, ph.oy].join("|"); }).join("\n");
+    return photos.map(function (ph) { return [ph.src, ph.zoom, ph.ox, ph.oy, ph.fit].join("|"); }).join("\n");
   }
 
   function renderGallery() {
     const plan = galleryPlan(st.color, st.print);
     shownKey = photosKey(plan.photos);
+    shownPhotos = plan.photos;
     N_SLIDES = plan.slides.length;
     VIDEO_INDEX = HAS_VIDEO ? N_SLIDES - 1 : -1;
     const slides = [];
@@ -178,7 +181,10 @@
         '<div class="gallery__slide" role="group" aria-roledescription="diapositiva" aria-label="' + (v + 1) + " de " + N_SLIDES + " · " + label + '">' +
         (sl.video
           ? '<button type="button" class="gallery__play" data-video aria-haspopup="dialog" aria-label="Reproducir video de ' + esc(p.name) + '">' + tile + "</button>"
-          : tile) +
+          /* Foto real: tocarla abre el visor. Fuera del orden de tabulación (con teclado: botón «Ver foto completa» o Enter en el carrusel) */
+          : plan.photos.length
+            ? '<button type="button" class="gallery__zoom" data-zoom="' + v + '" tabindex="-1" aria-haspopup="dialog" aria-label="Ver foto ' + (v + 1) + ' completa">' + tile + "</button>"
+            : tile) +
         "</div>"
       );
       thumbs.push(
@@ -200,7 +206,8 @@
     galleryEl.classList.toggle("is-single", single);
     if (single) galleryEl.removeAttribute("aria-roledescription"); else galleryEl.setAttribute("aria-roledescription", "carrusel");
     track.tabIndex = single ? -1 : 0;
-    track.setAttribute("aria-label", (HAS_VIDEO ? "Fotos y video de la prenda" : "Fotos de la prenda") + (single ? "" : ". Usa las flechas del teclado para cambiar."));
+    track.setAttribute("aria-label", (HAS_VIDEO ? "Fotos y video de la prenda" : "Fotos de la prenda") + (single ? "" : ". Usa las flechas del teclado para cambiar.") +
+      (plan.photos.length && !single ? " Enter abre la foto completa." : ""));
   }
 
   /* Al cambiar de color o de estampado: si cambia el juego de fotos, se rehace la galería y vuelve a la foto 1 */
@@ -224,6 +231,7 @@
   function renderGalleryChrome() {
     $("#gallery-prev").innerHTML = I("chevron-left", { size: 22, stroke: 2 });
     $("#gallery-next").innerHTML = I("chevron-right", { size: 22, stroke: 2 });
+    expandBtn.innerHTML = I("expand", { size: 20, stroke: 2 });
     /* Chip «Ver video»: solo si la prenda tiene video */
     $("#gallery-video").hidden = !HAS_VIDEO;
     if (HAS_VIDEO) $("#gallery-video-icon").innerHTML = I("play", { size: 12 });
@@ -261,6 +269,7 @@
     $$(".gallery__thumb", thumbsEl).forEach(function (b, i) { b.setAttribute("aria-current", String(i === gi)); });
     $$(".gallery__dot", dotsEl).forEach(function (d, i) { d.classList.toggle("is-on", i === gi); });
     $("#gallery-status").textContent = (gi === VIDEO_INDEX ? "Video" : "Foto " + (gi + 1)) + ", " + (gi + 1) + " de " + N_SLIDES;
+    expandBtn.hidden = !shownPhotos.length || gi === VIDEO_INDEX;   /* degradados o video: no hay foto que ampliar */
     revealThumb(true);
   }
 
@@ -316,6 +325,7 @@
     $("#gallery-next").addEventListener("click", function () { goTo(gi + 1); });
 
     galleryEl.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && e.target === track && shownPhotos.length && gi !== VIDEO_INDEX) { e.preventDefault(); openViewer(gi); return; }
       if (N_SLIDES <= 1 || e.target.closest("input, textarea, select")) return;   /* una sola foto: nada que recorrer */
       if (e.key === "ArrowRight") { e.preventDefault(); goTo(gi + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); goTo(gi - 1); }
@@ -324,6 +334,9 @@
     });
 
     galleryEl.addEventListener("click", function (e) {
+      const z = e.target.closest("[data-zoom]");
+      if (z) { openViewer(parseInt(z.getAttribute("data-zoom"), 10)); return; }
+      if (e.target.closest("#gallery-expand")) { openViewer(gi); return; }
       if (HAS_VIDEO && e.target.closest("[data-video], #gallery-video")) openVideo();
     });
   }
@@ -343,6 +356,192 @@
     };
     document.addEventListener("mercy:overlay-close", stop);
     if (!reduceMotion) { const q = video.play(); if (q && q.catch) q.catch(function () {}); }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Visor «Ver foto completa»                                             */
+  /* La galería llena su marco (recorta las fotos muy altas o anchas); el visor muestra la foto ENTERA a pantalla
+     completa. Flechas, teclado o deslizar para pasar de foto; clic (mouse), doble toque, rueda o pellizco para
+     acercar; arrastrar para mover la foto acercada; deslizar hacia abajo, Esc o «Cerrar» para salir. */
+  /* ------------------------------------------------------------------ */
+  const MAX_ZOOM = 4;
+  let viewer = null;
+  let vPhotos = [], vi = 0;
+  let zs = 1, zx = 0, zy = 0;      /* acercamiento y desplazamiento (px desde el centro) de la foto del visor */
+
+  function buildViewer() {
+    const el = U.createModal({
+      id: "photo-viewer", cls: "modal--viewer", label: "Fotos de " + p.name,
+      html:
+        '<div class="viewer">' +
+          '<div class="viewer__stage"><img class="viewer__img" alt="" decoding="async" draggable="false"></div>' +
+          '<div class="viewer__bar">' +
+            '<p class="viewer__count" aria-live="polite"></p>' +
+            '<button type="button" class="viewer__btn" data-vzoom aria-pressed="false" aria-label="Acercar"></button>' +
+            '<button type="button" class="viewer__btn" data-close data-autofocus aria-label="Cerrar">' + I("close", { size: 24 }) + "</button>" +
+          "</div>" +
+          '<button type="button" class="viewer__nav viewer__nav--prev" data-vgo="-1" aria-label="Foto anterior">' + I("chevron-left", { size: 26, stroke: 2 }) + "</button>" +
+          '<button type="button" class="viewer__nav viewer__nav--next" data-vgo="1" aria-label="Foto siguiente">' + I("chevron-right", { size: 26, stroke: 2 }) + "</button>" +
+        "</div>"
+    });
+    const stage = $(".viewer__stage", el), img = $(".viewer__img", el), zoomBtn = $("[data-vzoom]", el), count = $(".viewer__count", el);
+
+    function clamp() {
+      zs = Math.max(1, Math.min(MAX_ZOOM, zs));
+      if (zs === 1) { zx = 0; zy = 0; return; }
+      const mx = Math.max(0, (img.offsetWidth * zs - stage.clientWidth) / 2);
+      const my = Math.max(0, (img.offsetHeight * zs - stage.clientHeight) / 2);
+      zx = Math.max(-mx, Math.min(mx, zx));
+      zy = Math.max(-my, Math.min(my, zy));
+    }
+    function apply(anim) {
+      clamp();
+      img.classList.toggle("is-anim", !!anim && !reduceMotion);
+      img.style.transform = zs === 1 ? "" : "translate(" + zx + "px, " + zy + "px) scale(" + zs + ")";
+      stage.classList.toggle("is-zoomed", zs > 1);
+      const on = zs > 1;
+      if (zoomBtn.getAttribute("aria-pressed") !== String(on) || !zoomBtn.firstChild) {
+        zoomBtn.setAttribute("aria-pressed", String(on));
+        zoomBtn.setAttribute("aria-label", on ? "Alejar" : "Acercar");
+        zoomBtn.innerHTML = I(on ? "minus" : "plus", { size: 22 });
+      }
+    }
+    /* Acerca a `s` dejando quieto el punto (cx, cy) de la pantalla (la foto está centrada en el escenario) */
+    function zoomAt(s, cx, cy, anim) {
+      const r = stage.getBoundingClientRect();
+      const px = cx - (r.left + r.width / 2), py = cy - (r.top + r.height / 2);
+      const k = Math.max(1, Math.min(MAX_ZOOM, s)) / zs;
+      zx = px - (px - zx) * k;
+      zy = py - (py - zy) * k;
+      zs *= k;
+      apply(anim);
+    }
+    function zoomCenter(s, anim) {
+      const r = stage.getBoundingClientRect();
+      zoomAt(s, r.left + r.width / 2, r.top + r.height / 2, anim);
+    }
+    function toggleZoom(cx, cy) {
+      if (zs > 1) { zs = 1; apply(true); } else zoomAt(2.5, cx, cy, true);
+    }
+
+    function show(i) {
+      const n = vPhotos.length;
+      vi = ((i % n) + n) % n;
+      const ph = vPhotos[vi];
+      zs = 1;
+      img.classList.add("is-loading");
+      img.onload = img.onerror = function () { img.classList.remove("is-loading"); };
+      img.src = U.safeUrl(D.photoUrl(ph, 2000));
+      if (img.complete) img.classList.remove("is-loading");
+      img.alt = ph.alt || p.name + ", foto " + (vi + 1) + " de " + n;
+      count.innerHTML = n > 1 ? '<span aria-hidden="true">' + (vi + 1) + " / " + n + '</span><span class="visually-hidden">Foto ' + (vi + 1) + " de " + n + "</span>" : "";
+      $$(".viewer__nav", el).forEach(function (b) { b.hidden = n <= 1; });
+      apply();
+      /* Las vecinas se piden de antemano para que pasar de foto no espere a la red */
+      if (n > 1) [vi + 1, vi - 1].forEach(function (j) { const q = vPhotos[(j + n) % n]; if (q) (new Image()).src = U.safeUrl(D.photoUrl(q, 2000)); });
+    }
+    function close() { U.overlay.close(el); }
+
+    el.addEventListener("click", function (e) {
+      const go = e.target.closest("[data-vgo]");
+      if (go) show(vi + parseInt(go.getAttribute("data-vgo"), 10));
+      else if (e.target.closest("[data-vzoom]")) zoomCenter(zs > 1 ? 1 : 2.5, true);
+    });
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" && vPhotos.length > 1) { e.preventDefault(); show(vi + 1); }
+      else if (e.key === "ArrowLeft" && vPhotos.length > 1) { e.preventDefault(); show(vi - 1); }
+      else if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomCenter(zs * 1.5, true); }
+      else if (e.key === "-") { e.preventDefault(); zoomCenter(zs / 1.5, true); }
+    });
+    /* Rueda del mouse / pellizco del trackpad (llega como rueda con ctrlKey) */
+    stage.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      zoomAt(zs * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002)), e.clientX, e.clientY);
+    }, { passive: false });
+
+    /* Punteros: 1 dedo = deslizar (sin acercar) o mover (acercada); 2 dedos = pellizco; toque doble = acercar/alejar */
+    const pts = new Map();
+    let drag = null, pinch = null, lastTap = 0, lastX = 0, lastY = 0;
+    const two = function () { const a = Array.from(pts.values()); return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; };
+    stage.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) { const t = two(); pinch = { d: t.d, s: zs, x: t.x, y: t.y }; drag = null; img.style.translate = ""; }
+      else if (pts.size === 1) drag = { x: e.clientX, y: e.clientY, zx: zx, zy: zy, moved: false, type: e.pointerType };
+    });
+    stage.addEventListener("pointermove", function (e) {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pts.size === 2) {
+        const t = two();
+        zx += t.x - pinch.x; zy += t.y - pinch.y; pinch.x = t.x; pinch.y = t.y;   /* el centro del pellizco arrastra */
+        zoomAt(pinch.s * t.d / pinch.d, t.x, t.y);
+        return;
+      }
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) > 6) drag.moved = true;
+      if (!drag.moved) return;
+      if (zs > 1) { zx = drag.zx + dx; zy = drag.zy + dy; apply(); }
+      else if (drag.type !== "mouse") img.style.translate = (Math.abs(dx) >= Math.abs(dy) ? dx + "px 0" : "0 " + Math.max(0, dy) + "px");   /* sigue al dedo */
+    });
+    function release(e) {
+      if (!pts.has(e.pointerId)) return;
+      pts.delete(e.pointerId);
+      if (pinch) {
+        if (pts.size < 2) pinch = null;
+        /* El dedo que queda sigue moviendo la foto (sin contar como deslizar ni como toque) */
+        if (pts.size === 1) { const q = Array.from(pts.values())[0]; drag = { x: q.x, y: q.y, zx: zx, zy: zy, moved: true, type: "touch", afterPinch: true }; }
+        return;
+      }
+      const d = drag;
+      drag = null;
+      img.style.translate = "";
+      if (!d || e.type === "pointercancel") return;
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (d.moved) {
+        if (zs > 1 || d.afterPinch || d.type === "mouse") return;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { if (vPhotos.length > 1) show(vi + (dx < 0 ? 1 : -1)); }
+        else if (dy > 90 && dy > Math.abs(dx)) close();
+        return;
+      }
+      if (d.type === "mouse") {
+        /* Mouse: clic en la foto = acercar/alejar; clic en el fondo sin acercar = cerrar */
+        if (e.target === img) toggleZoom(e.clientX, e.clientY);
+        else if (zs === 1) close();
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTap < 320 && Math.hypot(e.clientX - lastX, e.clientY - lastY) < 30) { lastTap = 0; toggleZoom(e.clientX, e.clientY); return; }
+      lastTap = now; lastX = e.clientX; lastY = e.clientY;
+    }
+    stage.addEventListener("pointerup", release);
+    stage.addEventListener("pointercancel", release);
+
+    window.addEventListener("resize", U.debounce(function () { if (U.overlay.isOpen(el)) apply(); }, 120));
+    return { el: el, show: show };
+  }
+
+  function openViewer(i) {
+    if (!shownPhotos.length || i < 0 || i >= shownPhotos.length) return;
+    if (!viewer) viewer = buildViewer();
+    vPhotos = shownPhotos.slice();
+    const fromSlide = document.activeElement && document.activeElement.closest && document.activeElement.closest("[data-zoom]");
+    U.overlay.open(viewer.el, {
+      /* Al cerrar, la galería queda en la última foto vista (sin animación) */
+      onClose: function () {
+        if (vi !== gi && vi < N_SLIDES && vi !== VIDEO_INDEX) {
+          gi = vi;
+          lockUntil = Date.now() + 120;
+          track.scrollTo({ left: gi * track.clientWidth, behavior: "auto" });
+          syncGallery();
+          const b = fromSlide && track.children[gi] && track.children[gi].querySelector("[data-zoom]");
+          if (b) { try { b.focus({ preventScroll: true }); } catch (e) {} }
+        }
+      }
+    });
+    viewer.show(i);
   }
 
   /* ------------------------------------------------------------------ */

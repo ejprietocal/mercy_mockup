@@ -19,6 +19,7 @@ window.Mercy = window.Mercy || {};
     "chevron-left": '<path d="M15 6l-6 6 6 6"/>',
     "arrow-left": '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     "arrow-right": '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    expand: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
     truck: '<path d="M3 6.5h10.5V16H3z"/><path d="M13.5 9.5h4.2l2.8 3.2V16h-7z"/><circle cx="7.2" cy="17.6" r="1.8"/><circle cx="17" cy="17.6" r="1.8"/>',
     shield: '<path d="M12 3l7 2.8v5.4c0 4.4-3 8-7 9.8-4-1.8-7-5.4-7-9.8V5.8z"/><path d="M8.8 12.2l2.2 2.2 4.2-4.4"/>',
     lock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',

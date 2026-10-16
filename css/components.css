@@ -31,6 +31,9 @@
   filter: saturate(1.04) contrast(1.03);
   transform: scale(var(--zoom, 1)); transform-origin: var(--ox, 50%) var(--oy, 50%);   /* detalles: acercamientos de la misma foto */
 }
+/* Foto completa (fit «contain», casilla del panel): entra entera en el marco, sin recorte ni acercamiento; los lados
+   que sobran muestran el telón arena (con multiply, el fondo blanco de estudio se funde con él) */
+.tile__img--full { object-fit: contain; object-position: 50% 50%; transform: none; }
 .tile--photo .tile__text, .tile--photo .tile__sub { opacity: 0; }
 .tile--photo::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(246, 233, 216, 0) 70%, rgba(42, 30, 20, 0.1)); }
 .tile--photo .tile__play { z-index: 1; }

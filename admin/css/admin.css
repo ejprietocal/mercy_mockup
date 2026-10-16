@@ -628,6 +628,8 @@ body.has-savebar .main { padding-bottom: 120px; }
 .photo-edit { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 20px; align-items: start; }
 .crop-preview { aspect-ratio: 5 / 6; border-radius: 10px; overflow: hidden; background: var(--c-surface-3); border: 1px solid var(--c-border); }
 .crop-preview img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; }
+/* «Mostrar completa»: la foto entera en el marco (como fit «contain» en la tienda) */
+.crop-preview.is-full img, .photo-tile__img.is-full img { object-fit: contain; object-position: 50% 50%; }
 .crop-controls { display: grid; gap: 10px; padding: 12px; border-radius: 10px; background: var(--c-surface-2); border: 1px solid var(--c-border); }
 
 /* Selector de medios */

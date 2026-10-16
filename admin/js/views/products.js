@@ -1268,13 +1268,13 @@ async function editorView(el, id, ctx) {
     const ph = showPhotos ? productMainPhoto(p) : null;
     const b = String(p.badge || "").trim();
     // La imagen solo se vuelve a crear si cambia algo que se ve en ella (no parpadea al escribir)
-    const key = JSON.stringify([ph?.src, ph?.zoom, ph?.ox, ph?.oy, ph ? null : [p.tile, tileLines(p)], b, soldOut]);
+    const key = JSON.stringify([ph?.src, ph?.zoom, ph?.ox, ph?.oy, ph?.fit, ph ? null : [p.tile, tileLines(p)], b, soldOut]);
     if (key !== mediaKey || !mediaEl) {
       mediaKey = key;
       const media = h("div.pe-card__media", { class: ph ? "has-photo" : null }, tileEl(p, { sub: false }));
       if (ph) {
-        const img = h("img.pe-card__img", { src: photoSrc(ph, 640), alt: "", decoding: "async" });
-        if (ph.zoom || ph.ox || ph.oy) Object.assign(img.style, { transform: `scale(${ph.zoom || 1})`, transformOrigin: `${ph.ox || "50%"} ${ph.oy || "50%"}` });
+        const img = h("img.pe-card__img", { class: ph.fit === "contain" && "is-full", src: photoSrc(ph, 640), alt: "", decoding: "async" });
+        if (ph.fit !== "contain" && (ph.zoom || ph.ox || ph.oy)) Object.assign(img.style, { transform: `scale(${ph.zoom || 1})`, transformOrigin: `${ph.ox || "50%"} ${ph.oy || "50%"}` });
         img.addEventListener("error", () => { img.remove(); media.classList.remove("has-photo"); }, { once: true });
         media.append(img);
       }
