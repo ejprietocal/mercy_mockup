@@ -377,13 +377,16 @@ window.Mercy = window.Mercy || {};
       ? I("truck", { size: 22 }) + "<p>" + U.strong(tx("shipping.cartFree", "Tu pedido tiene **ENVÍO GRATIS**")) + "</p>"
       : I("truck", { size: 22 }) + "<p>" + cartPaidHTML() + "</p>";
 
+    /* Cada línea muestra la foto de SU variante (color + estampado) y enlaza a la ficha en esa misma variante */
     bodyEl.innerHTML = '<ul class="cart-lines">' + items.map(function (it) {
       const p = it.product;
+      const printId = it.print ? it.print.id : "";
+      const url = U.productUrl(p, it.colorId, printId);
       return (
         '<li class="cart-line" data-key="' + esc(it.key) + '">' +
-        '<a class="cart-line__thumb" href="producto.html?id=' + encodeURIComponent(p.id) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId }) + "</a>" +
+        '<a class="cart-line__thumb" href="' + esc(url) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId, print: printId }) + "</a>" +
         '<div class="cart-line__info">' +
-        '<a class="cart-line__name" href="producto.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.name) + "</a>" +
+        '<a class="cart-line__name" href="' + esc(url) + '">' + esc(p.name) + "</a>" +
         '<p class="cart-line__variant">' + esc(variantText(it)) + "</p>" +
         (p.envioGratis ? '<p class="cart-line__ship">' + I("truck", { size: 13 }) + " " + esc(tx("shipping.lineFree", "Incluye envío gratis")) + "</p>" : "") +
         '<div class="cart-line__row">' + U.stepperHTML(it.qty) + '<span class="cart-line__price">' + money(it.lineTotal) + "</span></div></div>" +
@@ -897,7 +900,8 @@ window.Mercy = window.Mercy || {};
           if (!it) return;
           const next = it.qty + parseInt(step.getAttribute("data-step"), 10);
           if (next < 1) { S.cart.remove(key); return; }
-          if (next > it.stock) { U.toast("Solo quedan " + it.stock + " unidades de esta talla", { icon: "info" }); return; }
+          /* Tope de la línea: el stock de esa talla y color menos lo que ya tienen las otras líneas (otro estampado u horma) */
+          if (next > it.max) { U.toast("Solo quedan " + it.stock + " unidades de esta talla", { icon: "info" }); return; }
           S.cart.setQty(key, next);
           return;
         }

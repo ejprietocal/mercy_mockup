@@ -28,7 +28,7 @@ mercy_mockup/
 ├─ assets/fonts/       mercy-titulo.woff2 (Norwester + tildes, OFL); Dafoe con local() (ver README.md de la carpeta)
 ├─ admin/              panel administrador (/admin/, ES modules sin build) — ver admin/README.md
 ├─ server/             servidor Node sin dependencias: tienda + panel + API (npm start) — ver docs/SERVIDOR.md
-├─ tools/              build_mercy_titulo.py (fuente de títulos) · export_defaults.mjs (generó js/defaults.js; uso único)
+├─ tools/              build_mercy_titulo.py (fuente de títulos) · export_defaults.mjs (generó js/defaults.js; uso único, histórico)
 ├─ package.json · Dockerfile                                   ← scripts start/dev/test · imagen node:22-alpine (puerto 4000, datos en /data)
 └─ docs/               contrato del panel (ADMIN-CONTRATO.md), servidor (SERVIDOR.md), análisis, comentarios del Word y esta arquitectura
 ```
@@ -89,9 +89,9 @@ Para probar contenido sin servidor se puede inyectar `window.MercyContent` con `
 | `Mercy.content` | contenido resuelto (esquema del contrato §3) + `discountModal.welcome` |
 | `Mercy.api` | `{ enabled }` — `true` solo con contenido del servidor (los endpoints públicos del contrato §4.1 solo se usan entonces) |
 | `Mercy.config` | derivado de `settings`/`home`/`discountModal`: `brand`, `whatsapp`, `whatsappDisplay`, `whatsappGreeting`, `discount {code, percent}` (solo compatibilidad: la tienda ya no lo lee; code vacío con servidor), `discountEnabled`, `discountAutoOpen`, `discountOnCartOpen`, `discountPopupDelay`, `discountImage`, `giftMaxChars`, `pageSize`, `heroMedia {type: video\|image\|none, src, poster, fallback{src,poster}}`, `stockPhotos` (= `settings.showPhotos`), `showAdminLink`, `logo`, `social`, `storageKey` |
-| `Mercy.data` | `PRODUCTS` (solo publicados), `CATEGORIES` (`{id,name,details,sizeChart,inFooter}`), `COLLECTIONS`, `FITS` (`{id: nombre}`), `COLORS` (`{id: {id,name,hex}}`), `REVIEWS` (solo visibles), `MARQUEE`, `SIZE_CHARTS` + `SIZE_CHART_IDS`, `SHIPPING_INFO`, `RETURNS_INFO`, `CARE`, `DEPARTMENTS`, `PAYMENT_METHODS`; `byId(id)` (también con un id anterior de un producto renombrado, `products[].formerIds`: devuelve el producto con su id ACTUAL), `category(id)`, `collectionById(id)`, `color(id)`, `stockOf(p,color,size)`, `colorHasStock(p,color)`, `photosFor(p,colorId)`, `photoUrl(foto,w)`, `photoSrcset(foto,anchos)` |
+| `Mercy.data` | `PRODUCTS` (solo publicados), `CATEGORIES` (`{id,name,details,sizeChart,inFooter}`), `COLLECTIONS`, `FITS` (`{id: nombre}`), `COLORS` (`{id: {id,name,hex}}`), `REVIEWS` (solo visibles), `MARQUEE`, `SIZE_CHARTS` + `SIZE_CHART_IDS`, `SHIPPING_INFO`, `RETURNS_INFO`, `CARE`, `DEPARTMENTS`, `PAYMENT_METHODS`; `byId(id)` (también con un id anterior de un producto renombrado, `products[].formerIds`: devuelve el producto con su id ACTUAL), `category(id)`, `collectionById(id)`, `color(id)`, `stockOf(p,color,size)`, `colorHasStock(p,color)`, `photosFor(p,colorId,printId)` (regla de fotos; ver «Fotos por color y por estampado»), `photoUrl(foto,w)`, `photoSrcset(foto,anchos)` |
 | `Mercy.icons` | `svg(name,{size,cls,stroke})` (nombre desconocido → `""`), `bank("nequi"|"breb"|"bancolombia")` |
-| `Mercy.ui` | `$ $$ esc money thousands norm qs debounce waLink waGreeting pluralize`, **`rich(text,{lines,accent,fill})`**, **`fill(text)`**, `plain(text)`, `safeUrl(url)`, `tileHTML(p,{variant,index,video,color,size,sub,alt,eager})`, `cardHTML(p,{meta,sub})`, `stepperHTML(qty)`, `syncFavButtons()`, `overlay.open/close/closeAll`, `createModal`, `createDrawer`, `infoModal(id,title,html)`, `initAccordions(root,{single})`, `toast(msg,{icon})`, `validators.{required,email,phone,cedula,name}`, `setError(input,msg)` |
+| `Mercy.ui` | `$ $$ esc money thousands norm qs debounce waLink waGreeting pluralize`, **`rich(text,{lines,accent,fill})`**, **`fill(text)`**, `plain(text)`, `safeUrl(url)`, `tileHTML(p,{variant,index,video,color,print,size,sub,alt,eager})`, `cardHTML(p,{meta,sub})`, `stepperHTML(qty)`, `syncFavButtons()`, `overlay.open/close/closeAll`, `createModal`, `createDrawer`, `infoModal(id,title,html)`, `initAccordions(root,{single})`, `toast(msg,{icon})`, `validators.{required,email,phone,cedula,name}`, `setError(input,msg)` |
 | `Mercy.store` | `cart.{items,add,setQty,remove,clear,count,subtotal,shipping,discountInfo,discountAmount,total}`, `favs.{has,toggle,list,count}`, `discount.{claimed,email,applied,couponApplied,code,label,claimedCoupon,claimedCode,claimedApplied,pendingClaim,welcomeLabel,claim,applyCoupon,removeCoupon,revalidate,redeem}`, `session.{get,set}`. Eventos: `mercy:cart`, `mercy:favs`, `mercy:discount` (`detail.action`: claim, coupon, remove, refresh, invalid, claim-invalid). Ver «Cupones y suscripción» |
 | `Mercy.layout` | `openCart()`, `open("menu"|"search"|"favs"|"cart")`, `close(name)`, `openSizeGuide(idGuía, fit)`, `openInfo("envios"|"cambios"|"tallas")`, `sizeTableHTML(idGuía, fit)`, `sizeNoteHTML(cls)` |
 | `Mercy.search` | `run(query)` → `{ tokens, exact[], similar[] }` (nombre, referencia, categoría, color, horma, colección) |
@@ -102,8 +102,10 @@ Marcas para pruebas: `data-admin-link` (botón del header y enlace del menú), `
 
 ### Forma de `Mercy.data.PRODUCTS[i]`
 `{ id, ref, name, category, collection (NOMBRE, "" si no hay), collectionId, fits, sizes, price, badge, envioGratis, soldOut (= soldOut || todo el stock en 0),
-bestRank, newRank, rating, reviews (= reviewsCount), colors: [ids], stock[color][talla], colorPhotos[color]: [fotos], initialColor (1.er color con stock),
-photos (= photosFor(p, initialColor)), prints (solo si hay estampados), video ({src, poster} | null), tile, tags, desc, story,
+bestRank, newRank, rating, reviews (= reviewsCount), colors: [ids], stock[color][talla], colorPhotos[color]: [fotos] (0–10, fotos base),
+printPhotos[color][estampado]: [fotos] (1–10; solo combinaciones con fotos y estampados que existen; {} si no hay ninguna),
+initialColor (1.er color con stock, si ninguno el primero), initialPrint (prints[0].id o ""), photos (= fotos principales, ver abajo),
+prints (solo si hay estampados), video ({src, poster} | null; solo con src), tile, tags, desc, story,
 sizeChart (id de la guía de su categoría o ""), details (propios o los de la categoría), care (propios o texts.care) }`.
 `SIZE_CHARTS[idGuía]` conserva la forma de siempre `{ head, regular: [[talla, …]], oversize: […] }` (claves enumerables = `head` + ids de hormas) y además
 `id`, `name`, `unit`, `fits` (orden de las pestañas) como propiedades NO enumerables; `SIZE_CHART_IDS` = orden de las pestañas de la guía.
@@ -116,16 +118,43 @@ sizeChart (id de la guía de su categoría o ""), details (propios o los de la c
   calificación del Inicio y de la ficha `4.9` → "4,9". Precios y conteos con punto de miles (`$89.900`, `1.234 reseñas`).
 - Todas las URL del contenido pasan por `Mercy.ui.safeUrl` (bloquea `javascript:`, `data:`, `vbscript:`…).
 
-### Fotos por color
-- Cada color de un producto tiene 0–4 fotos `{ src, thumb, alt, zoom, ox, oy }`. `photosFor(p, color)` = fotos del color; si no tiene, las del primer color con fotos; si ninguno, `[]` (se usa el degradado `tile`).
-- Tarjetas, búsqueda y favoritos usan el **color inicial** (primer color con stock). Carrito y checkout usan el **color de la línea**.
-- Ficha: la galería muestra las fotos (1–4) del color seleccionado + la diapositiva de video al final; al cambiar a un color con otras fotos se rehace (miniaturas, puntos, contador "Foto n de N", flechas, teclado y scroll-snap) y vuelve a la foto 1. Sin fotos: 3 degradados + video. Si `p.video` existe, el modal reproduce el video (`<video controls playsinline>`; se pausa al cerrar); si no, "Video próximamente".
+### Fotos por color y por estampado (contrato §3 «Fotos de producto»)
+- Cada color de un producto tiene 0–10 fotos **base** `{ src, thumb, alt, zoom, ox, oy }` y, opcionalmente, 1–10 por **combinación con un
+  estampado** (`colors[].printPhotos[idEstampado]`). `data.js` las normaliza en `p.colorPhotos[color]` y `p.printPhotos[color][estampado]`:
+  recorta a 10 y descarta las claves de estampados que ya no existen en la prenda y las listas vacías. Los estampados no tienen stock
+  propio (el stock sigue siendo color × talla) y en la ficha se eligen con el círculo de color (`hex`).
+- **`Mercy.data.photosFor(p, color, print)`** — `print` sin pasar (`undefined`) = `p.initialPrint`; `""` = sin estampado. Devuelve la
+  primera lista con fotos de: 1) la combinación color + estampado; 2) las fotos base del color; 3) la combinación en el primer color
+  (orden de la prenda) que la tenga; 4) las fotos base del primer color con fotos; 5) `[]` (degradado `tile`). Las listas **no se
+  mezclan**. Sin estampados los pasos 1 y 3 no aplican: es la regla de siempre. El panel (`productPhotos` en `admin/js/core/format.js`)
+  y el servidor (`server/lib/social.js`) aplican la misma regla.
+- **Fotos principales** `p.photos` = `photosFor(p, initialColor, initialPrint)`; si queda vacía, la primera lista de `printPhotos`
+  (colores en orden y, en cada uno, estampados en el orden de `prints`). Las usan las tarjetas del catálogo y del Inicio, la búsqueda
+  y los favoritos (`tileHTML` sin `color` ni `print`); la primera es la que sale en `og:image` y en las miniaturas del panel.
+- **`Mercy.ui.tileHTML(p, { color, print })`** → `photosFor(p, color, print)` (sin `print` = estampado inicial). Carrito (`layout.js`)
+  y checkout (`checkout.js`) pasan el color **y el estampado de la línea** (la miniatura es la foto de esa variante) y enlazan a
+  `producto.html?id=…&color=…&print=…` (`print` solo si la línea tiene estampado).
+- **Ficha** (`producto.js`): `?color=<id>&print=<id>` fija la variante inicial si el color está en `p.colors` y el estampado en
+  `p.prints`; si no, color inicial y primer estampado. `galleryPlan(color, print)` = las fotos de `photosFor` + la diapositiva de video al
+  final **solo si `p.video && p.video.src`** (sin video `VIDEO_INDEX = -1`). Al cambiar de color **o** de estampado la galería se rehace
+  (miniaturas, puntos, contador «Foto n de N», flechas, teclado y scroll-snap) solo si cambia el juego de fotos —se compara por contenido
+  (`src`/`zoom`/`ox`/`oy`), no por referencia; dos juegos vacíos no la rehacen— y vuelve a la foto 1.
+- **Sin video** no hay diapositiva de video, miniatura ▶, último punto ni botón «Ver video» (`#gallery-video` oculto), y el carril se
+  anuncia «Fotos de la prenda» (con video, «Fotos y video de la prenda»). Ya no existe el aviso «Video próximamente» (ni sus textos
+  `texts.product.videoSoonTitle/videoSoonText`). Con video, el modal reproduce `<video controls playsinline>` (se pausa al cerrar) y
+  el botón usa `texts.product.videoChip`.
+- **Sin fotos** (o `settings.showPhotos` apagado → `Mercy.config.stockPhotos` false): 3 degradados de marca (+ la diapositiva de video
+  solo si hay video). **Una sola diapositiva:** flechas, puntos y miniaturas se ocultan (atributo `hidden`); se reevalúa en cada
+  `renderGallery`.
+- **Miniaturas:** en escritorio (≥ 900 px) columna con alto máximo = alto del escenario y scroll vertical propio; en móvil, fila con
+  scroll horizontal. La miniatura activa se mantiene visible desplazando **su contenedor** (`container.scrollTo` calculado; nunca
+  `element.scrollIntoView`, que también movería la página).
 - `srcset`: fotos de Pexels → `?auto=compress&cs=tinysrgb&w=N`; fotos subidas con miniatura → `thumb 600w, src 2000w`; otras URL → solo `src`. `zoom/ox/oy` → variables CSS `--zoom/--ox/--oy`.
 
 ### Contenido raro o vacío (nunca lanza)
 Franja en movimiento vacía → se oculta · franja superior vacía → no se pinta y `--strip-h: 0` · sin reseñas visibles → se ocultan las secciones de reseñas ·
 hero `type: "none"` o sin `src` → placeholder · producto en borrador → no existe en la tienda (ficha = "no encontrada") · color sin stock → tachado ·
-producto sin fotos → degradado · categoría sin productos → no sale en píldoras/filtros del catálogo (sí en el menú; su catálogo muestra el estado vacío) ·
+producto sin fotos → degradado · producto sin video → sin diapositiva ni botón de video · categoría sin productos → no sale en píldoras/filtros del catálogo (sí en el menú; su catálogo muestra el estado vacío) ·
 colección inexistente → no se muestra "Colección …" · red social vacía o insegura → no se muestra · sin cupón de bienvenida → sin pop-up automático, sin CTA del carrito y sin `{descuento}`.
 
 ## Cupones y suscripción (`js/store.js`, contrato §3, §4.1 y §6)
@@ -152,7 +181,8 @@ colección inexistente → no se muestra "Colección …" · red social vacía o
 - **Mensajes por motivo:** not_found "Ese código no existe." · inactive "Este código no está activo." · not_started "Este código aún no está vigente." ·
   expired "Este código ya venció." · exhausted "Este código ya alcanzó su límite de usos." · red "No pudimos validar el código. Revisa tu conexión e inténtalo de nuevo."
 - **Al cargar cada página** (tras `DOMContentLoaded`): se quitan las líneas del carrito cuyo color, talla, horma o estampado ya no existe (o que
-  quedaron agotadas), las cantidades se ajustan al stock (toast "Actualizamos tu carrito…") y se revalida el cupón aplicado: en el checkout siempre,
+  quedaron agotadas), las cantidades se ajustan al stock **compartido** (ver «Stock» en Reglas de negocio: las líneas anteriores tienen prioridad;
+  toast "Actualizamos tu carrito…" / "Ajustamos las cantidades…") y se revalida el cupón aplicado: en el checkout siempre,
   en las demás páginas como mucho 1 vez por minuto (límite público 60/10 min por IP). Si ya no vale: se quita y toast "Quitamos el código X: <motivo>".
   Un **producto que no se encuentra** (en borrador un rato, borrado, renombrado sin alias) no se borra del carrito ni de favoritos: queda en `parked`
   (sin verse ni contar; el toast avisa una vez) hasta 30 días y vuelve solo si el producto reaparece. Un **id anterior** (producto renombrado:
@@ -189,6 +219,12 @@ colección inexistente → no se muestra "Colección …" · red social vacía o
 - **Envío (C34):** ningún producto del carrito con `envioGratis` ⇒ **ENVÍO NO INCLUIDO** (costo adicional, se coordina por WhatsApp); al menos uno ⇒ **ENVÍO GRATIS**. Sin tarifas fijas inventadas.
 - **Descuento:** pop-up o Comunidad (correo obligatorio y válido) ⇒ `Mercy.store.discount.claim(email, source)` ⇒ cupón de bienvenida (`discountModal.couponCode`, de fábrica `MERCY15` = 15 %; con servidor el código solo se conoce al suscribirse) aplicado. También se pueden escribir otros cupones del panel en el checkout (ver «Cupones y suscripción»). Los textos del pop-up y de la comunidad salen de `discountModal`/`home.community` con `{descuento}`.
 - **Stock:** `Mercy.data.stockOf(p,color,size)`; `0` ⇒ talla tachada en diagonal (C43) y no seleccionable; producto sin stock ⇒ ícono de prohibido + "No disponible" (C23/C24).
+  El stock es por **color × talla** y lo comparten todos los estampados y hormas. Por eso el tope de cantidad del carrito es por **producto + color +
+  talla sumando sus líneas**, no por línea (una línea también distingue estampado y horma): tope de una línea = stock(color, talla) − lo que piden las
+  OTRAS líneas del mismo producto, color y talla. Con Negro M = 5 se pueden pedir 5 en total (p. ej. 3 con estampado naranja + 2 con azul), no 5 + 5.
+  Se aplica en `cart.add` (recorta y devuelve `capped`; si las otras líneas ya tienen todo el stock → `{ ok: false, reason: "tope" }`), en
+  `cart.setQty` y en el saneo al cargar (las líneas anteriores tienen prioridad). `cart.items()[i].max` = tope de esa línea (`stock` sigue siendo
+  el de la talla y el color).
 - **Carrito:** overlay de derecha a izquierda en escritorio y móvil (C44); al abrirlo, si el usuario no reclamó el descuento, vuelve a aparecer el pop-up (C29).
 
 ## Verificación (Chrome headless, sin dependencias)
@@ -219,10 +255,13 @@ verifica que `usesCount` NO sube al confirmar ni al ver la vista previa y sí al
 `DATA_DIR` temporal: crea datos de prueba (los borra al final).
 
 **Diferencias esperadas frente a `_verify/out/baseline`** (capturas del mockup original; `compare.py` las marca, son intencionales y siguen el
-contrato): el botón del panel en el header (§6, si `settings.showAdminLink`); la calificación con coma decimal («4,9» en vez de «4.9», §6); y las
-**fotos por color** (§3/§6): la Tote Bag en Crema muestra solo sus 2 fotos + video (3 diapositivas, antes 4: la foto de la tote negra solo sale al
-elegir Negro) y en el carrito/checkout la miniatura es la foto del color de la línea (tote negra → foto negra). Si se quieren comparar solo
-regresiones, regenera la línea base con `shots.mjs` en una carpeta nueva (no pises `baseline`, que es la referencia del mockup).
+contrato): el botón del panel en el header (§6, si `settings.showAdminLink`); la calificación con coma decimal («4,9» en vez de «4.9», §6); las
+**fotos por color** (§3/§6): la Tote Bag en Crema muestra solo sus 2 fotos (la foto de la tote negra solo sale al elegir Negro) y en el
+carrito/checkout la miniatura es la foto de la variante de la línea (tote negra → foto negra); y **sin diapositiva de video** en las prendas sin
+video (todas las de fábrica tienen `video: null`): la galería pierde la última diapositiva, su miniatura ▶, su punto y el botón «Ver video»
+(frente a la línea base, `fe` y `amen` pasan de 4 a 3 diapositivas/miniaturas y la tote crema de 4 a 2 —con video eran 3: sus 2 fotos + el
+video—; la huella de texto ya no tiene «Ver video»). Si se quieren
+comparar solo regresiones, regenera la línea base con `shots.mjs` en una carpeta nueva (no pises `baseline`, que es la referencia del mockup).
 El filtro de errores (`_verify/e2e/_helpers.mjs`) ignora solo la carga fallida de `api/public/content.js` en `file://` y las fuentes de Google.
 
 ## Convenciones de código

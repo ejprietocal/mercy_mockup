@@ -27,12 +27,14 @@
     <!-- Ficha de producto -->
     <section class="pdp__top container" id="pdp" aria-label="Detalle de la prenda" hidden>
 
-      <!-- Galería: escritorio = miniaturas verticales a la izquierda · móvil = carrusel + miniaturas debajo -->
+      <!-- Galería: escritorio = miniaturas verticales a la izquierda (columna con scroll propio) · móvil = carrusel + miniaturas debajo.
+           Con una sola foto y sin video no hay flechas, puntos ni miniaturas. -->
       <div class="gallery" id="gallery" role="region" aria-roledescription="carrusel" aria-label="Galería de la prenda">
         <div class="gallery__stage">
-          <div class="gallery__track" id="gallery-track" tabindex="0" aria-label="Fotos y video de la prenda. Usa las flechas del teclado para cambiar."></div>
+          <div class="gallery__track" id="gallery-track" tabindex="0" aria-label="Fotos de la prenda. Usa las flechas del teclado para cambiar."></div>
           <div id="gallery-fav-slot"></div>
-          <button type="button" class="gallery__chip" id="gallery-video" aria-haspopup="dialog">
+          <!-- «Ver video»: solo si la prenda tiene video (producto.js lo muestra) -->
+          <button type="button" class="gallery__chip" id="gallery-video" aria-haspopup="dialog" hidden>
             <span id="gallery-video-icon"></span><span>Ver video</span>
           </button>
           <button type="button" class="gallery__nav gallery__nav--prev" id="gallery-prev" aria-label="Foto anterior"></button>

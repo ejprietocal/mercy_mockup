@@ -28,7 +28,9 @@ muestra la barra flotante **"Editar esta página"**. Dos roles: **Administrador*
 Qué se administra:
 - **Inicio:** video o imagen del hero, título, frases de la franja en movimiento, más vendidos, propósito, reseñas y comunidad.
 - **Textos del sitio:** todo lo que no es de un producto ni del Inicio: franja superior, menú y ayuda, búsqueda, favoritos y carrito, catálogo, avisos de envío, cuidados, guía de tallas, etiquetas de la ficha, página de pago (incluido el inicio y cierre del mensaje de WhatsApp), suscripción y pie de página.
-- **Productos:** precio, tallas, hormas, stock por color y talla, **hasta 4 fotos por color**, video, borradores y duplicar.
+- **Productos:** precio, tallas, hormas, estampados, stock por color y talla, **hasta 10 fotos por color** y **hasta 10 por combinación
+  color + estampado** (p. ej. Negro + Naranja tiene las suyas y Blanco + Naranja otras), video opcional (sin video, la ficha no muestra
+  la diapositiva ni el botón «Ver video»), borradores y duplicar.
 - **Categorías, colecciones, colores, hormas, guía de tallas y reseñas.**
 - **Modal de descuento** (textos, imagen, cuándo aparece) y **cupones** (porcentaje o valor fijo, vigencia, usos, por categoría o producto).
 - **Suscriptores** (con exportación CSV), **biblioteca de medios** (fotos y videos subidos), **usuarios** con roles y **ajustes** (WhatsApp, redes, logos, SEO, medios de pago).
@@ -43,9 +45,9 @@ Contrato técnico (esquema, API, roles, rutas): [`docs/ADMIN-CONTRATO.md`](docs/
 |---------|----------|-----------|
 | `index.html` | Inicio | Hero a pantalla completa con único botón **COMPRA**, franja en movimiento, "Los más vendidos", propósito, reseñas, pop-up de descuento (configurable en el panel) |
 | `catalogo.html` | Catálogo | Filtros en acordeón (cerrados), orden, "Ver más", `?vista=mas-vendidos`, `?cat=hoodies`, `?q=jecvv` |
-| `producto.html?id=fe` | Producto | Color/talla/fit, fotos del color elegido, talla agotada tachada en diagonal, **Agregar al carrito**, acordeones (Detalles, Cuidados, Medidas/Tallas…), `?id=amen` (agotado) |
+| `producto.html?id=fe` | Producto | Color/estampado/talla/fit, fotos del color elegido (o de la combinación color + estampado, si tiene), talla agotada tachada en diagonal, **Agregar al carrito**, acordeones (Detalles, Cuidados, Medidas/Tallas…), `?id=amen` (agotado), `?id=jesus-es-el-camino&color=negro&print=azul` (abre en esa variante) |
 | `checkout.html` | Finalizar compra | Validación obligatoria, Departamento → Ciudad, envío gratis / no incluido, ¿es un regalo?, cupón de descuento, pago con logos, mensaje de WhatsApp |
-| `admin/` | Panel | Escritorio, edición de cada sección, productos con fotos por color, cupones, suscriptores, actividad y revisiones |
+| `admin/` | Panel | Escritorio, edición de cada sección, productos con fotos por color y por estampado, cupones, suscriptores, actividad y revisiones |
 
 Funciones transversales: menú lateral, búsqueda en vivo (con referencias parecidas), favoritos (corazón), carrito como overlay de derecha a izquierda (persistente en `localStorage`), cupón de bienvenida al suscribirse (de fábrica **MERCY15**, 15 % primer pedido; se cambia en el panel) y cupones creados en el panel.
 
@@ -68,7 +70,7 @@ admin/   panel (index.html, login.html, css/admin.css, js/core + js/views) — E
 server/  index.js (arranque) · app.js · lib/ · routes/ · test/ (node:test)
 assets/logo   logos PNG (terracota #bb3f17, beige #eceae2, oscuro)
 assets/fonts  mercy-titulo.woff2 (Norwester + tildes, OFL) · ver README
-tools/        build_mercy_titulo.py (fuente de títulos) · export_defaults.mjs (generó js/defaults.js)
+tools/        build_mercy_titulo.py (fuente de títulos) · export_defaults.mjs (generó js/defaults.js; histórico, no se vuelve a ejecutar)
 data/         datos del servidor (git-ignorado; en Docker = volumen /data)
 docs/         ADMIN-CONTRATO.md · SERVIDOR.md · ARQUITECTURA.md · ANALISIS-RETROALIMENTACION.md · COMENTARIOS-WORD.md
 ```

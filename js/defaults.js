@@ -176,8 +176,6 @@ Mercy.DEFAULT_CONTENT = {
       lowStockOne: "Queda 1 unidad",
       lowStockMany: "Quedan {n} unidades",
       videoChip: "Ver video",
-      videoSoonTitle: "Video próximamente",
-      videoSoonText: "Estamos preparando el video de esta prenda.",
       detailsTitle: "Detalles",
       careTitle: "Cuidados de la prenda",
       sizesTitle: "Medidas / Tallas",

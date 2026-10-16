@@ -17,7 +17,7 @@ admin/
    ├─ core/            el framework (no lo cambies sin coordinar: todas las vistas dependen de él)
    │  ├─ dom.js        h(), append(), replace(), $, $$, uid()…
    │  ├─ icons.js      icon("trash")
-   │  ├─ format.js     money, fechas, slugify, deepEqual, getPath/setPath, isSafeUrl…
+   │  ├─ format.js     money, fechas, slugify, deepEqual, getPath/setPath, isSafeUrl, fotos de producto…
    │  ├─ api.js        api.get/post/put/del/upload, ApiError
    │  ├─ reauth.js     sesión que se cierra mientras se trabaja: volver a entrar en un diálogo sin perder lo escrito
    │  ├─ session.js    usuario actual, can(rol)
@@ -421,7 +421,7 @@ se actualizan solos, p. ej. `f.media(form, "hero.media.poster", { required: (fm)
 | `f.accentTitle` | string | `multiline` (cada Enter = línea), `discount: true` (`{descuento}`), `discountLabel: "15%"` o `(form) => etiqueta` (la vista previa sigue en vivo, p. ej. al cupón elegido; `""` muestra `{descuento}`); vista previa con la tipografía de la tienda y botón “Cursiva de marca” |
 | `f.list` | array | ver abajo |
 | `f.media` | url string | `kind: "image" | "video"`, `previewBg: "checker" | "dark" | "light"`, `onChange(url, item, form)`, `required` (o función), `validate(url, form)` (se llama siempre, también vacío con `""`) |
-| `f.photos` | `[{ src, thumb, alt, zoom, ox, oy }]` | `max` (4) — fotos de un color de producto |
+| `f.photos` | `[{ src, thumb, alt, zoom, ox, oy }]` | `max` (por defecto 4; productos usan 10), `noun` (`"color"` por defecto; `"estampado"` en las de una combinación color + estampado), `emptyHint` (texto con la lista vacía), `uploadPath` (ruta vigente al terminar una subida) — fotos de un color de producto o de una combinación color + estampado. Valida «Máximo N fotos por <noun>.» |
 | `f.custom` | lo que sea | `create: ({ value, onChange, id, describedBy, labelId }) => ({ el, setValue(v), focus?(), control? })`, `group` (ver abajo) |
 | `f.row(a, b, c, { cols: 3 })` | — | fila de campos (se apila en móvil) |
 | `f.readonly("Rol", valor)` | — | dato de solo lectura con apariencia de campo |
@@ -485,7 +485,7 @@ import { subirArchivo, openMediaPicker, mediaField, photoListField, mediaApi, me
 
 const item = await subirArchivo(file, { kind: "image", onProgress: ({ phase, fraction }) => … });  // phase: processing | uploading | thumb
 // item = { id, kind, mime, url: "/uploads/2026/10/m-…-foto.webp", thumbUrl, width, height, bytes, name, alt, createdAt, createdBy }
-const elegidos = await openMediaPicker({ kind: "image", multiple: true, max: 4, title: "Agregar fotos" });   // item[] | null
+const elegidos = await openMediaPicker({ kind: "image", multiple: true, max: 10, title: "Agregar fotos" });  // item[] | null
 const items = await mediaApi.list({ kind: "video", q: "hero" });
 const { item: m, usages } = await mediaApi.get(id);            // usages: ["products/fe", "home.hero"] → describeUsage(u) en ui.js
 await mediaApi.update(id, { name, alt });
@@ -501,9 +501,25 @@ await mediaApi.remove(id);                                     // 409 in_use →
   clic para elegir (modo simple) y “Usar una URL externa” (devuelve `{ id: null, url, external: true }`).
 - `mediaField({ kind, value, onChange: (url, item|null) => … , previewBg })` → elemento con `.setValue(url)`; vista previa,
   **Elegir · Subir · Pegar URL · Quitar** y soltar un archivo sobre la vista previa. En formularios usa `f.media(…)`.
-- `photoListField({ max: 4, value, onChange })` → elemento con `.setValue(lista)`; miniaturas ordenables (arrastrar o flechas),
-  “Principal” en la primera, editar texto alternativo y encuadre (`zoom` 1–3, `ox`/`oy` en %), agregar varias desde la biblioteca,
-  el equipo o una URL, y tope de 4 con mensaje. En formularios usa `f.photos(form, \`colors.${i}.photos\`, { max: 4 })`.
+- `photoListField({ max, value, onChange, label, noun, emptyHint, onUploadStart })` → elemento con `.setValue(lista)`; miniaturas ordenables
+  (arrastrar o flechas), “Principal” en la primera, editar texto alternativo y encuadre (`zoom` 1–3, `ox`/`oy` en %), agregar varias
+  desde la biblioteca, el equipo o una URL, y tope `max` (por defecto 4; los productos pasan 10, contrato §3) con contador «n/max fotos».
+  - `noun` (por defecto `"color"`): a qué pertenecen las fotos en los avisos del tope («Solo se agregaron 2 de 5: máximo 10 fotos por
+    color.», «Llegaste al máximo de fotos por estampado…»).
+  - `emptyHint`: texto junto al contador cuando la lista está vacía, para decir qué mostrará la tienda (por defecto «Este color usará
+    las fotos del primer color que tenga.»; `""` no muestra nada).
+  - `onUploadStart()` (opcional): se llama al empezar cada subida desde el equipo y devuelve `(foto) => …`, que recibe la foto al
+    terminar **en lugar** de agregarla a la copia local de la lista.
+
+  En formularios usa `f.photos(…)` con las mismas opciones. `f.photos` agrega cada foto subida a la lista **vigente** del formulario
+  al terminar (no a la copia del campo, que pudo rehacerse mientras subía); con `uploadPath()` (ruta que puede cambiar mientras sube,
+  p. ej. el código de un estampado nuevo al renombrarlo) se decide al terminar a qué ruta va (`""` = a ninguna). Fotos de un color y
+  de una combinación color + estampado:
+  ```js
+  f.photos(form, `colors.${i}.photos`, { max: 10, label: "Fotos del color" });
+  f.photos(form, `colors.${i}.printPhotos.${idEstampado}`, { max: 10, noun: "estampado",
+    emptyHint: "Sin fotos: se usarán las fotos del color." });
+  ```
 - `mediaThumb(itemOUrl, { width })` → `<img>` (o `<video>` sin miniatura) para listas y grillas propias.
 - Fotos de `images.pexels.com` (pueden pesar varios MB): `pexelsSized(url, ancho)` → `…?auto=compress&cs=tinysrgb&w=ancho`
   (otras URLs: `siteUrl(url)`). El núcleo ya lo usa: miniaturas 300 px (`mediaThumb`, fotos de un color), vista previa de
@@ -520,6 +536,16 @@ await mediaApi.remove(id);                                     // 409 in_use →
 (como cuenta el servidor) · `debounce(fn, ms)` · `clone` · `deepEqual` · `getPath(obj, "a.0.b")` / `setPath` · `isSafeUrl(url,
 kind)` y `URL_MESSAGES` (mismas reglas que el servidor) · `siteUrl(u)` (convierte `assets/…` en `/assets/…` para verla desde el
 panel) · `fileNameOf(url)`.
+
+Fotos de producto (misma regla que la tienda y el servidor, contrato §3 «Fotos de producto»; reciben el producto con la forma del
+contenido, `colors[].photos` / `colors[].printPhotos`):
+- `productPhotos(p, colorId, printId)` → lo que muestra la ficha para esa variante: la combinación color + estampado, si no las del
+  color, si no las de ese estampado en el primer color que las tenga, si no las del primer color con fotos, si no `[]`. `printId` sin
+  pasar = el primer estampado; `""` = sin estampado.
+- `productMainPhoto(p)` → foto principal `{ src, thumb, alt, zoom, ox, oy } | null` (la de la tarjeta de la tienda y de `og:image`).
+  Úsala para TODA miniatura de un producto en el panel (lista, Escritorio, cupones, taxonomías, «Más vendidos»); no tomes
+  `colors[0].photos[0]` a mano.
+- `initialColorIndex(p)` → índice del color con que abre la tienda (el primero con stock; si ninguno, el primero).
 
 ---
 

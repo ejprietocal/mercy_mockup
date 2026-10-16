@@ -4,6 +4,8 @@
    con la MISMA forma que la tienda usa desde siempre:
      PRODUCTS (solo publicados; colors = [ids], stock[color][talla], photos, reviews = número,
      collection = nombre…), COLORS, FITS, CATEGORIES, COLLECTIONS, SIZE_CHARTS, REVIEWS, MARQUEE…
+   Fotos de cada prenda: hasta 10 por color base (colorPhotos) y hasta 10 por combinación color + estampado
+   (printPhotos); photosFor(p, color, estampado) decide cuáles se ven (misma regla que el panel y el servidor).
    Departamentos/ciudades y medios de pago siguen fijos aquí.
    Defensivo ante contenido editado a mano: listas vacías, campos faltantes, colores sin stock,
    productos sin fotos o categorías sin productos nunca lanzan excepciones.
@@ -22,9 +24,11 @@ window.Mercy = window.Mercy || {};
   const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
   function hex(v, d) { return HEX.test(str(v)) ? str(v).toLowerCase() : d; }
   function uniqueBy(list, key) {
-    const seen = {};
+    const seen = Object.create(null);                 // sin prototipo: un id como "constructor" no cuenta como repetido
     return list.filter(function (x) { const k = key(x); if (!k || seen[k]) return false; seen[k] = true; return true; });
   }
+  /* Valor propio de un mapa (nunca heredado de Object.prototype) o null */
+  function own(o, k) { return o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : null; }
 
   /* --- Colores, hormas, categorías y colecciones ------------------------------ */
   const COLORS = {};
@@ -116,8 +120,11 @@ window.Mercy = window.Mercy || {};
   }
 
   /* --- Productos ----------------------------------------------------------------
-     Solo publicados (status "draft" = invisible). colors: [{ color, photos, stock }] → colors: [ids],
-     stock[color][talla], colorPhotos[color] = [fotos]. */
+     Solo publicados (status "draft" = invisible). colors: [{ color, photos, printPhotos?, stock }] → colors: [ids],
+     stock[color][talla], colorPhotos[color] = [fotos] (0–10) y printPhotos[color][estampado] = [fotos] (1–10; solo
+     estampados que existen en la prenda y listas con fotos). El stock sigue siendo color × talla (lo comparten los estampados). */
+  const MAX_PHOTOS = 10;                              // por color base y por combinación color + estampado
+  function photoList(v) { return arr(v).map(normPhoto).filter(Boolean).slice(0, MAX_PHOTOS); }
   const P = [];
   const seenIds = {};
   arr(CT.products).forEach(function (raw, idx) {
@@ -129,13 +136,25 @@ window.Mercy = window.Mercy || {};
     const sizes = uniqueBy(strList(raw.sizes), function (s) { return s; });
     const entries = uniqueBy(arr(raw.colors).filter(function (c) { return c && typeof c === "object" && c.color; }), function (c) { return c.color; });
     const colors = entries.map(function (c) { return str(c.color); });
-    const stock = {}, colorPhotos = {};
+    const prints = uniqueBy(arr(raw.prints).filter(function (x) { return x && typeof x === "object" && x.id; }), function (x) { return str(x.id); })
+      .map(function (x) { return { id: str(x.id), name: str(x.name) || str(x.id), hex: hex(x.hex, "#999999") }; });
+    const stock = {}, colorPhotos = {}, printPhotos = {};
     entries.forEach(function (c) {
       const id = str(c.color);
       const st = c.stock && typeof c.stock === "object" ? c.stock : {};
       stock[id] = {};
       sizes.forEach(function (s) { const n = Math.floor(num(st[s], 0)); stock[id][s] = n > 0 ? n : 0; });
-      colorPhotos[id] = arr(c.photos).map(normPhoto).filter(Boolean).slice(0, 4);   // máx. 4 por color
+      colorPhotos[id] = photoList(c.photos);
+      /* Fotos de la combinación color + estampado: claves en el orden de prints; un estampado borrado se ignora */
+      const pp = c.printPhotos && typeof c.printPhotos === "object" && !Array.isArray(c.printPhotos) ? c.printPhotos : null;
+      if (!pp) return;
+      const combos = {};
+      prints.forEach(function (x) {
+        if (!Object.prototype.hasOwnProperty.call(pp, x.id)) return;
+        const list = photoList(pp[x.id]);
+        if (list.length) combos[x.id] = list;
+      });
+      if (Object.keys(combos).length) printPhotos[id] = combos;
     });
 
     const t = raw.tile && typeof raw.tile === "object" ? raw.tile : {};
@@ -157,10 +176,8 @@ window.Mercy = window.Mercy || {};
       envioGratis: !!raw.envioGratis,
       bestRank: num(raw.bestRank, 1000 + idx), newRank: num(raw.newRank, 1000 + idx),
       rating: Math.max(0, Math.min(5, num(raw.rating, 0))), reviews: reviewsCount, reviewsCount: reviewsCount,
-      colors: colors, stock: stock, colorPhotos: colorPhotos,
-      prints: arr(raw.prints).filter(function (x) { return x && x.id; }).map(function (x) {
-        return { id: str(x.id), name: str(x.name) || str(x.id), hex: hex(x.hex, "#999999") };
-      }),
+      colors: colors, stock: stock, colorPhotos: colorPhotos, printPhotos: printPhotos,
+      prints: prints,
       video: raw.video && typeof raw.video === "object" && str(raw.video.src).trim()
         ? { src: str(raw.video.src).trim(), poster: str(raw.video.poster).trim() } : null,
       tile: {
@@ -173,13 +190,15 @@ window.Mercy = window.Mercy || {};
       details: details.length ? details : (cat ? cat.details.slice() : []),
       care: care.length ? care : CARE.slice()
     };
+    /* Estampado con el que abre la ficha ("" = la prenda no tiene) */
+    p.initialPrint = prints.length ? prints[0].id : "";
     /* Sin estampados la propiedad no existe (forma de siempre: store.js asume p.prints[0] si la hay) */
     if (!p.prints.length) delete p.prints;
     p.soldOut = !!raw.soldOut || colors.every(function (c) {
       return Object.keys(stock[c]).every(function (s) { return stock[c][s] === 0; });
     });
     p.initialColor = colors.filter(function (c) { return colorHasStock(p, c); })[0] || colors[0] || "";
-    p.photos = photosFor(p, p.initialColor);
+    p.photos = mainPhotos(p);
     P.push(p);
   });
 
@@ -199,13 +218,37 @@ window.Mercy = window.Mercy || {};
       (Object.prototype.hasOwnProperty.call(ALIASES, k) && BY_ID[ALIASES[k]]) || null;
   }
 
-  /* Fotos del color (1–4); si ese color no tiene, las del primer color con fotos; si ninguno, []. */
-  function photosFor(p, colorId) {
+  /* Fotos que se ven para un color + estampado (regla común de tienda, panel y servidor; nunca se mezclan):
+       1. las de la combinación color + estampado, si tiene;  2. las del color base;
+       3. las de ese estampado en el primer color (orden de la prenda) que las tenga;
+       4. las del primer color base con fotos;  5. [] (degradados de marca).
+     printId sin pasar (undefined) = estampado inicial de la prenda; "" = sin estampado (los pasos 1 y 3 no aplican). */
+  function photosFor(p, colorId, printId) {
     if (!p || !p.colorPhotos) return (p && p.photos) || [];
-    const own = p.colorPhotos[colorId];
-    if (own && own.length) return own;
-    const first = (p.colors || []).filter(function (c) { return p.colorPhotos[c] && p.colorPhotos[c].length; })[0];
-    return first ? p.colorPhotos[first] : [];
+    const pp = p.printPhotos || {};
+    const pr = printId === undefined ? str(p.initialPrint) : str(printId);
+    const combo = function (c) { const l = pr && own(own(pp, c), pr); return l && l.length ? l : null; };
+    const base = function (c) { const l = own(p.colorPhotos, c); return l && l.length ? l : null; };
+    const colors = p.colors || [];
+    let hit = combo(colorId) || base(colorId);
+    for (let i = 0; !hit && i < colors.length; i++) hit = combo(colors[i]);
+    for (let i = 0; !hit && i < colors.length; i++) hit = base(colors[i]);
+    return hit || [];
+  }
+  /* Foto principal (tarjetas de catálogo, inicio, búsqueda y favoritos): color y estampado iniciales; si la prenda solo
+     tiene fotos de OTRO estampado, la primera lista de combinación (colores en orden y, en cada uno, estampados en orden). */
+  function mainPhotos(p) {
+    const list = photosFor(p, p.initialColor, p.initialPrint);
+    if (list.length) return list;
+    const pp = p.printPhotos || {};
+    const prints = p.prints || [];
+    for (let i = 0; i < p.colors.length; i++) {
+      for (let j = 0; j < prints.length; j++) {
+        const l = own(own(pp, p.colors[i]), prints[j].id);
+        if (l && l.length) return l;
+      }
+    }
+    return [];
   }
   function stockOf(p, color, size) {
     return p && p.stock && p.stock[color] && p.stock[color][size] != null ? p.stock[color][size] : 0;

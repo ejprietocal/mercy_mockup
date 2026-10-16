@@ -4,7 +4,8 @@
    · Facebook, Instagram y WhatsApp no ejecutan JavaScript: leen el HTML tal cual. Por eso el servidor escribe en el
      <head> de index.html, catalogo.html, producto.html (según ?id=) y checkout.html el título, la descripción, la
      imagen y la URL canónica calculados del contenido (settings.seo, texts.catalog / texts.checkout, el producto y
-     su primera foto). El JavaScript de la tienda pone después los mismos valores (coherente con y sin servidor).
+     su FOTO PRINCIPAL, la misma de la tarjeta del catálogo). El JavaScript de la tienda pone después los mismos
+     valores (coherente con y sin servidor).
    · GET /api/public/feed-meta.csv: productos publicados en el formato de catálogo de Meta (Commerce Manager).
    · URL absolutas: PUBLIC_URL si está definida; si no, host y protocolo de la petición (X-Forwarded-* con TRUST_PROXY).
    ========================================================================== */
@@ -13,6 +14,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { requestHost, sendBody } from "./http.js";
 import { STORE_CSP } from "./static.js";
+import { MAX_PHOTOS_PER_COLOR, MAX_PHOTOS_PER_PRINT } from "./validate.js";
 
 const PAGE_FILES = { "/": "index.html", "/index.html": "index.html", "/catalogo.html": "catalogo.html", "/producto.html": "producto.html", "/checkout.html": "checkout.html" };
 export const isStorePage = (pathname) => Object.prototype.hasOwnProperty.call(PAGE_FILES, pathname);
@@ -46,13 +48,73 @@ export function absUrl(origin, u) {
   return origin + (s.startsWith("/") ? s : "/" + s);
 }
 
-/** Fotos del producto: primero las del primer color que tenga, luego las de los demás (sin repetir). */
+/* ---------- Fotos del producto (MISMA regla que Mercy.data.photosFor en js/data.js y el panel) ----------
+   colors[] = { color, photos (color base, 0–10), printPhotos?: { [idEstampado]: [1–10 fotos] }, stock }. */
+const photoList = (list, max = MAX_PHOTOS_PER_COLOR) => (Array.isArray(list) ? list.filter((ph) => ph && typeof ph.src === "string" && ph.src.trim()).slice(0, max) : []);
+/** Colores del producto sin repetir (el primero gana, como la tienda). */
+function colorEntries(p) {
+  const seen = new Set();
+  return (p.colors || []).filter((c) => {
+    if (!c || typeof c !== "object" || !c.color || seen.has(c.color)) return false;
+    seen.add(c.color);
+    return true;
+  });
+}
+const printIdsOf = (p) => (p.prints || []).map((x) => (x && x.id ? String(x.id) : "")).filter(Boolean);
+/** Fotos de la combinación color + estampado (solo si el estampado existe en el producto). */
+function printList(p, c, printId) {
+  if (!printId || !c || !c.printPhotos || typeof c.printPhotos !== "object" || !printIdsOf(p).includes(printId)) return [];
+  return Object.hasOwn(c.printPhotos, printId) ? photoList(c.printPhotos[printId], MAX_PHOTOS_PER_PRINT) : [];
+}
+function colorHasStock(p, c) {
+  return (p.sizes || []).some((s) => Math.floor(Number(c.stock?.[s]) || 0) > 0);
+}
+/** Color inicial de la ficha: el primero con stock; si ninguno, el primero (como js/data.js). */
+export const initialColor = (p) => { const cs = colorEntries(p); return (cs.find((c) => colorHasStock(p, c)) || cs[0])?.color || ""; };
+/** Estampado inicial: el primero del producto o "" (sin estampados). */
+export const initialPrint = (p) => printIdsOf(p)[0] || "";
+
+/**
+ * Fotos que muestra la ficha para color + estampado (printId undefined = estampado inicial; "" = sin estampado):
+ * 1. las de la combinación · 2. las del color base · 3. las de ese estampado en el primer color que las tenga
+ * · 4. las del primer color con fotos · 5. [] (la tienda usa los degradados de marca).
+ */
+export function photosFor(p, colorId, printId) {
+  if (printId === undefined) printId = initialPrint(p);
+  const cs = colorEntries(p);
+  const c = cs.find((x) => x.color === colorId);
+  let list = printList(p, c, printId);
+  if (list.length) return list;
+  if ((list = photoList(c?.photos)).length) return list;
+  for (const x of cs) if ((list = printList(p, x, printId)).length) return list;
+  for (const x of cs) if ((list = photoList(x.photos)).length) return list;
+  return [];
+}
+
+/** FOTO PRINCIPAL (tarjetas, og:image, feed): la primera de color + estampado iniciales; si no hay, la de la primera
+ *  combinación con fotos (colores en orden y, en cada uno, estampados en orden). → objeto foto | null */
+export function productMainPhoto(p) {
+  const first = photosFor(p, initialColor(p), initialPrint(p))[0];
+  if (first) return first;
+  const ids = printIdsOf(p);
+  for (const c of colorEntries(p)) for (const id of ids) { const l = printList(p, c, id); if (l.length) return l[0]; }
+  return null;
+}
+
+/** URL de las fotos del producto sin repetir: la principal y luego, por color, las del color base y las de cada
+ *  estampado (orden de los estampados). */
 export function productPhotos(p) {
   const out = [];
-  for (const c of p.colors || []) for (const ph of c.photos || []) if (ph && ph.src && !out.includes(ph.src)) out.push(ph.src);
+  const add = (ph) => { if (ph && ph.src && !out.includes(ph.src)) out.push(ph.src); };
+  add(productMainPhoto(p));
+  const ids = printIdsOf(p);
+  for (const c of colorEntries(p)) {
+    photoList(c.photos).forEach(add);
+    for (const id of ids) printList(p, c, id).forEach(add);
+  }
   return out;
 }
-export const productImage = (p) => productPhotos(p)[0] || "";
+export const productImage = (p) => productMainPhoto(p)?.src || "";
 
 export function stockTotal(p) {
   let n = 0;
@@ -152,7 +214,11 @@ export function injectHead(html, m) {
   return /<\/head>/i.test(out) ? out.replace(/<\/head>/i, () => block + "</head>") : out;
 }
 
-/** Feed de catálogo para Meta (CSV): solo productos publicados; precio «79900.00 COP»; enlaces y fotos absolutos. */
+/**
+ * Feed de catálogo para Meta (CSV): solo productos publicados; precio «79900.00 COP»; enlaces y fotos absolutos.
+ * image_link = foto principal (la de la tarjeta); additional_image_link = hasta 10 fotos más, sin repetir (por color:
+ * las del color base y luego las de cada estampado).
+ */
 export function metaFeedCsv(data, origin) {
   const cols = ["id", "title", "description", "availability", "condition", "price", "link", "image_link", "additional_image_link", "brand", "product_type"];
   const q = (v) => `"${String(v ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""')}"`;

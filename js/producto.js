@@ -1,11 +1,15 @@
 /* ==========================================================================
    Mercy Studio — producto.js
-   Pantalla de detalle de producto:  producto.html?id=<id>
+   Pantalla de detalle de producto:  producto.html?id=<id>[&color=<id>&print=<id>]
+   (color / print válidos fijan la variante con la que abre: enlaces del carrito y del checkout).
    Comentarios aplicados: C23/C24 (stock / no disponible), C25 (etiqueta de color
    encima), C26/C27 (solo "Agregar al carrito"), C28 (acordeones ítem por ítem +
    Medidas/Tallas), C32/C34 (envío), C43 (tachón diagonal), C44 (carrito overlay).
-   Galería: fotos (1–4) del COLOR seleccionado + diapositiva de video al final; se rehace
-   al cambiar de color. Sin fotos en ningún color: 3 degradados + video (como siempre).
+   Galería: fotos (hasta 10) de la combinación COLOR + ESTAMPADO elegida o, si no tiene, las del
+   color base (Mercy.data.photosFor; no se mezclan) + diapositiva de video al final SOLO si la
+   prenda tiene video. Se rehace al cambiar de color o de estampado si cambia el juego de fotos.
+   Sin fotos: 3 degradados (+ video si lo hay). Con una sola diapositiva no hay flechas, puntos
+   ni miniaturas.
    ========================================================================== */
 (function () {
   "use strict";
@@ -83,10 +87,13 @@
   const hasPrints = !!(p.prints && p.prints.length);
   const hasChart = !!p.sizeChart;
 
+  /* Variante pedida en la dirección (?color=&print=, p. ej. desde el carrito): solo si existe en la prenda */
+  const askColor = U.qs().get("color"), askPrint = U.qs().get("print");
   const st = {
-    color: p.initialColor || p.colors.filter(function (c) { return D.colorHasStock(p, c); })[0] || p.colors[0] || "",
+    color: askColor && p.colors.indexOf(askColor) > -1 ? askColor
+      : p.initialColor || p.colors.filter(function (c) { return D.colorHasStock(p, c); })[0] || p.colors[0] || "",
     fit: hasFits ? p.fits[0] : "",
-    print: hasPrints ? p.prints[0].id : "",
+    print: hasPrints ? (askPrint && p.prints.some(function (x) { return x.id === askPrint; }) ? askPrint : p.prints[0].id) : "",
     size: "",
     qty: 1
   };
@@ -134,38 +141,43 @@
   const thumbsEl = $("#gallery-thumbs");
   const dotsEl = $("#gallery-dots");
   const galleryEl = $("#gallery");
+  const HAS_VIDEO = !!(p.video && p.video.src);
   let N_SLIDES = 4;
-  let VIDEO_INDEX = 3;
+  let VIDEO_INDEX = -1;            /* -1 = sin diapositiva de video (la prenda no tiene) */
   let gi = 0;
   let lockUntil = 0;
-  let shownPhotos = null;          /* fotos que muestra la galería ahora (para no rehacerla si el color comparte fotos) */
+  let shownKey = null;             /* juego de fotos que muestra la galería ahora (para no rehacerla si no cambia) */
 
-  /* Diapositivas: fotos del color (1–4) + video al final. Sin fotos (o showPhotos apagado): 3 degradados + video. */
-  function galleryPlan(color) {
-    const photos = M.config.stockPhotos ? D.photosFor(p, color) : [];
+  /* Diapositivas: fotos del color + estampado (hasta 10) + video al final si lo hay.
+     Sin fotos (o showPhotos apagado): 3 degradados (+ video si lo hay). */
+  function galleryPlan(color, print) {
+    const photos = M.config.stockPhotos ? D.photosFor(p, color, print) : [];
     const n = photos.length || 3;
     const slides = [];
     for (let i = 0; i < n; i++) slides.push({ index: i, variant: photos.length ? 0 : i, video: false });
-    slides.push({ index: 0, variant: photos.length ? 0 : 3, video: true });
+    if (HAS_VIDEO) slides.push({ index: 0, variant: photos.length ? 0 : 3, video: true });
     return { photos: photos, slides: slides };
+  }
+  /* Clave del juego de fotos por CONTENIDO (dos variantes pueden traer fotos iguales en listas distintas) */
+  function photosKey(photos) {
+    return photos.map(function (ph) { return [ph.src, ph.zoom, ph.ox, ph.oy].join("|"); }).join("\n");
   }
 
   function renderGallery() {
-    const plan = galleryPlan(st.color);
-    shownPhotos = plan.photos;
+    const plan = galleryPlan(st.color, st.print);
+    shownKey = photosKey(plan.photos);
     N_SLIDES = plan.slides.length;
-    VIDEO_INDEX = N_SLIDES - 1;
-    const hasVideo = !!(p.video && p.video.src);
+    VIDEO_INDEX = HAS_VIDEO ? N_SLIDES - 1 : -1;
     const slides = [];
     const thumbs = [];
     plan.slides.forEach(function (sl, v) {
-      const base = { variant: sl.variant, index: sl.index, video: sl.video, color: st.color };
+      const base = { variant: sl.variant, index: sl.index, video: sl.video, color: st.color, print: st.print };
       const tile = U.tileHTML(p, Object.assign({ sub: v === 0, size: "large", eager: v === 0 }, base));
       const label = sl.video ? "Video" : "Foto " + (v + 1);
       slides.push(
         '<div class="gallery__slide" role="group" aria-roledescription="diapositiva" aria-label="' + (v + 1) + " de " + N_SLIDES + " · " + label + '">' +
         (sl.video
-          ? '<button type="button" class="gallery__play" data-video aria-haspopup="dialog" aria-label="Reproducir video de ' + esc(p.name) + (hasVideo ? "" : " (próximamente)") + '">' + tile + "</button>"
+          ? '<button type="button" class="gallery__play" data-video aria-haspopup="dialog" aria-label="Reproducir video de ' + esc(p.name) + '">' + tile + "</button>"
           : tile) +
         "</div>"
       );
@@ -178,23 +190,43 @@
     track.innerHTML = slides.join("");
     thumbsEl.innerHTML = thumbs.join("");
     dotsEl.innerHTML = new Array(N_SLIDES + 1).join('<span class="gallery__dot"></span>');
+
+    /* Una sola diapositiva (1 foto, sin video): sin flechas, puntos ni miniaturas, y el escenario deja de ser carrusel */
+    const single = N_SLIDES <= 1;
+    $("#gallery-prev").hidden = single;
+    $("#gallery-next").hidden = single;
+    dotsEl.hidden = single;
+    thumbsEl.hidden = single;
+    galleryEl.classList.toggle("is-single", single);
+    if (single) galleryEl.removeAttribute("aria-roledescription"); else galleryEl.setAttribute("aria-roledescription", "carrusel");
+    track.tabIndex = single ? -1 : 0;
+    track.setAttribute("aria-label", (HAS_VIDEO ? "Fotos y video de la prenda" : "Fotos de la prenda") + (single ? "" : ". Usa las flechas del teclado para cambiar."));
   }
 
-  /* Al cambiar de color: si cambian las fotos, se rehace la galería y vuelve a la foto 1 */
-  function refreshGalleryForColor() {
-    const next = galleryPlan(st.color).photos;
-    if (next === shownPhotos || (!next.length && !shownPhotos.length)) return;
+  /* Al cambiar de color o de estampado: si cambia el juego de fotos, se rehace la galería y vuelve a la foto 1 */
+  function refreshGallery() {
+    const next = galleryPlan(st.color, st.print).photos;
+    if ((!next.length && !shownKey) || photosKey(next) === shownKey) return;
     renderGallery();
     gi = 0;
     lockUntil = Date.now() + 120;
     track.scrollTo({ left: 0, behavior: "auto" });
+    thumbsEl.scrollTo({ left: 0, top: 0, behavior: "auto" });
+    /* Si había un desplazamiento suave en curso (flecha, miniatura…), Chrome puede dejar el track a medio camino entre
+       dos fotos: se repite el reinicio en el siguiente cuadro (el bloqueo de 120 ms lo cubre) */
+    requestAnimationFrame(function () {
+      track.scrollTo({ left: 0, behavior: "auto" });
+      thumbsEl.scrollTo({ left: 0, top: 0, behavior: "auto" });
+    });
     syncGallery();
   }
 
   function renderGalleryChrome() {
     $("#gallery-prev").innerHTML = I("chevron-left", { size: 22, stroke: 2 });
     $("#gallery-next").innerHTML = I("chevron-right", { size: 22, stroke: 2 });
-    $("#gallery-video-icon").innerHTML = I("play", { size: 12 });
+    /* Chip «Ver video»: solo si la prenda tiene video */
+    $("#gallery-video").hidden = !HAS_VIDEO;
+    if (HAS_VIDEO) $("#gallery-video-icon").innerHTML = I("play", { size: 12 });
 
     const fav = S.favs.has(p.id);
     $("#gallery-fav-slot").innerHTML =
@@ -202,17 +234,44 @@
       (fav ? "Quitar de favoritos" : "Guardar en favoritos") + ": " + esc(p.name) + '">' + I(fav ? "heart-fill" : "heart", { size: 22 }) + "</button>";
   }
 
+  /* Mantiene la miniatura activa a la vista DENTRO de su contenedor (columna con scroll en escritorio, fila en móvil).
+     Se calcula el desplazamiento del contenedor a mano: scrollIntoView podría mover también la página. */
+  function revealThumb(smooth) {
+    const b = thumbsEl.children[gi];
+    if (!b || thumbsEl.hidden) return;
+    const c = thumbsEl.getBoundingClientRect(), r = b.getBoundingClientRect();
+    if (!c.width && !c.height) return;
+    const cs = getComputedStyle(thumbsEl);
+    const pad = function (side) { return parseFloat(cs["padding" + side]) || 0; };
+    /* Posición del botón dentro del contenido desplazable */
+    const x = r.left - c.left - thumbsEl.clientLeft + thumbsEl.scrollLeft;
+    const y = r.top - c.top - thumbsEl.clientTop + thumbsEl.scrollTop;
+    let left = thumbsEl.scrollLeft, top = thumbsEl.scrollTop;
+    if (x < left + pad("Left")) left = x - pad("Left");
+    else if (x + r.width > left + thumbsEl.clientWidth - pad("Right")) left = x + r.width - thumbsEl.clientWidth + pad("Right");
+    if (y < top + pad("Top")) top = y - pad("Top");
+    else if (y + r.height > top + thumbsEl.clientHeight - pad("Bottom")) top = y + r.height - thumbsEl.clientHeight + pad("Bottom");
+    left = Math.max(0, Math.min(left, thumbsEl.scrollWidth - thumbsEl.clientWidth));
+    top = Math.max(0, Math.min(top, thumbsEl.scrollHeight - thumbsEl.clientHeight));
+    if (Math.abs(left - thumbsEl.scrollLeft) < 1 && Math.abs(top - thumbsEl.scrollTop) < 1) return;
+    thumbsEl.scrollTo({ left: left, top: top, behavior: smooth && !reduceMotion ? "smooth" : "auto" });
+  }
+
   function syncGallery() {
     $$(".gallery__thumb", thumbsEl).forEach(function (b, i) { b.setAttribute("aria-current", String(i === gi)); });
     $$(".gallery__dot", dotsEl).forEach(function (d, i) { d.classList.toggle("is-on", i === gi); });
     $("#gallery-status").textContent = (gi === VIDEO_INDEX ? "Video" : "Foto " + (gi + 1)) + ", " + (gi + 1) + " de " + N_SLIDES;
+    revealThumb(true);
   }
 
   function goTo(i, opts) {
     opts = opts || {};
+    const from = gi;
     gi = ((i % N_SLIDES) + N_SLIDES) % N_SLIDES;
     if (opts.scroll !== false) {
-      lockUntil = Date.now() + (reduceMotion ? 60 : 520);
+      /* El desplazamiento suave dura más cuanto más lejos va (hasta ~1,4 s con 10 fotos + video): el bloqueo crece con
+         la distancia para que el scroll intermedio no marque fotos de paso (estado aria, puntos, miniatura activa) */
+      lockUntil = Date.now() + (reduceMotion ? 60 : Math.min(1800, 420 + 110 * Math.abs(gi - from)));
       track.scrollTo({ left: gi * track.clientWidth, behavior: reduceMotion ? "auto" : "smooth" });
     }
     syncGallery();
@@ -236,9 +295,17 @@
         syncFromScroll();
       }, 160);
     }, { passive: true });
+    /* Fin real del desplazamiento (navegadores con scrollend): si llegó a la foto destino se suelta el bloqueo en seguida;
+       si se interrumpió a medio camino, sigue el bloqueo y lo resuelve el temporizador de arriba */
+    track.addEventListener("scrollend", function () {
+      if (Date.now() < lockUntil && Math.round(track.scrollLeft / (track.clientWidth || 1)) !== gi) return;
+      lockUntil = 0;
+      syncFromScroll();
+    }, { passive: true });
 
     window.addEventListener("resize", U.debounce(function () {
       track.scrollTo({ left: gi * track.clientWidth, behavior: "auto" });
+      revealThumb(false);             /* la columna pasa a fila (o al revés) al cruzar 900 px */
     }, 120));
 
     thumbsEl.addEventListener("click", function (e) {
@@ -249,7 +316,7 @@
     $("#gallery-next").addEventListener("click", function () { goTo(gi + 1); });
 
     galleryEl.addEventListener("keydown", function (e) {
-      if (e.target.closest("input, textarea, select")) return;
+      if (N_SLIDES <= 1 || e.target.closest("input, textarea, select")) return;   /* una sola foto: nada que recorrer */
       if (e.key === "ArrowRight") { e.preventDefault(); goTo(gi + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); goTo(gi - 1); }
       else if (e.key === "Home" && e.target === track) { e.preventDefault(); goTo(0); }
@@ -257,32 +324,25 @@
     });
 
     galleryEl.addEventListener("click", function (e) {
-      if (e.target.closest("[data-video], #gallery-video")) openVideo();
+      if (HAS_VIDEO && e.target.closest("[data-video], #gallery-video")) openVideo();
     });
   }
 
-  /* Video de la prenda (p.video): reproductor real; sin video, el aviso "Video próximamente" */
+  /* Video de la prenda (p.video): reproductor real. Sin video no hay diapositiva ni chip que lo abran. */
   function openVideo() {
-    const v = p.video && p.video.src ? p.video : null;
-    if (v) {
-      const poster = U.safeUrl(v.poster);
-      const el = U.infoModal("video-modal", p.name,
-        '<div class="video-player"><video class="video-player__el" controls playsinline preload="metadata"' + (poster ? ' poster="' + esc(poster) + '"' : "") +
-        ' src="' + esc(U.safeUrl(v.src)) + '" aria-label="Video de ' + esc(p.name) + '"></video></div>');
-      const video = $("video", el);
-      /* Al cerrar el modal se detiene el video */
-      const stop = function (e) {
-        if (e.detail && e.detail.el === el) { try { video.pause(); } catch (err) {} document.removeEventListener("mercy:overlay-close", stop); }
-      };
-      document.addEventListener("mercy:overlay-close", stop);
-      if (!reduceMotion) { const q = video.play(); if (q && q.catch) q.catch(function () {}); }
-      return;
-    }
-    U.infoModal("video-modal", p.name,
-      '<div class="video-ph" role="img" aria-label="' + esc(tx("product.videoSoonTitle", "Video próximamente")) + '">' +
-      '<div class="video-ph__bg">' + U.tileHTML(p, { variant: 2, index: 2, size: "large", alt: "", color: st.color }) + "</div>" +
-      '<div class="video-ph__msg"><span class="video-ph__icon">' + I("play", { size: 34 }) + "</span>" +
-      "<strong>" + esc(tx("product.videoSoonTitle", "Video próximamente")) + "</strong><span>" + esc(tx("product.videoSoonText", "Estamos preparando el video de esta prenda.")) + "</span></div></div>");
+    const v = HAS_VIDEO ? p.video : null;
+    if (!v) return;
+    const poster = U.safeUrl(v.poster);
+    const el = U.infoModal("video-modal", p.name,
+      '<div class="video-player"><video class="video-player__el" controls playsinline preload="metadata"' + (poster ? ' poster="' + esc(poster) + '"' : "") +
+      ' src="' + esc(U.safeUrl(v.src)) + '" aria-label="Video de ' + esc(p.name) + '"></video></div>');
+    const video = $("video", el);
+    /* Al cerrar el modal se detiene el video */
+    const stop = function (e) {
+      if (e.detail && e.detail.el === el) { try { video.pause(); } catch (err) {} document.removeEventListener("mercy:overlay-close", stop); }
+    };
+    document.addEventListener("mercy:overlay-close", stop);
+    if (!reduceMotion) { const q = video.play(); if (q && q.catch) q.catch(function () {}); }
   }
 
   /* ------------------------------------------------------------------ */
@@ -476,6 +536,8 @@
   const REASONS = {
     talla: "Elige una talla para agregar la prenda al carrito.",
     "sin-stock": "Esa talla está agotada en este color. Elige otra.",
+    /* El stock es por color × talla: otras líneas del carrito (otro estampado u horma) ya tienen todas las unidades */
+    tope: "Ya tienes en el carrito todas las unidades disponibles de esta talla en este color.",
     agotado: "Esta prenda está agotada por ahora.",
     color: "Elige un color disponible.",
     producto: "No pudimos encontrar la prenda. Intenta de nuevo."
@@ -607,9 +669,13 @@
     st.color = v;
     st.size = pickSize();
     update();
-    refreshGalleryForColor();          /* fotos del color elegido */
+    refreshGallery();                  /* fotos del color (+ estampado) elegido */
   });
-  bindRadio(printGroup, "data-print", function (v) { st.print = v; update(); });
+  bindRadio(printGroup, "data-print", function (v) {
+    st.print = v;
+    update();
+    refreshGallery();                  /* fotos de la combinación, o las del color si no tiene */
+  });
   bindRadio(sizeGroup, "data-size", function (v) { st.size = v; update(); });
 
   $("#qty-slot").addEventListener("click", function (e) {

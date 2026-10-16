@@ -166,7 +166,10 @@
     return [it.color.name, it.fitName, it.size === "Única" ? "" : "Talla " + it.size, it.print ? "Estampado " + it.print.name : ""]
       .filter(Boolean).join(" · ");
   }
-  function pUrl(p) { return "producto.html?id=" + encodeURIComponent(p.id); }
+  /* Ficha en la misma variante de la línea (color + estampado) */
+  function pUrl(it) { return U.productUrl(it.product, it.colorId, it.print ? it.print.id : ""); }
+  /* Foto de la variante de la línea */
+  function lineTile(it) { return U.tileHTML(it.product, { size: "thumb", alt: "", color: it.colorId, print: it.print ? it.print.id : "" }); }
 
   function renderCartLines() {
     const items = S.cart.items();
@@ -175,9 +178,9 @@
       const p = it.product;
       return (
         '<li class="co-line" data-key="' + esc(it.key) + '">' +
-        '<a class="co-line__thumb" href="' + pUrl(p) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId }) + "</a>" +
+        '<a class="co-line__thumb" href="' + esc(pUrl(it)) + '" tabindex="-1" aria-hidden="true">' + lineTile(it) + "</a>" +
         '<div class="co-line__info">' +
-        '<p class="co-line__name"><a href="' + pUrl(p) + '">' + esc(p.name) + "</a></p>" +
+        '<p class="co-line__name"><a href="' + esc(pUrl(it)) + '">' + esc(p.name) + "</a></p>" +
         '<p class="co-line__variant">' + esc(variantText(it)) + "</p>" +
         '<div class="co-line__row">' + U.stepperHTML(it.qty) + '<span class="co-line__price">' + money(it.lineTotal) + "</span></div></div>" +
         '<button type="button" class="icon-btn icon-btn--sm co-line__remove" data-co-remove aria-label="Quitar ' + esc(p.name) + ' del carrito">' + I("trash", { size: 18 }) + "</button></li>"
@@ -195,7 +198,7 @@
     sumLinesEl.innerHTML = S.cart.items().map(function (it) {
       const p = it.product;
       return (
-        '<li class="sum-line"><div class="sum-line__thumb">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId }) + "</div>" +
+        '<li class="sum-line"><div class="sum-line__thumb">' + lineTile(it) + "</div>" +
         '<div class="sum-line__info"><p class="sum-line__name">' + esc(p.name) + "</p>" +
         '<p class="sum-line__variant">' + esc(variantText(it)) + "</p>" +
         '<p class="sum-line__qty">Cantidad: ' + it.qty + "</p></div>" +
@@ -545,7 +548,8 @@
         const next = it.qty + dir;
         refocus = { key: key, step: String(dir) };
         if (next < 1) { refocus = null; S.cart.remove(key); return; }
-        if (next > it.stock) { refocus = null; U.toast("Solo quedan " + it.stock + " unidades de esta talla", { icon: "info" }); return; }
+        /* Tope de la línea: el stock de esa talla y color menos las otras líneas (otro estampado u horma) */
+        if (next > it.max) { refocus = null; U.toast("Solo quedan " + it.stock + " unidades de esta talla", { icon: "info" }); return; }
         S.cart.setQty(key, next);
         return;
       }

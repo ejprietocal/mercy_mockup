@@ -421,6 +421,8 @@ function watchForm(form, el, fn) {
     seen = true;
     fn(data);
   });
+  // Visto en cuanto entra al documento: si sale por un redibujo antes del siguiente cambio, ese cambio lo suelta igual
+  requestAnimationFrame(() => { if (el.isConnected) seen = true; });
   return off;
 }
 
@@ -1355,17 +1357,39 @@ function media(form, path, o = {}) {
   return s.wrap;
 }
 
-/** fields.photos(form, "colors.0.photos", { max: 4, label }) — fotos de un color de producto. */
+/**
+ * fields.photos(form, "colors.0.photos", { max: 4, label, listLabel, noun, emptyHint, uploadPath }) — fotos de un
+ * color de producto (o de una combinación color + estampado: noun "estampado"). noun y emptyHint pasan a
+ * photoListField (media.js); listLabel = nombre accesible de la grilla cuando `label` es corto (por defecto, `label`).
+ * Cada foto subida desde el equipo se agrega a la lista VIGENTE del formulario al terminar (no a la copia del campo,
+ * que pudo rehacerse mientras subía). uploadPath() (opcional, para rutas que cambian: p. ej. el código de un estampado
+ * nuevo al renombrarlo) se llama al empezar la subida y devuelve una función que, al terminar, da la ruta de ese
+ * momento ("" = la lista ya no existe: la foto no se agrega).
+ */
 function photos(form, path, o = {}) {
   const s = shell(o, { group: true });
+  const max = o.max ?? 4;
+  const noun = o.noun || "color";
   let entry;
   const pl = photoListField({
-    max: o.max ?? 4,
+    max,
     value: form.get(path) || [],
-    label: o.label,
+    label: o.listLabel || o.label,   // nombre accesible de la grilla (listLabel si la etiqueta visible es corta)
+    noun,
+    ...(o.emptyHint !== undefined ? { emptyHint: o.emptyHint } : {}),
     onChange: (arr) => {
       form.set(path, arr, { source: entry });
       o.onChange?.(arr, form);
+    },
+    onUploadStart: () => {
+      const target = o.uploadPath ? o.uploadPath() : () => path;
+      return (photo) => {
+        const p = target();
+        if (!p) return;
+        const next = [...(form.get(p) || []), photo];
+        form.set(p, next);                  // sin source: si el campo sigue vivo, se repinta con la lista nueva
+        o.onChange?.(next, form);
+      };
     },
   });
   entry = bind(form, path, s, {
@@ -1374,7 +1398,7 @@ function photos(form, path, o = {}) {
     display: (v) => pl.setValue(v || []),
     validate: (v) => {
       const n = (v || []).length;
-      if (n > (o.max ?? 4)) return `Máximo ${o.max ?? 4} fotos.`;
+      if (n > max) return `Máximo ${max} fotos por ${noun}.`;
       if (isRequired(o, form) && !n) return o.requiredMessage || "Agrega al menos una foto.";
       return null;
     },

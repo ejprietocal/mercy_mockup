@@ -8,8 +8,9 @@
    · openMediaPicker({ kind, multiple, max }) → Promise<item[] | null>: grilla, búsqueda, filtro,
        arrastrar y soltar para subir, y "Usar URL externa".
    · mediaField({ kind, value, onChange }) → vista previa + Elegir · Subir · Pegar URL · Quitar.
-   · photoListField({ max: 4, value, onChange }) → fotos de un color: ordenar (arrastrar / flechas),
-       quitar, texto alternativo y encuadre, agregar varias (biblioteca, subida o URL), tope con mensaje.
+   · photoListField({ max: 4, value, onChange, noun, emptyHint }) → fotos de un color (o de una combinación
+       color + estampado): ordenar (arrastrar / flechas), quitar, texto alternativo y encuadre, agregar varias
+       (biblioteca, subida o URL), tope con mensaje («máximo N fotos por <noun>»).
    · mediaApi: list / get / update / remove (atajos de la API de medios).
    · mediaThumb / pexelsSized: miniaturas livianas (las fotos de images.pexels.com se piden en 300 px en las
        miniaturas, 600 px en la vista previa de un campo y 1200 px en el editor de encuadre).
@@ -622,7 +623,7 @@ export function mediaField({ kind = "image", value = "", onChange, id, labelledB
 }
 
 /* ==========================================================================
-   Fotos de un color de producto (máx. 4)
+   Fotos de un color de producto o de una combinación color + estampado (tope `max`)
    ========================================================================== */
 const normPhoto = (p) => ({
   src: String(p?.src || ""),
@@ -634,10 +635,19 @@ const normPhoto = (p) => ({
 });
 
 /**
- * photoListField({ max: 4, value: [{ src, thumb, alt, zoom, ox, oy }], onChange: (lista) => …, label })
+ * photoListField({ max: 4, value: [{ src, thumb, alt, zoom, ox, oy }], onChange: (lista) => …, label, noun, emptyHint })
  * → elemento con .setValue(lista). La primera foto es la principal.
+ *   noun       a qué pertenecen las fotos en los avisos de tope: «máximo 10 fotos por color» (por defecto) o «… por estampado»
+ *   emptyHint  texto junto al contador cuando la lista está vacía (qué se muestra en la tienda sin fotos)
+ *   onUploadStart  (opcional) se llama al empezar cada subida desde el equipo y devuelve (foto) => void, que recibe la
+ *              foto subida EN LUGAR de agregarla a esta copia de la lista: así llega a la lista vigente aunque el campo
+ *              se haya rehecho mientras subía (f.photos lo usa siempre)
  */
-export function photoListField({ max = 4, value = [], onChange, label = "Fotos" } = {}) {
+export function photoListField({
+  max = 4, value = [], onChange, label = "Fotos", noun = "color",
+  emptyHint = "Este color usará las fotos del primer color que tenga.",
+  onUploadStart = null,
+} = {}) {
   let photos = (value || []).map(normPhoto);
   const pendings = [];
   const grid = h("ol.photo-list__grid", { "aria-label": label });
@@ -652,7 +662,7 @@ export function photoListField({ max = 4, value = [], onChange, label = "Fotos" 
   function addPhotos(list) {
     const free = room();
     const take = list.slice(0, Math.max(0, free));
-    if (list.length > take.length) toast(`Solo se agregaron ${take.length} de ${list.length}: máximo ${max} fotos por color.`, { type: "warning" });
+    if (list.length > take.length) toast(`Solo se agregaron ${take.length} de ${list.length}: máximo ${max} fotos por ${noun}.`, { type: "warning" });
     if (!take.length) return;
     photos.push(...take.map(normPhoto));
     render();
@@ -674,13 +684,14 @@ export function photoListField({ max = 4, value = [], onChange, label = "Fotos" 
   async function fromFiles(fileList) {
     const files = Array.from(fileList || []);
     const free = room();
-    if (files.length > free) toast(`Solo se subirán ${Math.max(0, free)} de ${files.length}: máximo ${max} fotos por color.`, { type: "warning" });
+    if (files.length > free) toast(`Solo se subirán ${Math.max(0, free)} de ${files.length}: máximo ${max} fotos por ${noun}.`, { type: "warning" });
     for (const file of files.slice(0, Math.max(0, free))) {
       const problem = checkFile(file, "image");
       if (problem) { toast(`${file.name}: ${problem}`, { type: "error" }); continue; }
       const bar = h("span.progress__bar");
       const lbl = h("span.photo-tile__state", "Preparando…");
       const p = { el: h("li.photo-tile.is-uploading", h("div.photo-tile__img", spinner()), lbl, h("span.progress", bar)) };
+      const deliver = onUploadStart?.();
       pendings.push(p);
       render();
       try {
@@ -692,8 +703,9 @@ export function photoListField({ max = 4, value = [], onChange, label = "Fotos" 
           },
         });
         pendings.splice(pendings.indexOf(p), 1);
-        photos.push(normPhoto({ src: item.url, thumb: item.thumbUrl || "", alt: item.alt || "" }));
-        emit();
+        const ph = normPhoto({ src: item.url, thumb: item.thumbUrl || "", alt: item.alt || "" });
+        if (deliver) deliver(ph);
+        else { photos.push(ph); emit(); }
       } catch (e) {
         pendings.splice(pendings.indexOf(p), 1);
         if (!isAbort(e)) toast(`${file.name}: ${e.message || "no se pudo subir."}`, { type: "error" });
@@ -838,7 +850,7 @@ export function photoListField({ max = 4, value = [], onChange, label = "Fotos" 
     const n = photos.length;
     count.replaceChildren(
       h("strong", `${n}/${max} fotos`),
-      n >= max ? " · Llegaste al máximo de fotos por color. Quita una para agregar otra." : n ? ` · ${canDrag() ? "Arrastra o usa las flechas para ordenar" : "Usa las flechas para ordenar"}. La primera es la principal.` : " · Este color usará las fotos del primer color que tenga.",
+      n >= max ? ` · Llegaste al máximo de fotos por ${noun}. Quita una para agregar otra.` : n ? ` · ${canDrag() ? "Arrastra o usa las flechas para ordenar" : "Usa las flechas para ordenar"}. La primera es la principal.` : emptyHint ? ` · ${emptyHint}` : "",
     );
   }
 

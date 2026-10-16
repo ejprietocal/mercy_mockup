@@ -18,7 +18,7 @@ import {
   badge, button, card, confirmDialog, dataTable, emptyState, iconButton, menu, modal, notice, pageHeader,
   showApiError, statCard, statusBadge, toast, withBusy,
 } from "../core/ui.js";
-import { date, dateTime, fold, money, number, plural, relativeTime, todayCO } from "../core/format.js";
+import { date, dateTime, fold, money, number, plural, productMainPhoto, relativeTime, todayCO } from "../core/format.js";
 import { pexelsSized } from "../core/media.js";
 
 const CODE_RE = /^[A-Z0-9_-]{3,30}$/;
@@ -194,9 +194,10 @@ function toForm(c) {
   };
 }
 
+/** Foto principal del producto (la de la tarjeta del catálogo), en su miniatura si la tiene. */
 function firstPhoto(p) {
-  for (const c of p.colors || []) if (c.photos?.length) return c.photos[0].thumb || c.photos[0].src;
-  return "";
+  const ph = productMainPhoto(p);
+  return ph ? ph.thumb || ph.src : "";
 }
 
 function productThumb(p) {

@@ -13,7 +13,7 @@ import { api } from "../core/api.js";
 import { content } from "../core/store.js";
 import { createForm, fields as f } from "../core/forms.js";
 import { button, canDrag, notice, pageHeader, section, toast } from "../core/ui.js";
-import { dateTime, isSafeUrl, number, plural, relativeTime, siteUrl } from "../core/format.js";
+import { dateTime, isSafeUrl, number, plural, productMainPhoto, relativeTime, siteUrl } from "../core/format.js";
 import { pexelsSized } from "../core/media.js";
 
 const REDUCE_MOTION = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -355,9 +355,10 @@ function bestSellersPreview(form, products) {
     .map((p, i) => ({ p, rank: Number.isFinite(Number(p.bestRank)) && p.bestRank !== null ? Number(p.bestRank) : 1000 + i }))
     .filter((x) => x.p.status === "published")
     .sort((a, b) => a.rank - b.rank);
+  // La foto de la tarjeta en la tienda (color y estampado iniciales), en su miniatura si la tiene
   const photo = (p) => {
-    for (const c of p.colors || []) if (c.photos?.length) return c.photos[0].thumb || c.photos[0].src;
-    return "";
+    const ph = productMainPhoto(p);
+    return ph ? ph.thumb || ph.src : "";
   };
   const upd = () => {
     const n = Math.max(1, Math.min(12, parseInt(form.get("bestSellers.count"), 10) || 4));

@@ -16,7 +16,7 @@ import { content } from "../core/store.js";
 import { session } from "../core/session.js";
 import { createForm, fields as f } from "../core/forms.js";
 import { badge, button, card, confirmDialog, modal, notice, pageHeader, sortHint, statusBadge } from "../core/ui.js";
-import { HEX_RE, dateTime, plural, relativeTime, siteUrl, slugify, truncate } from "../core/format.js";
+import { HEX_RE, dateTime, plural, productMainPhoto, relativeTime, siteUrl, slugify, truncate } from "../core/format.js";
 import { pexelsSized } from "../core/media.js";
 
 const enc = encodeURIComponent;
@@ -97,11 +97,10 @@ export function productsUsing(kind, id, products = content.data?.products || [])
 
 const published = (list) => list.filter((p) => p.status === "published");
 
+/** Miniatura con la foto principal del producto (la de la tarjeta del catálogo) o su degradado. */
 function productThumb(p) {
-  for (const c of p.colors || []) {
-    const ph = c.photos?.[0];
-    if (ph?.src) return h("span.tx-plist__thumb", h("img", { src: ph.thumb ? siteUrl(ph.thumb) : pexelsSized(ph.src, 160), alt: "", loading: "lazy" }));
-  }
+  const ph = productMainPhoto(p);
+  if (ph) return h("span.tx-plist__thumb", h("img", { src: ph.thumb ? siteUrl(ph.thumb) : pexelsSized(ph.src, 160), alt: "", loading: "lazy" }));
   return h("span.tx-plist__thumb", { style: { background: `linear-gradient(160deg, ${p.tile?.from || "#d8bea6"}, ${p.tile?.to || "#a76d4a"})` } });
 }
 

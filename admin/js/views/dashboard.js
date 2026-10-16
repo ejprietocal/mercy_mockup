@@ -9,7 +9,7 @@ import { api, isAbort } from "../core/api.js";
 import { content } from "../core/store.js";
 import { session } from "../core/session.js";
 import { button, card, emptyState, pageHeader, statCard, statusBadge } from "../core/ui.js";
-import { TZ, bytes, dateTime, number, plural, relativeTime } from "../core/format.js";
+import { TZ, bytes, dateTime, number, plural, productMainPhoto, relativeTime } from "../core/format.js";
 import { pexelsSized } from "../core/media.js";
 
 export const LOW_STOCK = 10; // igual que el servidor: 1–10 unidades = poco stock
@@ -30,9 +30,10 @@ function emptySizes(p) {
   return n;
 }
 
+/** Foto principal del producto (la de la tarjeta del catálogo), en su miniatura si la tiene. */
 function firstPhoto(p) {
-  for (const c of p.colors || []) if (c.photos?.length) return c.photos[0].thumb || c.photos[0].src;
-  return "";
+  const ph = productMainPhoto(p);
+  return ph ? ph.thumb || ph.src : "";
 }
 
 function activityHref(e) {
@@ -59,7 +60,7 @@ function greeting(name) {
 function quickLinks() {
   const all = [
     { href: "#/inicio", icon: "video", title: "Cambiar el video del inicio", desc: "Video de fondo, título, frases de la franja y botón de compra." },
-    { href: "#/productos/nuevo", icon: "shirt", title: "Crear un producto", desc: "Con colores, tallas, stock y hasta 4 fotos por color." },
+    { href: "#/productos/nuevo", icon: "shirt", title: "Crear un producto", desc: "Con colores, tallas, stock y hasta 10 fotos por color." },
     { href: "#/descuento", icon: "gift", title: "Editar el modal de descuento", desc: "Textos, imagen y cuándo aparece el pop-up." },
     { href: "#/cupones/nuevo", icon: "ticket", title: "Crear un cupón", desc: "Porcentaje o valor fijo, vigencia y límite de usos.", roles: ["admin"] },
     { href: "#/textos", icon: "text", title: "Textos del sitio", desc: "Franja superior, pie de página, envíos y cambios." },

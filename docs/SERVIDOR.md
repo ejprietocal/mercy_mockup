@@ -88,9 +88,21 @@ data/
 - `data/` está en `.gitignore`: **nunca** se sube al repositorio (tiene correos de clientes y hashes de contraseñas).
 - Si un JSON se daña, el servidor **no arranca** y dice cuál archivo es (para no sobrescribir datos con los de fábrica).
   Restaura ese archivo desde una copia de seguridad.
-- **Tamaño.** Cada revisión es una copia completa del contenido (sin formato). Con el catálogo de fábrica son unos 30 KB; con
-  ~200 productos de 4 colores × 4 fotos, unos 400 KB → las 200 revisiones ocupan ~80 MB. Súmale `uploads/` (fotos y videos: lo más
-  pesado). Reserva un volumen de al menos 1–2 GB y vigila el espacio si subes muchos videos.
+- **Tamaño.** Cada revisión es una copia completa del contenido (sin formato). Cada foto ocupa ~170–200 bytes de JSON (ruta, miniatura,
+  texto alternativo, encuadre). Con el catálogo de fábrica son unos 30 KB. Hasta 10 fotos por color y 10 por combinación color +
+  estampado (contrato §3), así que el peso depende de cuántas combinaciones tengan fotos propias:
+
+  | Catálogo (~200 productos) | Fotos por producto | Una revisión | 200 revisiones |
+  |---|---|---|---|
+  | 4 colores × 10 fotos, sin fotos de estampado | 40 | ~1,5–2 MB | ~300–400 MB |
+  | 4 colores × (10 + 2 estampados × 10) | 120 | ~4–5 MB | ~1 GB |
+  | Peor caso permitido: 12 colores × (10 + 12 estampados × 10) | 1.560 | ~55–60 MB | ~11–12 GB |
+
+  El peor caso es un tope teórico, no un uso esperado: un producto así pesa ~270–300 KB de JSON (cabe en el límite de 2 MB por
+  petición), pero un catálogo entero así haría además que `api/public/content.js`, que descarga **cada visitante**, pese ~55–60 MB
+  (~4–5 MB con gzip). Carga fotos de estampado solo en las combinaciones que de verdad se venden. Súmale `uploads/` (fotos y videos: lo
+  más pesado; cada foto optimizada pesa ~150–500 KB con su miniatura, o sea ~0,15–0,5 GB cada 1.000 fotos). Reserva un volumen de al
+  menos 2–5 GB según cuántas fotos de combinación cargues y vigila el espacio si subes muchos videos.
 
 ### Copias de seguridad
 

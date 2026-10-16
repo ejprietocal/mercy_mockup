@@ -1,4 +1,4 @@
-// Productos: CRUD, validación (colores/fotos/stock/referencias), renombrar, duplicar, conflictos
+// Productos: CRUD, validación (colores/fotos/stock/referencias), fotos por estampado, renombrar, duplicar, conflictos
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "./helpers.js";
@@ -73,10 +73,10 @@ test("id duplicado → 409 conflict con fields.id", async () => {
   assert.ok(r.data.error.fields.id);
 });
 
-test("validación: máximo 4 fotos por color, referencias, tallas, precio, URLs", async () => {
+test("validación: máximo 10 fotos por color, referencias, tallas, precio, URLs", async () => {
   const p = baseProduct();
   p.id = "otro-producto";
-  p.colors[0].photos.push(photo(5));
+  for (let n = 5; n <= 11; n++) p.colors[0].photos.push(photo(n));   // 11 fotos
   p.colors.push({ color: "fucsia", photos: [], stock: {} });
   p.colors.push({ color: "negro", photos: [], stock: {} });
   p.category = "pantalones";
@@ -91,7 +91,7 @@ test("validación: máximo 4 fotos por color, referencias, tallas, precio, URLs"
   const r = await admin.post("/api/admin/products", p);
   assert.equal(r.status, 422);
   const f = r.data.error.fields;
-  assert.equal(f["colors.0.photos"], "Máximo 4 fotos por color.");
+  assert.equal(f["colors.0.photos"], "Máximo 10 fotos por color.");
   for (const k of ["colors.2.color", "colors.3.color", "category", "collection", "fits.1", "sizes.1", "sizes.2", "price", "colors.1.photos.0.src", "colors.1.photos.0.ox", "video.src", "tile.from"]) {
     assert.ok(f[k], `falta fields["${k}"] en ${JSON.stringify(f)}`);
   }
@@ -100,6 +100,110 @@ test("validación: máximo 4 fotos por color, referencias, tallas, precio, URLs"
   assert.ok(empty.data.error.fields.colors);
   const badId = await admin.post("/api/admin/products", { ...baseProduct(), id: "Con Espacios" });
   assert.ok(badId.data.error.fields.id);
+});
+
+test("hasta 10 fotos por color se aceptan (todas, en orden)", async () => {
+  const p = { ...baseProduct(), id: "diez-fotos" };
+  p.colors[0].photos = Array.from({ length: 10 }, (_, i) => photo(100 + i));
+  const r = await admin.post("/api/admin/products", p);
+  assert.equal(r.status, 201, r.text);
+  assert.deepEqual(r.data.item.colors[0].photos.map((x) => x.alt), Array.from({ length: 10 }, (_, i) => `Foto ${100 + i}`));
+  assert.equal((await admin.del("/api/admin/products/diez-fotos")).status, 200);
+});
+
+/* ---------- Fotos por combinación color + estampado (colors[].printPhotos) ---------- */
+const printed = () => ({
+  ...baseProduct(),
+  id: "estampada",
+  name: "Camiseta Estampada",
+  prints: [{ id: "naranja", name: "Naranja", hex: "#e8620a" }, { id: "azul", name: "Azul noche", hex: "#2f2f63" }],
+  colors: [
+    {
+      color: "negro",
+      photos: [photo(1)],
+      // Claves en otro orden que los estampados, una de un estampado que no existe y una lista vacía
+      printPhotos: { azul: [photo(21)], fantasma: [photo(29)], naranja: [photo(22), { src: "/uploads/2026/10/m-n-naranja.webp" }] },
+      stock: { S: 1, M: 2, L: 3 },
+    },
+    { color: "crema", photos: [photo(2)], printPhotos: { naranja: [], fantasma: "no es una lista" }, stock: { S: 1 } },
+    { color: "terracota", photos: [], printPhotos: null, stock: {} },
+  ],
+});
+
+test("fotos por estampado: se guardan y devuelven; orden de los estampados; claves inexistentes y listas vacías fuera", async () => {
+  const r = await admin.post("/api/admin/products", printed());
+  assert.equal(r.status, 201, r.text);
+  const [negro, crema, terracota] = r.data.item.colors;
+  assert.deepEqual(Object.keys(negro), ["color", "photos", "printPhotos", "stock"]);
+  assert.deepEqual(Object.keys(negro.printPhotos), ["naranja", "azul"], "orden = orden de prints; «fantasma» se descarta");
+  assert.deepEqual(negro.printPhotos.azul, [photo(21)]);
+  // vPhoto normaliza cada foto (campos faltantes con su valor por defecto)
+  assert.deepEqual(negro.printPhotos.naranja[1], { src: "/uploads/2026/10/m-n-naranja.webp", thumb: "", alt: "", zoom: null, ox: null, oy: null });
+  // Sin ninguna lista con fotos la clave NO aparece (misma forma que un producto sin fotos de estampado)
+  assert.deepEqual(Object.keys(crema), ["color", "photos", "stock"]);
+  assert.deepEqual(Object.keys(terracota), ["color", "photos", "stock"]);
+  assert.deepEqual((await admin.get("/api/admin/products/estampada")).data.item, r.data.item);
+  const pub = (await srv.client({ admin: false }).get("/api/public/content")).data.products.find((x) => x.id === "estampada");
+  assert.deepEqual(pub.colors[0].printPhotos, negro.printPhotos, "llegan a la tienda");
+  // Guardar lo mismo otra vez no cambia nada (sin revisión nueva)
+  const same = await admin.put("/api/admin/products/estampada", r.data.item);
+  assert.equal(same.status, 200);
+  assert.equal(same.data.item.updatedAt, r.data.item.updatedAt);
+});
+
+test("fotos por estampado: máximo 10, objeto obligatorio, cada foto se valida", async () => {
+  const many = printed();
+  many.id = "estampada-2";
+  many.colors[0].printPhotos.naranja = Array.from({ length: 11 }, (_, i) => photo(200 + i));
+  let r = await admin.post("/api/admin/products", many);
+  assert.equal(r.status, 422);
+  assert.equal(r.data.error.fields["colors.0.printPhotos.naranja"], "Máximo 10 fotos por estampado.");
+  many.colors[0].printPhotos.naranja = Array.from({ length: 10 }, (_, i) => photo(200 + i));
+  r = await admin.post("/api/admin/products", many);
+  assert.equal(r.status, 201, r.text);
+  assert.equal(r.data.item.colors[0].printPhotos.naranja.length, 10);
+  assert.equal((await admin.del("/api/admin/products/estampada-2")).status, 200);
+
+  for (const bad of [[photo(1)], "naranja", 5, true]) {
+    const p = printed();
+    p.id = "estampada-3";
+    p.colors[1].printPhotos = bad;
+    const e = await admin.post("/api/admin/products", p);
+    assert.equal(e.status, 422, JSON.stringify(bad));
+    assert.equal(e.data.error.fields["colors.1.printPhotos"], "Formato inválido (se esperaba un objeto).");
+  }
+  const p = printed();
+  p.id = "estampada-3";
+  p.colors[0].printPhotos.naranja[0] = { src: "javascript:alert(1)", ox: "150%", zoom: 9 };
+  p.colors[0].printPhotos.azul = "no es una lista";
+  const e = await admin.post("/api/admin/products", p);
+  assert.equal(e.status, 422);
+  const f = e.data.error.fields;
+  for (const k of ["colors.0.printPhotos.naranja.0.src", "colors.0.printPhotos.naranja.0.ox", "colors.0.printPhotos.naranja.0.zoom", "colors.0.printPhotos.azul"]) {
+    assert.ok(f[k], `falta fields["${k}"] en ${JSON.stringify(f)}`);
+  }
+  assert.ok(!Object.keys(f).some((k) => k.includes("fantasma")), "las claves de estampados inexistentes no se validan");
+});
+
+test("fotos por estampado: renombrar o quitar un estampado descarta sus fotos", async () => {
+  const cur = (await admin.get("/api/admin/products/estampada")).data.item;
+  // «naranja» pasa a llamarse «mandarina» (id nuevo) sin mover las fotos → las de «naranja» se descartan
+  const renamed = structuredClone(cur);
+  renamed.prints[0] = { id: "mandarina", name: "Mandarina", hex: "#e8620a" };
+  let r = await admin.put("/api/admin/products/estampada", renamed);
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(Object.keys(r.data.item.colors[0].printPhotos), ["azul"]);
+  // Quitar «azul»: el color se queda sin fotos de estampado → la clave desaparece
+  const removed = structuredClone(r.data.item);
+  removed.prints = removed.prints.filter((x) => x.id !== "azul");
+  r = await admin.put("/api/admin/products/estampada", removed);
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(Object.keys(r.data.item.colors[0]), ["color", "photos", "stock"]);
+  // Sin estampados, cualquier printPhotos se descarta
+  r = await admin.put("/api/admin/products/estampada", { ...r.data.item, prints: [], colors: r.data.item.colors.map((c) => ({ ...c, printPhotos: { mandarina: [photo(3)] } })) });
+  assert.equal(r.status, 200, r.text);
+  assert.ok(r.data.item.colors.every((c) => !("printPhotos" in c)));
+  assert.equal((await admin.del("/api/admin/products/estampada")).status, 200);
 });
 
 test("actualizar: concurrencia con X-Base-Updated-At (409) y sin cambios no crea revisión", async () => {

@@ -90,7 +90,8 @@ window.Mercy = window.Mercy || {};
 
   /* --- Tile (placeholder de foto con degradado, como en las capturas) ----
      opts: variant (0–2 degradados alternos · 3 = diapositiva de video), index (foto a usar, por defecto = variant),
-           video (ícono de play), color (fotos de ese color; por defecto las del color inicial), size (thumb|card|large),
+           video (ícono de play), color / print (fotos de esa variante con la regla de Mercy.data.photosFor; sin
+           ninguno de los dos, la foto principal p.photos; print sin pasar = estampado inicial), size (thumb|card|large),
            sub, alt, eager. */
   function tileHTML(p, opts) {
     opts = opts || {};
@@ -115,9 +116,11 @@ window.Mercy = window.Mercy || {};
     const sub = opts.sub && t.sub ? '<span class="tile__sub">' + esc(t.sub) + "</span>" : "";
     const label = isVideo ? '<span class="tile__play">' + icon("play", { size: 28 }) + "</span>" : "";
 
-    /* Fotografía (settings.showPhotos): fotos del color pedido (o del inicial). Si la foto falla, vuelve al degradado. */
+    /* Fotografía (settings.showPhotos): fotos de la variante pedida (color + estampado) o la principal. Si la foto falla,
+       vuelve al degradado. */
     let photo = "";
-    const photos = opts.color !== undefined && Mercy.data.photosFor ? Mercy.data.photosFor(p, opts.color) : (p.photos || []);
+    const ofVariant = (opts.color !== undefined || opts.print !== undefined) && Mercy.data.photosFor;
+    const photos = ofVariant ? Mercy.data.photosFor(p, opts.color !== undefined ? opts.color : p.initialColor, opts.print) : (p.photos || []);
     if (Mercy.config.stockPhotos && photos.length) {
       const idx = opts.index != null ? opts.index : (v === 3 ? 0 : v);
       const entry = photos[idx % photos.length];
@@ -148,10 +151,16 @@ window.Mercy = window.Mercy || {};
     }
   }, true);
 
+  /* Enlace a la ficha; con color / estampado abre esa misma variante (producto.html?id=…&color=…&print=…) */
+  function productUrl(p, color, print) {
+    return "producto.html?id=" + encodeURIComponent(p.id) + (color ? "&color=" + encodeURIComponent(color) : "") +
+      (print ? "&print=" + encodeURIComponent(print) : "");
+  }
+
   /* --- Tarjeta de producto ------------------------------------------------ */
   function cardHTML(p, opts) {
     opts = opts || {};
-    const url = "producto.html?id=" + encodeURIComponent(p.id);
+    const url = productUrl(p);
     const fav = Mercy.store ? Mercy.store.favs.has(p.id) : false;
     const badgeCls = p.badge === "Nuevo" ? "badge--brand" : "badge--dark";
     const badge = p.badge ? '<span class="badge ' + badgeCls + '">' + esc(p.badge) + "</span>" : "";
@@ -449,7 +458,7 @@ window.Mercy = window.Mercy || {};
     $: $, $$: $$, esc: esc, money: money, norm: norm, qs: qs, debounce: debounce, waLink: waLink,
     pluralize: pluralize, thousands: thousands, icon: icon, logoHTML: logoHTML, waGreeting: waGreeting,
     rich: rich, fill: fill, plain: plain, safeUrl: safeUrl, tx: tx, vars: vars, strong: strong,
-    tileHTML: tileHTML, cardHTML: cardHTML, syncFavButtons: syncFavButtons, stepperHTML: stepperHTML,
+    tileHTML: tileHTML, cardHTML: cardHTML, productUrl: productUrl, syncFavButtons: syncFavButtons, stepperHTML: stepperHTML,
     overlay: overlay, createDrawer: createDrawer, createModal: createModal, infoModal: infoModal,
     initAccordions: initAccordions, setAcc: setAcc, toast: toast,
     validators: validators, setError: setError

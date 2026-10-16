@@ -33,6 +33,18 @@ test("el contenido de fábrica (js/defaults.js) pasa TODAS las validaciones sin 
   }
 });
 
+test("textos: «Video próximamente» ya no existe (se descarta); «Ver video» se conserva", () => {
+  const { content } = loadFactoryDefaults(join(REPO_ROOT, "js", "defaults.js"));
+  assert.equal(content.texts.product.videoChip, "Ver video");
+  assert.ok(!("videoSoonTitle" in content.texts.product) && !("videoSoonText" in content.texts.product));
+  const old = { ...content.texts, product: { ...content.texts.product, videoSoonTitle: "Video próximamente", videoSoonText: "Pronto." } };
+  const { value, fields } = validateSection("texts", old);
+  assert.deepEqual(fields, {});
+  assert.deepEqual(value, content.texts, "un contenido anterior con esos textos se normaliza sin ellos");
+  // Productos de fábrica: sin fotos de estampado → sin clave printPhotos (forma de siempre)
+  for (const p of content.products) for (const c of p.colors) assert.deepEqual(Object.keys(c), ["color", "photos", "stock"], p.id);
+});
+
 test("URLs seguras según §2", () => {
   for (const ok of ["https://x.co/a.jpg", "http://x.co", "/uploads/2026/10/a.webp", "/assets/logo/a.png", "assets/logo/a.png", "uploads/a.mp4"]) assert.ok(isSafeUrl(ok, "media"), ok);
   for (const ok of ["catalogo.html", "catalogo.html?cat=hoodies", "producto.html?id=fe", "index.html#x", "#comunidad", "/checkout.html"]) assert.ok(isSafeUrl(ok, "link"), ok);

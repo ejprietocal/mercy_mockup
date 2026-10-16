@@ -73,6 +73,7 @@ const FIELD = {
   ref: "Referencia", status: "Estado", category: "Categoría", collection: "Colección", fits: "Hormas", sizes: "Tallas", price: "Precio",
   badge: "Etiqueta", envioGratis: "Envío gratis", soldOut: "Marcado como agotado", bestRank: "Puesto en Más vendidos",
   newRank: "Puesto en Novedades", rating: "Calificación", reviewsCount: "Número de reseñas", colors: "Colores", photos: "Fotos",
+  printPhotos: "Fotos con estampado",
   stock: "Stock", prints: "Estampados", video: "Video", tile: "Respaldo sin foto", tags: "Etiquetas de búsqueda",
   desc: "Descripción corta", story: "Historia", thumb: "Miniatura", alt: "Texto alternativo", zoom: "Acercamiento",
   ox: "Encuadre horizontal", oy: "Encuadre vertical", from: "Color inicial", to: "Color final", lines: "Líneas", sub: "Subtítulo",
@@ -129,8 +130,8 @@ function makeLookups(data, changes) {
   return L;
 }
 
-function itemLabel(listKey, id, L) {
-  if (/^\d+$/.test(id)) return `${INDEX_NOUN[listKey] || "Elemento"} ${Number(id) + 1}`;
+function itemLabel(listKey, id, L, { byId = false } = {}) {
+  if (!byId && /^\d+$/.test(id)) return `${INDEX_NOUN[listKey] || "Elemento"} ${Number(id) + 1}`;
   if (listKey === "reviews") return `Reseña de «${L.reviews?.get(id) || id}»`;
   const name = L[listKey]?.get(id) || (listKey === "prints" ? capitalize(id) : id);
   return ITEM_NOUN[listKey] ? `${ITEM_NOUN[listKey]} «${name}»` : `«${name}»`;
@@ -154,7 +155,13 @@ function humanParts(section, rest, L, order) {
     else if (section === "home" && prev === "reviews" && k === "count") out.push("Número de reseñas");
     else if (section === "home" && prev === "media" && k === "type") out.push("Tipo de fondo");
     else if (section === "texts" && prev === null && k === "care") out.push("Cuidados por defecto");
-    else out.push(FIELD[k] || k);
+    else if (prev === "printPhotos") {
+      // colors[negro].printPhotos.naranja[0] → «Fotos con estampado › Estampado «Naranja» › Foto 1»
+      out.push(itemLabel("prints", k, L, { byId: true }));   // la clave siempre es el id (puede ser «2025»), nunca un índice
+      listKey = "photos";
+      prev = "photos";
+      continue;
+    } else out.push(FIELD[k] || k);
     listKey = k;
     prev = k;
   }
@@ -253,11 +260,17 @@ function objectValue(o, L) {
     rest > 0 ? h("p.rev-obj__more", `y ${plural(rest, "dato más", "datos más")}`) : null);
 }
 
+const isPhoto = (x) => !!x && typeof x === "object" && typeof x.src === "string";
+
 function valueNode(v, other, side, key, L) {
   if (isEmpty(v)) return emptyNode();
   if (Array.isArray(v)) {
     if (v.every((x) => x === null || typeof x !== "object")) return arrayValue(v, other, side, key, L);
-    return h("span", plural(v.length, "elemento", "elementos"));
+    return h("span", v.every(isPhoto) ? plural(v.length, "foto", "fotos") : plural(v.length, "elemento", "elementos"));
+  }
+  // Fotos con estampado de un color: { naranja: [fotos], azul: [fotos] } → «Naranja: 2 fotos · Azul: 1 foto»
+  if (key === "printPhotos" && typeof v === "object") {
+    return h("span.rev-chips", Object.entries(v).map(([id, list]) => h("span.rev-chip", `${capitalize(id)}: ${plural(Array.isArray(list) ? list.length : 0, "foto", "fotos")}`)));
   }
   if (typeof v === "object") return objectValue(v, L);
   return primitiveValue(v, key, L);

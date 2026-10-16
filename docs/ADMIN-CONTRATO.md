@@ -6,7 +6,7 @@ Si algo no está aquí, se decide con el criterio de los CMS conocidos (WordPres
 Decisiones del cliente:
 - Persistencia: **servidor Node propio, sin dependencias npm** (Node ≥ 22), contenido en JSON, archivos subidos en disco (volumen persistente en Easypanel). Los cambios los ven **todos** los visitantes.
 - Usuarios: **varios usuarios con roles** (Administrador / Editor).
-- Módulos: inicio (video del hero y frases), textos del sitio, productos (colores → hasta **4 fotos por color**), modal de descuento, **cupones** (listado + creación), **suscriptores**, **reseñas / categorías / colecciones / colores / hormas / guía de tallas**, **historial de cambios** (actividad + revisiones restaurables), medios, usuarios, ajustes.
+- Módulos: inicio (video del hero y frases), textos del sitio, productos (colores → hasta **10 fotos por color** y hasta **10 por combinación color + estampado**), modal de descuento, **cupones** (listado + creación), **suscriptores**, **reseñas / categorías / colecciones / colores / hormas / guía de tallas**, **historial de cambios** (actividad + revisiones restaurables), medios, usuarios, ajustes.
 - Idioma de toda la interfaz: **español de Colombia**. Moneda: COP sin decimales (`$89.900`).
 
 ---
@@ -31,7 +31,7 @@ mercy_mockup/
 │  ├─ revisions/<id>.json
 │  └─ uploads/AAAA/MM/<archivo>
 ├─ package.json            "type": "module", scripts start/dev/test, engines node >=22, sin dependencies
-└─ tools/export_defaults.mjs   (genera js/defaults.js a partir del mockup original; uso único)
+└─ tools/export_defaults.mjs   (generó js/defaults.js a partir del mockup original; uso único, histórico: no se vuelve a ejecutar)
 ```
 
 Variables de entorno del servidor: `PORT` (4000), `HOST` (0.0.0.0), `DATA_DIR` (`<repo>/data`; Docker `/data`),
@@ -168,8 +168,8 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     shipping: { badge: "Envío gratis", lineFree, cartFree: "Tu pedido tiene **ENVÍO GRATIS**", cartPaid: "**ENVÍO NO INCLUIDO** · …",
       productFree, productPaid, detailFree, detailPaid, ruleFree: "**Envío gratis** si…", rulePaid: "**Envío no incluido** cuando…",
       method: "Envío a domicilio", time: "2–4 días hábiles", coordination, checkoutFree, checkoutPaid, checkoutPaidNote, pending },
-    product: { collectionLabel: "Colección", stockIn, stockOut, lowStockOne, lowStockMany: "Quedan {n} unidades", videoChip, videoSoonTitle,
-      videoSoonText, detailsTitle, careTitle, sizesTitle, sizeGuideLink, detailsEmpty, careEmpty, storyTitle, reviewsTitle,
+    product: { collectionLabel: "Colección", stockIn, stockOut, lowStockOne, lowStockMany: "Quedan {n} unidades",
+      videoChip: "Ver video" /* solo se ve si la prenda tiene video */, detailsTitle, careTitle, sizesTitle, sizeGuideLink, detailsEmpty, careEmpty, storyTitle, reviewsTitle,
       reviewsSource: "reseñas en Google", verifiedLabel: "Compra verificada" /* vacío = sin insignia (Inicio y ficha) */, relatedTitle, metaSuffix },
     checkout: { metaDescription: "…{marca}…", strip, title: "Finalizar *compra*", subtitle, emptyTitle, emptyText, emptyCta,
       successTitle: "¡Gracias por tu *pedido*!", successText, successHome, successCta, shipTitle, note, giftTitle, giftHint, giftLabel,
@@ -201,11 +201,17 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     rating: 4.9, reviewsCount: 48,
     colors: [ {                                    // 1–12 colores; orden = orden en la tienda
       color: "negro",                              // id de colors[]
-      photos: [ { src: url, thumb: url|"", alt: "", zoom: 1|null, ox: "50%"|null, oy: "50%"|null } ],   // 0–4 (MÁX 4)
-      stock:  { S: 4, M: 5, L: 6, XL: 7, XXL: 0 }  // una clave por cada talla de sizes; entero ≥ 0
+      photos: [ Foto ],                            // fotos del COLOR BASE: 0–10 (MÁX 10); la primera es la principal
+      printPhotos: {                               // OPCIONAL: fotos de cada combinación color + estampado (ver «Fotos de producto»)
+        naranja: [ Foto ],                         //   clave = prints[].id del MISMO producto; valor = 1–10 fotos (MÁX 10)
+        azul:    [ Foto ]                          //   sin fotos de estampado la clave printPhotos NO existe
+      },
+      stock:  { S: 4, M: 5, L: 6, XL: 7, XXL: 0 }  // una clave por cada talla de sizes; entero ≥ 0 (compartido por todos los estampados)
     } ],
-    prints: [ { id: "naranja", name: "Naranja", hex: "#e8620a" } ],   // estampados opcionales
-    video: { src: url, poster: url|"" } | null,    // video de la prenda (galería); null = "Video próximamente"
+    prints: [ { id: "naranja", name: "Naranja", hex: "#e8620a" } ],   // estampados opcionales (0–12; sin fotos ni stock propios:
+                                                   //   en la ficha se eligen con el círculo de color hex)
+    video: { src: url, poster: url|"" } | null,    // video de la prenda: última diapositiva de la galería + botón «Ver video».
+                                                   //   null = sin video: la ficha no muestra la diapositiva, la miniatura ▶ ni el botón
     tile: { from: "#c5a68b", to: "#a44809", lines: ["FE"], sub: "", stacked: false, small: false, fs: null },  // respaldo sin foto; lines [] = el nombre ACTUAL
     tags: ["fe","creer"], desc: "", story: "…",
     details: [],                                   // [] = usa categories[].details
@@ -214,15 +220,18 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     createdAt: ISO, updatedAt: ISO, updatedBy: "Nombre"
   } ]
 }
+// Foto = { src: url, thumb: url|"", alt: "", zoom: 1|null, ox: "50%"|null, oy: "50%"|null }   (la misma en photos y en printPhotos)
 ```
 
 Reglas de integridad (el servidor las valida; el panel las previene):
 - Ids únicos dentro de cada lista. Un color/horma/categoría/colección/guía **en uso** no se puede borrar (409 `in_use` con la lista de productos).
 - `product.colors[].color` ∈ `colors`, `product.category` ∈ `categories`, `product.fits ⊆ fits`, `collection` ∈ `collections` o "".
 - `product.colors[].stock` tiene exactamente las tallas de `product.sizes` (faltantes = 0, sobrantes se eliminan).
-- `photos.length ≤ 4` por color. Producto "agotado" en la tienda = `soldOut` o todo el stock en 0.
-- Fotos: si un color no tiene fotos, la tienda usa las del primer color que sí tenga; si ninguno tiene, usa el `tile` (degradado).
-- El primer color con stock es el color inicial en la ficha y en las tarjetas.
+- `photos.length ≤ 10` por color; `printPhotos`: claves = ids de `prints` del producto, cada lista 1–10. Producto "agotado" en la tienda =
+  `soldOut` o todo el stock en 0. El stock es por color × talla y lo comparten todos los estampados.
+- Fotos: qué fotos se ven en cada caso (color, combinación color + estampado, respaldo) lo fija la **regla de fotos** de abajo; sin
+  ninguna foto se usa el `tile` (degradado).
+- El primer color con stock es el color inicial en la ficha y en las tarjetas; el primer estampado (`prints[0]`) es el estampado inicial.
 - *(servidor)* Forma del 409 `in_use` de secciones: `{ error: { code: "in_use", message, usages: ["products/fe", "coupons/MERCY20",
   "categories/hoodies"], products: [{ id, name }] } }`. Bloquean: colores/hormas/colecciones usados por productos; categorías usadas por
   productos **o** por cupones (`appliesTo: "categories"`); guías de tallas usadas por categorías. Al borrar una horma SIN productos, sus
@@ -238,6 +247,40 @@ Reglas de integridad (el servidor las valida; el panel las previene):
 - *(servidor)* Claves NUEVAS del esquema (p. ej. un texto de `texts` agregado en una versión posterior, `settings.paymentMethods`) que no
   existen en un `content.json` ya creado se completan UNA vez al arrancar con el valor de fábrica (solo lo ausente; nada guardado cambia;
   log «campo(s) nuevo(s) del esquema completados»). La tienda además usa el texto de fábrica cuando un texto de interfaz está vacío.
+- *(servidor)* Claves QUITADAS del esquema: `texts.product.videoSoonTitle` y `texts.product.videoSoonText` (el aviso «Video próximamente»
+  ya no existe: sin video la ficha no muestra nada del video). Nadie las lee; en un `content.json` ya creado desaparecen la próxima vez
+  que se guarda «Textos del sitio» (el normalizador estricto descarta las claves desconocidas). `texts.product.videoChip` se conserva.
+
+### Fotos de producto: color base y combinaciones color + estampado
+- Cada color tiene sus fotos **base** (`colors[].photos`, 0–10) y, opcionalmente, fotos por **combinación con un estampado**
+  (`colors[].printPhotos[idEstampado]`, 1–10 cada una): p. ej. Negro + Naranja tiene sus fotos y Blanco + Naranja otras. Los estampados
+  (`prints[]`) no tienen fotos ni stock propios.
+- **Regla de fotos** `photosFor(p, colorId, printId)`, idéntica en la tienda (`Mercy.data.photosFor`), en las vistas previas del panel
+  y en el servidor (`server/lib/social.js`). `printId` ausente (`undefined`) = estampado inicial (`prints[0].id`, o `""` si no hay);
+  `""` = sin estampado. Se devuelve la primera lista con fotos de:
+  1. `printPhotos[printId]` del color pedido (si hay estampado);
+  2. las fotos base del color pedido;
+  3. `printPhotos[printId]` del primer color (en el orden del producto) que las tenga;
+  4. las fotos base del primer color que tenga;
+  5. ninguna → `[]` (degradados de marca, `tile`).
+
+  Las listas **no se mezclan**: si la combinación elegida tiene fotos se ven solo esas; si no, solo las del color. Sin estampados los
+  pasos 1 y 3 no aplican y la regla es la de siempre (fotos del color o, si no tiene, las del primer color con fotos).
+- **Foto principal** (tarjetas del catálogo, del Inicio, de la búsqueda y de favoritos —`p.photos` en la tienda—, `og:image` del
+  producto, `image_link` del feed de Meta y miniaturas del panel): `photosFor(p, colorInicial, estampadoInicial)`; si queda vacía, la
+  primera lista no vacía de `printPhotos` recorriendo los colores en orden y, dentro de cada color, los estampados en el orden de
+  `prints`. Color inicial = primer color con stock (si ninguno tiene, el primero); estampado inicial = `prints[0].id` o `""`. La
+  foto principal es la primera de esa lista.
+- La tienda también recorta a 10 al normalizar y descarta las claves de `printPhotos` que no son estampados del producto.
+- *(servidor)* `server/lib/validate.js`: `MAX_PHOTOS_PER_COLOR = 10` y `MAX_PHOTOS_PER_PRINT = 10`. Más de 10 fotos base → 422 en
+  `colors.N.photos` «Máximo 10 fotos por color.». Los estampados se validan **antes** que los colores para filtrar `printPhotos`:
+  ausente o `null` → se omite; si no es un objeto → `colors.N.printPhotos` «Formato inválido (se esperaba un objeto).»; una clave que no
+  es id de un estampado del producto (se borró o se renombró) se **descarta sin error**; cada lista admite hasta 10 («Máximo 10 fotos
+  por estampado.») y cada foto se valida como las demás (ruta `colors.N.printPhotos.<id>.M`); las listas vacías se descartan y las
+  claves quedan en el orden de `prints`. Si no queda ninguna lista, la clave `printPhotos` **no aparece** en la salida: un producto sin
+  fotos de estampado conserva exactamente la forma `{ color, photos, stock }` (sin ruido en las revisiones ni en js/defaults.js).
+- *(servidor)* Las fotos de `printPhotos` cuentan como uso de un medio (borrarlo → 409 `in_use` con `products/<id>`) y entran en
+  `missingMedia` al restaurar, como las demás (el servidor recorre todo el contenido).
 
 ### Cupones (`coupons.json`, `Mercy.DEFAULT_COUPONS`)
 ```js
@@ -318,8 +361,8 @@ la primera revisión es "Contenido existente al arrancar (sin historial previo)"
 **Páginas de la tienda con etiquetas para redes** *(servidor)*: `/`, `/index.html`, `/catalogo.html`, `/producto.html?id=` y `/checkout.html`
 se sirven con el `<head>` completado (título, `meta description`, canónica, Open Graph y Twitter) calculado del contenido: Inicio = `settings.seo`
 + póster del hero; catálogo = `texts.catalog.eyebrow/metaDescription` + primera foto publicada; producto = nombre, precio (`product:price:*`),
-disponibilidad, descripción (como `js/producto.js`) y primera foto del primer color con fotos (id anterior → canónica con el id actual;
-borrador o inexistente → «Prenda no encontrada» + `noindex`); pago = `texts.checkout.*` + `noindex`. Las URL absolutas usan `PUBLIC_URL` o el
+disponibilidad, descripción (como `js/producto.js`) y la **foto principal** (§3 «Fotos de producto», la misma de la tarjeta); id anterior →
+canónica con el id actual; borrador o inexistente → «Prenda no encontrada» + `noindex`; pago = `texts.checkout.*` + `noindex`. Las URL absolutas usan `PUBLIC_URL` o el
 host/protocolo de la petición (`X-Forwarded-*` con `TRUST_PROXY`). Facebook, Instagram y WhatsApp leen estas etiquetas (no ejecutan JS).
 
 Todo JSON (`Content-Type: application/json; charset=utf-8`) salvo subidas y CSV.
@@ -348,7 +391,7 @@ Código ∈ `bad_request 400 · validation 422 · unauthorized 401 · forbidden 
 | Método y ruta | Entrada | Salida |
 |---|---|---|
 | `GET /api/public/content.js` | — | JavaScript: `window.MercyContent = {…};` (ver contenido público abajo). `Cache-Control: no-cache` + `ETag`. |
-| `GET /api/public/feed-meta.csv` | — | Feed de catálogo para Meta (Commerce Manager): CSV con `id,title,description,availability,condition,price,link,image_link,additional_image_link,brand,product_type`; solo productos publicados con foto; precio `79900.00 COP`; `no-cache` |
+| `GET /api/public/feed-meta.csv` | — | Feed de catálogo para Meta (Commerce Manager): CSV con `id,title,description,availability,condition,price,link,image_link,additional_image_link,brand,product_type`; solo productos publicados; `image_link` = foto principal (§3; sin fotos, el logo); `additional_image_link` = las demás fotos sin repetir (por color: las base y luego las de cada estampado en el orden de `prints`), máximo 10; precio `79900.00 COP`; `no-cache` |
 | `GET /api/public/content` | — | El mismo objeto en JSON. |
 | `POST /api/public/subscribe` | `{ email, source }` | `{ ok: true, coupon: CupónPúblico \| null }` (el de bienvenida si está vigente y `discountModal.enabled`; si no → `null` y el suscriptor queda con `couponCode: ""`). Email inválido → 422. |
 | `POST /api/public/coupons/validate` | `{ code }` | `{ ok: true, coupon }` o `{ ok: false, reason, message }`; reason ∈ `not_found, inactive, not_started, expired, exhausted`. Siempre HTTP 200. |
@@ -469,9 +512,18 @@ Orden de scripts en las 4 páginas (todos `defer`):
 - `Mercy.content` = contenido resuelto; `Mercy.api.enabled` = `MercyContent.__source === "server"`.
 - `config.js` sigue exponiendo `Mercy.config` (mismas claves que usa el código) derivado de `settings`/`home`/`discountModal`.
 - `data.js` sigue exponiendo `Mercy.data` con la forma que ya usa la tienda (PRODUCTS con `colors: [ids]`, `stock[color][talla]`,
-  `photos`, `reviews` = número, `collection` = nombre…) más `photosFor(p, colorId)` y `COLLECTIONS`.
-- Galería de producto: muestra las fotos (1–4) del **color seleccionado** y cambia al cambiar de color; tarjetas y miniaturas
-  usan las del color inicial. Fotos de Pexels → `srcset` con `?w=`; fotos subidas → `srcset` con `thumb` (600 w) y `src`.
+  `photos` = fotos principales, `colorPhotos[color]`, `printPhotos[color][estampado]`, `initialPrint`, `reviews` = número,
+  `collection` = nombre…) más `photosFor(p, colorId, printId)` (regla de fotos, §3) y `COLLECTIONS`.
+- Galería de producto: muestra `photosFor(p, color, estampado)` (§3): las fotos (1–10) de la **combinación color + estampado elegida**
+  si tiene; si no, las del **color** (no se mezclan). Se rehace al cambiar de color o de estampado solo si cambia el juego de fotos, y
+  vuelve a la foto 1. La diapositiva de video (última), su miniatura ▶, su punto y el botón «Ver video» existen **solo si la prenda
+  tiene video** (`video.src`); sin video no hay ningún aviso. Con una sola diapositiva se ocultan flechas, puntos y miniaturas. `producto.html?id=…&color=<id>&print=<id>`
+  abre la ficha en esa variante (si el color o el estampado no son del producto, se ignoran). Tarjetas, búsqueda y favoritos usan la
+  foto principal (§3); carrito y checkout, la foto de la variante de la línea (color + estampado), y su enlace abre la ficha en esa
+  variante. Fotos de Pexels → `srcset` con `?w=`; fotos subidas → `srcset` con `thumb` (600 w) y `src`.
+- *(tienda, `js/store.js`)* Tope de cantidad del carrito = stock de (color, talla) **menos** lo que ya piden las OTRAS líneas del mismo
+  producto + color + talla con cualquier estampado u horma (el stock es color × talla y lo comparten). Se aplica al agregar, al cambiar
+  la cantidad y al sanear el carrito al cargar (las líneas anteriores tienen prioridad; mismos avisos de siempre).
 - Cupones/suscripción: con `Mercy.api.enabled` se usan los endpoints públicos (§4.1); si no, se validan contra `DEFAULT_COUPONS`.
   *(tienda, `js/store.js`)* Estado guardado: `discount = { email, claimedAt, coupon: CupónPúblico|null, claimedCoupon, checkedAt }`
   (`claimedCoupon` = cupón recibido al suscribirse, para volver a mostrar/copiar el código). El estado viejo del mockup (`coupon: true|false`
@@ -521,3 +573,9 @@ el panel va directo al ingreso sin llamar a `/api/auth/me`. Ruta desconocida →
 "Sin permiso" (el menú lateral oculta lo que el rol no puede abrir). El Escritorio enlaza a `#/productos?estado=agotados` y
 `#/productos?estado=poco-stock` (la lista de productos puede usarlos como filtro inicial). Framework de vistas (registro de rutas,
 componentes, formularios, medios): `admin/README.md`.
+*(panel)* Editor de producto: las fotos se cargan en la pestaña **«Colores y stock»**, dentro de cada color: sus fotos base (hasta 10;
+la primera es la principal) y, si la prenda tiene estampados, **«Fotos con estampado»** con una lista por estampado (hasta 10; sin
+fotos se usan las del color). Renombrar un estampado nuevo mueve sus fotos al id nuevo; quitar uno con fotos pide confirmación y las
+quita de todos los colores al guardar. La pestaña **Video** es opcional (sin video la ficha no muestra la diapositiva ni el botón
+«Ver video»). Las miniaturas de producto del panel (lista, Escritorio, cupones, taxonomías, «Más vendidos» del Inicio) usan la foto
+principal (§3).

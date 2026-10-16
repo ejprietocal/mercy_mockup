@@ -1,6 +1,10 @@
-// Genera js/defaults.js (contenido de fábrica, esquema de docs/ADMIN-CONTRATO.md §3)
+// HISTÓRICO — generó la PRIMERA versión de js/defaults.js (contenido de fábrica, esquema de docs/ADMIN-CONTRATO.md §3)
 // a partir del mockup original (js/config.js + js/data.js + textos fijos de index.html / layout.js).
-// Uso único (ya ejecutado sobre el commit 3ffef8f; config.js/data.js ahora derivan de defaults.js):
+// Uso único, ya ejecutado sobre el commit 3ffef8f. NO lo vuelvas a ejecutar para regenerar js/defaults.js: desde entonces
+// ese archivo se edita a mano (textos de interfaz, medios de pago, píxel de Meta…) y esto lo sobrescribiría con la versión
+// del mockup. Los js/config.js y js/data.js actuales ya no sirven de entrada (derivan de defaults.js), por eso pide las dos rutas.
+// Se conserva como referencia de cómo se armó el contenido inicial; sigue el esquema vigente (hasta 10 fotos por color,
+// estampados tal cual y fotos por combinación color + estampado si la entrada las trajera).
 //   git show 3ffef8f:js/config.js > /tmp/c.js; git show 3ffef8f:js/data.js > /tmp/d.js; node tools/export_defaults.mjs /tmp/c.js /tmp/d.js
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -8,8 +12,12 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const cfgPath = process.argv[2] || resolve(ROOT, "js/config.js");
-const dataPath = process.argv[3] || resolve(ROOT, "js/data.js");
+const [cfgPath, dataPath] = process.argv.slice(2);
+if (!cfgPath || !dataPath) {
+  console.error("Uso: node tools/export_defaults.mjs <config.js del mockup original> <data.js del mockup original>\n" +
+    "Herramienta histórica: sobrescribe js/defaults.js (ver el comentario al inicio del archivo).");
+  process.exit(1);
+}
 
 const sandbox = { window: {} };
 sandbox.window = sandbox;
@@ -21,6 +29,7 @@ const D = sandbox.Mercy.data;
 if (!C || !D || !D.PRODUCTS) throw new Error("No se pudo leer Mercy.config / Mercy.data del mockup original");
 
 const STAMP = "2026-10-09T00:00:00.000Z";
+const MAX_PHOTOS = 10;   // por color base y por combinación color + estampado (MAX_PHOTOS_PER_COLOR / _PER_PRINT del servidor)
 const BY = "Sistema";
 const slug = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const pexels = (id) => "https://images.pexels.com/photos/" + id + "/pexels-photo-" + id + ".jpeg";
@@ -47,13 +56,22 @@ const SIZE_CHART_NAMES = { camisetas: "Camisetas", blusas: "Blusas", hoodies: "H
 
 const products = D.PRODUCTS.map((p) => {
   const split = PHOTO_SPLIT[p.id];
+  const prints = (p.prints || []).map((x) => ({ id: x.id, name: x.name, hex: x.hex.toLowerCase() }));
   const colors = p.colors.map((c) => {
     let photos = [];
-    if (split) photos = (split[c] || []).map((i) => p.photos[i]).filter(Boolean).map(photo);
-    else if (PHOTO_COLOR[p.id] === c || (!PHOTO_COLOR[p.id] && c === p.colors[0])) photos = p.photos.slice(0, 4).map(photo);
+    if (split) photos = (split[c] || []).map((i) => p.photos[i]).filter(Boolean).slice(0, MAX_PHOTOS).map(photo);
+    else if (PHOTO_COLOR[p.id] === c || (!PHOTO_COLOR[p.id] && c === p.colors[0])) photos = p.photos.slice(0, MAX_PHOTOS).map(photo);
+    /* Fotos por combinación color + estampado ({ [color]: { [estampado]: [entradas] } }), igual que el servidor: solo estampados
+       de la prenda, en su orden, sin listas vacías; sin ninguna, la clave no existe. El mockup original no trae ninguna. */
+    const own = (p.printPhotos && p.printPhotos[c]) || {};
+    const printPhotos = {};
+    prints.forEach((x) => {
+      const list = (Array.isArray(own[x.id]) ? own[x.id] : []).filter(Boolean).slice(0, MAX_PHOTOS).map(photo);
+      if (list.length) printPhotos[x.id] = list;
+    });
     const stock = {};
     p.sizes.forEach((s) => { stock[s] = D.stockOf(p, c, s); });
-    return { color: c, photos, stock };
+    return Object.keys(printPhotos).length ? { color: c, photos, printPhotos, stock } : { color: c, photos, stock };
   });
   const t = p.tile || {};
   return {
@@ -64,7 +82,7 @@ const products = D.PRODUCTS.map((p) => {
     soldOut: p.id === "amen",
     bestRank: p.bestRank, newRank: p.newRank, rating: p.rating, reviewsCount: p.reviews,
     colors,
-    prints: (p.prints || []).map((x) => ({ id: x.id, name: x.name, hex: x.hex.toLowerCase() })),
+    prints,
     video: null,
     tile: { from: t.from, to: t.to, lines: t.lines.slice(), sub: t.sub || "", stacked: !!t.stacked, small: !!t.small, fs: t.fs || null },
     tags: (p.tags || []).slice(), desc: p.desc || "", story: p.story || "",

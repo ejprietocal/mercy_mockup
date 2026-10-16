@@ -88,6 +88,23 @@
 }
 .pe-colorsel .input { flex: 1; min-width: 0; }
 
+/* Fotos con estampado (colors[].printPhotos): una lista por estampado, con la muestra de su color */
+.pe-pphotos { display: grid; gap: 18px; padding: 14px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface-2); }
+.pe-pphotos__head { display: grid; gap: 2px; }
+.pe-pphotos__title { font-weight: 650; color: var(--c-text); }
+.pe-pphotos__hint { font-size: 0.86rem; color: var(--c-muted); }
+.pe-pphotos:has(> .pe-pphotos__hint) { padding: 10px 14px; border-style: dashed; }
+.pe-pphotos__link {
+  padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--c-accent-text);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.pe-pphoto > .field__label { display: inline-flex; align-items: center; gap: 8px; }
+.pe-pphoto > .field__label::before {
+  content: ""; width: 16px; height: 16px; flex: none; border-radius: 50%; background: var(--pe-print-hex, #999);
+  border: 1px solid rgba(37, 29, 24, 0.2); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+.pe-pphoto--pending { display: grid; gap: 4px; padding: 10px 12px; border: 1px dashed var(--c-border-strong); border-radius: 8px; }
+
 /* Stock por talla */
 .pe-stock { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface-2); }
 .pe-stock__head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
@@ -228,4 +245,7 @@
   .pe-stock { padding: 12px; }
   .pe-stock__grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
   .pe-chead__meta { margin-left: 0; }
+  /* Fotos con estampado: sin caja (separador arriba) para que las fotos tengan el mismo ancho que las del color */
+  .pe-pphotos { padding: 14px 0 0; border: 0; border-top: 1px solid var(--c-border); border-radius: 0; background: none; }
+  .pe-pphotos:has(> .pe-pphotos__hint) { padding: 12px 0 0; border-style: solid; }
 }

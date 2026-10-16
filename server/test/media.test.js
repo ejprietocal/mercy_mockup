@@ -190,3 +190,30 @@ test("borrar un archivo sin uso; el editor también puede subir", async () => {
   assert.ok(act.some((e) => e.action === "delete"));
   assert.equal((await admin.request("POST", "/api/admin/media", { body: makePng(), headers: { "content-type": "image/png", "x-mercy-admin": null } })).status, 403, "CSRF también en subidas");
 });
+
+test("una foto usada SOLO en las fotos de un estampado (colors[].printPhotos) cuenta como en uso", async () => {
+  const up = await upload(makePng(8, 8), "image/png", "fe-naranja.png");
+  assert.equal(up.status, 201, up.text);
+  const m = up.data.item;
+  const fe = (await admin.get("/api/admin/products/fe")).data.item;
+  assert.ok(!JSON.stringify(fe).includes(m.url));
+  fe.prints = [{ id: "naranja", name: "Naranja", hex: "#e8620a" }];
+  fe.colors[0].printPhotos = { naranja: [{ src: m.url, thumb: "", alt: "", zoom: null, ox: null, oy: null }] };
+  const put = await admin.put("/api/admin/products/fe", fe);
+  assert.equal(put.status, 200, put.text);
+  assert.equal(put.data.item.colors[0].printPhotos.naranja[0].src, m.url);
+
+  assert.deepEqual((await admin.get(`/api/admin/media/${m.id}`)).data.usages, ["products/fe"]);
+  const r = await admin.del(`/api/admin/media/${m.id}`);
+  assert.equal(r.status, 409);
+  assert.equal(r.data.error.code, "in_use");
+  assert.deepEqual(r.data.error.usages, ["products/fe"]);
+  assert.equal((await srv.client({ admin: false }).get(m.url)).status, 200, "el archivo sigue ahí");
+
+  // Al quitar el estampado sus fotos se descartan: el archivo deja de estar en uso y ya se puede borrar
+  const off = await admin.put("/api/admin/products/fe", { ...put.data.item, prints: [] });
+  assert.equal(off.status, 200, off.text);
+  assert.ok(!("printPhotos" in off.data.item.colors[0]));
+  assert.deepEqual((await admin.get(`/api/admin/media/${m.id}`)).data.usages, []);
+  assert.equal((await admin.del(`/api/admin/media/${m.id}`)).status, 200);
+});

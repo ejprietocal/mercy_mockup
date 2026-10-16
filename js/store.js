@@ -13,8 +13,11 @@
        POST api/public/subscribe · coupons/validate · coupons/redeem.
        Sin servidor (file:// / hosting estático) se validan contra Mercy.DEFAULT_COUPONS
        (misma vigencia en hora de Colombia; sin red y sin contar usos).
+     · Stock por color × talla, compartido entre estampados y hormas: el tope de una línea es ese stock menos lo que
+       ya tienen las OTRAS líneas de la misma prenda + color + talla (al cargar, en add() y en setQty()).
      · Al cargar: limpia líneas cuyo color/talla/horma ya no exista (el panel puede borrarlos),
-       ajusta cantidades al stock y revalida el cupón aplicado (si ya no vale, se quita con aviso).
+       ajusta cantidades al stock (las líneas anteriores tienen prioridad) y revalida el cupón aplicado
+       (si ya no vale, se quita con aviso).
        Un PRODUCTO que la tienda no encuentra (en borrador un rato, o renombrado sin alias) no se borra:
        su línea / favorito queda guardado aparte (state.parked, hasta 30 días) y vuelve solo si reaparece.
        Un id anterior (producto renombrado, products[].formerIds) se cambia por el actual (Mercy.data.byId).
@@ -203,9 +206,17 @@ window.Mercy = window.Mercy || {};
      Carrito: saneamiento frente al contenido actual
      ====================================================================== */
   function lineKey(l) { return [l.id, l.color, l.fit || "", l.size, l.print || ""].join("|"); }
+  /* Unidades de la misma prenda + color + talla en las líneas `lines` salvo `except` (cualquier estampado u horma):
+     el stock es por color × talla, así que todas esas líneas se reparten las mismas unidades. */
+  function qtyInOthers(lines, id, color, size, except) {
+    return lines.reduce(function (n, x) {
+      return x !== except && x.id === id && x.color === color && x.size === size ? n + x.qty : n;
+    }, 0);
+  }
 
   /* → { lines, parked, removed, capped }: quita líneas imposibles (color/talla/horma/estampado ya no existen,
-     agotado), ajusta cantidades al stock y une líneas que quedan iguales. Las de un producto que NO se encuentra
+     agotado), ajusta cantidades al stock (por prenda + color + talla, sumando estampados y hormas; las líneas anteriores
+     tienen prioridad) y une líneas que quedan iguales. Las de un producto que NO se encuentra
      (borrador, renombrado sin alias, borrado) van a `parked` (con la fecha en que se apartaron) y vuelven solas si el
      producto reaparece; pasan 30 días y se olvidan. `removed` cuenta solo las que se veían en el carrito. */
   function sanitizeCart(list, parkedIn) {
@@ -237,10 +248,14 @@ window.Mercy = window.Mercy || {};
       const stock = data.stockOf(p, l.color, l.size);
       if (stock <= 0) return drop();
       const key = lineKey({ id: p.id, color: l.color, fit: fit, size: l.size, print: print });
+      const prev = byKey[key];
       let qty = Math.max(1, parseInt(l.qty, 10) || 1);
-      if (byKey[key]) qty += byKey[key].qty;
-      if (qty > stock) { qty = stock; capped++; }
-      if (byKey[key]) { byKey[key].qty = qty; return; }
+      if (prev) qty += prev.qty;
+      /* Lo que dejan las líneas anteriores de esa talla y color (con otro estampado u horma) */
+      const room = stock - qtyInOthers(out, p.id, l.color, l.size, prev);
+      if (room <= 0) { if (!e.at) capped++; return; }
+      if (qty > room) { qty = room; capped++; }
+      if (prev) { prev.qty = qty; return; }
       byKey[key] = { key: key, id: p.id, color: l.color, fit: fit, size: l.size, print: print, qty: qty };
       out.push(byKey[key]);
     });
@@ -304,6 +319,7 @@ window.Mercy = window.Mercy || {};
   }
 
   const cart = {
+    /* stock = unidades de esa talla y color; max = tope de ESTA línea (stock menos las otras líneas de esa talla y color) */
     items: function () {
       return state.cart.map(function (l) {
         const p = data.byId(l.id);
@@ -312,7 +328,8 @@ window.Mercy = window.Mercy || {};
           key: l.key, product: p, id: p.id, color: data.color(l.color), colorId: l.color,
           fit: l.fit || "", fitName: l.fit ? data.FITS[l.fit] : "", size: l.size,
           print: l.print ? (p.prints || []).filter(function (x) { return x.id === l.print; })[0] || null : null,
-          qty: l.qty, stock: stock, unitPrice: p.price, lineTotal: p.price * l.qty
+          qty: l.qty, stock: stock, max: Math.max(0, stock - qtyInOthers(state.cart, l.id, l.color, l.size, l)),
+          unitPrice: p.price, lineTotal: p.price * l.qty
         };
       });
     },
@@ -320,7 +337,8 @@ window.Mercy = window.Mercy || {};
     subtotal: function () {
       return state.cart.reduce(function (n, l) { return n + data.byId(l.id).price * l.qty; }, 0);
     },
-    /* add({ id, color, fit, size, print, qty }) -> { ok, reason?, capped?, item? } */
+    /* add({ id, color, fit, size, print, qty }) -> { ok, reason?, capped?, key? }
+       reason "tope": las otras líneas de esa talla y color (otro estampado u horma) ya tienen todo el stock. */
     add: function (sel) {
       const p = data.byId(sel.id);
       if (!p) return { ok: false, reason: "producto" };
@@ -336,14 +354,16 @@ window.Mercy = window.Mercy || {};
       const qty = Math.max(1, parseInt(sel.qty, 10) || 1);
       const key = lineKey({ id: p.id, color: color, fit: fit, size: size, print: print });
       let line = state.cart.filter(function (l) { return l.key === key; })[0];
+      const room = stock - qtyInOthers(state.cart, p.id, color, size, line);
+      if (room <= 0) return { ok: false, reason: "tope" };
       let capped = false;
       if (line) {
         const want = line.qty + qty;
-        line.qty = Math.min(want, stock);
-        capped = want > stock;
+        line.qty = Math.min(want, room);
+        capped = want > room;
       } else {
-        line = { key: key, id: p.id, color: color, fit: fit, size: size, print: print, qty: Math.min(qty, stock) };
-        capped = qty > stock;
+        line = { key: key, id: p.id, color: color, fit: fit, size: size, print: print, qty: Math.min(qty, room) };
+        capped = qty > room;
         state.cart.push(line);
       }
       emit("mercy:cart", { action: "add", key: key });
@@ -353,7 +373,8 @@ window.Mercy = window.Mercy || {};
       const line = state.cart.filter(function (l) { return l.key === key; })[0];
       if (!line) return;
       const stock = data.stockOf(data.byId(line.id), line.color, line.size);
-      line.qty = Math.max(1, Math.min(parseInt(qty, 10) || 1, stock || 1));
+      const room = stock - qtyInOthers(state.cart, line.id, line.color, line.size, line);
+      line.qty = Math.max(1, Math.min(parseInt(qty, 10) || 1, room));
       emit("mercy:cart", { action: "qty", key: key });
     },
     remove: function (key) {

@@ -4,6 +4,7 @@
    · money(89900) → "$89.900" · number · bytes · date / dateTime / relativeTime (hora de Colombia)
    · slugify, fold (minúsculas sin tildes), escapeHtml, debounce, clone, deepEqual
    · getPath / setPath con rutas "a.b.0.c" (las que usa Form y los errores del servidor)
+   · productPhotos / productMainPhoto: qué fotos muestra la tienda para un color + estampado y cuál es la principal
    ========================================================================== */
 
 export const TZ = "America/Bogota";
@@ -204,6 +205,58 @@ export function setPath(obj, path, value) {
   }
   cur[keys[keys.length - 1]] = value;
   return obj;
+}
+
+/* ---------- Fotos de producto (misma regla que la tienda, js/data.js, y el servidor, server/lib/social.js) ---------- */
+const photoList = (v) => (Array.isArray(v) ? v.filter((ph) => ph && typeof ph === "object" && ph.src) : []);
+
+/** Índice del color que la tienda muestra primero: el primero con stock (o el primero). */
+export function initialColorIndex(p) {
+  const colors = Array.isArray(p?.colors) ? p.colors : [];
+  const sizes = Array.isArray(p?.sizes) && p.sizes.length ? p.sizes : null;
+  const hasStock = (c) => (sizes || Object.keys(c?.stock || {})).some((s) => Number(c?.stock?.[s]) > 0);
+  const i = colors.findIndex(hasStock);
+  return i === -1 ? 0 : i;
+}
+
+/**
+ * Fotos que muestra la ficha para un color y un estampado (colors[].photos y colors[].printPhotos[idEstampado]):
+ *   1. las de la combinación color + estampado · 2. las del color · 3. las de ese estampado en el primer color que
+ *   las tenga · 4. las del primer color con fotos · 5. [] (la tienda usa el degradado de la tarjeta).
+ * printId sin pasar = el estampado inicial (el primero); "" = sin estampado. Sin estampados = la regla de siempre.
+ */
+export function productPhotos(p, colorId, printId) {
+  const colors = Array.isArray(p?.colors) ? p.colors : [];
+  const prints = (Array.isArray(p?.prints) ? p.prints : []).map((x) => x?.id).filter(Boolean);
+  const pr = printId === undefined ? prints[0] || "" : printId;
+  const combo = (c) => (pr && prints.includes(pr) ? photoList(c?.printPhotos?.[pr]) : []);
+  const base = (c) => photoList(c?.photos);
+  const own = colors.find((c) => c?.color === colorId);
+  const firstWith = (fn) => colors.map(fn).find((l) => l.length) || [];
+  for (const get of [() => combo(own), () => base(own), () => firstWith(combo), () => firstWith(base)]) {
+    const list = get();
+    if (list.length) return list;
+  }
+  return [];
+}
+
+/**
+ * Foto principal del producto (tarjeta del catálogo, og:image y miniaturas del panel): la primera de
+ * productPhotos(color inicial, estampado inicial); si no hay, la primera foto con estampado que exista
+ * (colores en orden y, en cada uno, estampados en orden). → { src, thumb, alt, zoom, ox, oy } | null
+ */
+export function productMainPhoto(p) {
+  const colors = Array.isArray(p?.colors) ? p.colors : [];
+  const first = productPhotos(p, colors[initialColorIndex(p)]?.color)[0];
+  if (first) return first;
+  const prints = (Array.isArray(p?.prints) ? p.prints : []).map((x) => x?.id).filter(Boolean);
+  for (const c of colors) {
+    for (const id of prints) {
+      const list = photoList(c?.printPhotos?.[id]);
+      if (list.length) return list[0];
+    }
+  }
+  return null;
 }
 
 /* ---------- URLs (mismas reglas que el servidor, contrato §2) ---------- */

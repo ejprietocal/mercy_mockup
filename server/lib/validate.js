@@ -3,7 +3,7 @@
    Normalizadores ESTRICTOS (contrato §2 y §3). Cada uno:
    · construye un objeto NUEVO solo con las claves conocidas (descarta lo demás),
    · valida tipos, rangos, longitudes, slugs, hex, URLs seguras y referencias,
-   · devuelve { value, fields } donde fields = { "colors.1.photos": "Máximo 4 fotos por color." }.
+   · devuelve { value, fields } donde fields = { "colors.1.photos": "Máximo 10 fotos por color." }.
    Clave ausente → valor por defecto del campo; tipo incorrecto → error.
    ========================================================================== */
 import { isPlainObject, newId, slugify } from "./util.js";
@@ -23,7 +23,8 @@ export const SECTION_NAMES = {
   reviews: "Reseñas",
 };
 export const MARQUEE_ICONS = ["truck", "heart", "shield", "star", "lock", "gift", "tag", "cross", "check", "chat", "whatsapp", "ruler", "card", "user", "info"];
-export const MAX_PHOTOS_PER_COLOR = 4;
+export const MAX_PHOTOS_PER_COLOR = 10;   // fotos del color base de un producto
+export const MAX_PHOTOS_PER_PRINT = 10;   // fotos de una combinación color + estampado (colors[].printPhotos)
 
 export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -495,8 +496,6 @@ function vTexts(c, v) {
       lowStockOne: t("product.lowStockOne", prod.lowStockOne, 80),
       lowStockMany: t("product.lowStockMany", prod.lowStockMany, 80),
       videoChip: t("product.videoChip", prod.videoChip, 40),
-      videoSoonTitle: t("product.videoSoonTitle", prod.videoSoonTitle, 80),
-      videoSoonText: t("product.videoSoonText", prod.videoSoonText, 300),
       detailsTitle: t("product.detailsTitle", prod.detailsTitle, 60),
       careTitle: t("product.careTitle", prod.careTitle, 60),
       sizesTitle: t("product.sizesTitle", prod.sizesTitle, 60),
@@ -714,6 +713,29 @@ function vPhoto(c, p, x) {
   };
 }
 
+/**
+ * Fotos de las combinaciones color + estampado de UN color: { [idEstampado]: [Foto…] } (1–MAX_PHOTOS_PER_PRINT cada una).
+ * · Ausente o null → sin fotos de estampado. No es un objeto → error.
+ * · Claves que no son estampados del producto (p. ej. uno que se borró o renombró) → se descartan sin error.
+ * · Listas vacías → se descartan. Orden de las claves = orden de los estampados.
+ * Devuelve null si no queda ninguna lista con fotos (el color no lleva la clave printPhotos).
+ */
+function vPrintPhotos(c, path, v, printIds) {
+  if (v === undefined || v === null) return null;
+  if (!isPlainObject(v)) { c.add(path, "Formato inválido (se esperaba un objeto)."); return null; }
+  const out = {};
+  for (const id of printIds) {
+    if (!Object.hasOwn(v, id)) continue;
+    const list = c.list(J(path, id), v[id], {
+      max: MAX_PHOTOS_PER_PRINT,
+      maxMsg: `Máximo ${MAX_PHOTOS_PER_PRINT} fotos por estampado.`,
+      item: (q, ph) => vPhoto(c, q, ph),
+    });
+    if (list.length) out[id] = list;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function vTile(c, v) {
   const o = c.obj("tile", v);
   // Sin líneas se guarda [] (no una copia del nombre): la tienda y el panel muestran el nombre ACTUAL del producto
@@ -765,6 +787,17 @@ export function validateProduct(value, refs) {
   });
   fits.forEach((f, i) => { if (fits.indexOf(f) !== i) c.add(`fits.${i}`, "Horma repetida."); });
 
+  // Estampados ANTES que los colores: las claves de colors[].printPhotos se filtran con estos ids
+  const prints = c.list("prints", o.prints, {
+    max: 12,
+    item: (p, x) => {
+      const pr = c.obj(p, x);
+      return { id: c.slug(J(p, "id"), pr.id), name: c.text(J(p, "name"), pr.name, { max: 40, required: true }), hex: c.hex(J(p, "hex"), pr.hex) };
+    },
+  });
+  c.uniqueBy("prints", prints, "id");
+  const printIds = [...new Set(prints.map((x) => x.id).filter((id) => SLUG_RE.test(id)))];
+
   const colors = c.list("colors", o.colors, {
     min: 1,
     max: 12,
@@ -779,6 +812,7 @@ export function validateProduct(value, refs) {
         maxMsg: `Máximo ${MAX_PHOTOS_PER_COLOR} fotos por color.`,
         item: (q, ph) => vPhoto(c, q, ph),
       });
+      const printPhotos = vPrintPhotos(c, J(p, "printPhotos"), pc.printPhotos, printIds);
       // Stock: exactamente las tallas del producto (faltantes = 0, sobrantes se eliminan)
       let stockIn = pc.stock;
       if (stockIn === undefined || stockIn === null) stockIn = {};
@@ -789,19 +823,11 @@ export function validateProduct(value, refs) {
         const raw = Object.hasOwn(stockIn, s) ? stockIn[s] : 0;
         stock[s] = c.int(`${p}.stock.${s}`, raw ?? 0, { min: 0, max: 100000, def: 0 });
       }
-      return { color, photos, stock };
+      // Sin fotos de estampado la clave no existe (forma de siempre: { color, photos, stock })
+      return printPhotos ? { color, photos, printPhotos, stock } : { color, photos, stock };
     },
   });
   c.uniqueBy("colors", colors, "color", "Este color ya está en el producto.");
-
-  const prints = c.list("prints", o.prints, {
-    max: 12,
-    item: (p, x) => {
-      const pr = c.obj(p, x);
-      return { id: c.slug(J(p, "id"), pr.id), name: c.text(J(p, "name"), pr.name, { max: 40, required: true }), hex: c.hex(J(p, "hex"), pr.hex) };
-    },
-  });
-  c.uniqueBy("prints", prints, "id");
 
   let video = null;
   if (o.video !== undefined && o.video !== null) {
