@@ -169,11 +169,8 @@
 .pe-card { display: grid; gap: 12px; }
 .pe-card__media { position: relative; aspect-ratio: 4 / 5; border-radius: 6px; overflow: hidden; background: #efe0cb; }
 .pe-card__media.has-photo .pe-tile { visibility: hidden; }
-.pe-card__media.has-photo { background: radial-gradient(120% 90% at 50% 18%, #f6e9d8 0%, #e6cdb2 60%, #d3b090 100%); }
-.pe-card__img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%;
-  mix-blend-mode: multiply; filter: saturate(1.04) contrast(1.03);
-}
+.pe-card__media.has-photo { background: #fff5e4; }   /* crema del sitio: solo se ve si la foto es transparente o no llena el marco */
+.pe-card__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; }   /* tal cual, como en la tienda */
 .pe-card__img.is-full { object-fit: contain; object-position: 50% 50%; }   /* foto completa (fit «contain») */
 .pe-card__badge {
   position: absolute; top: 10px; left: 10px; z-index: 2; padding: 5px 9px; border-radius: 2px;

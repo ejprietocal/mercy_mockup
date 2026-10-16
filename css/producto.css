@@ -90,7 +90,12 @@
   .gallery__stage:hover .gallery__nav, .gallery__stage:focus-within .gallery__nav { opacity: 1; }
 }
 
-.gallery__dots { position: absolute; left: 0; right: 0; bottom: 14px; z-index: 3; display: flex; justify-content: center; gap: 8px; pointer-events: none; }
+/* Los puntos van sobre una píldora oscura translúcida: se leen igual sobre fotos de fondo blanco o prendas oscuras */
+.gallery__dots {
+  position: absolute; left: 50%; bottom: 14px; z-index: 3; transform: translateX(-50%);
+  display: flex; justify-content: center; gap: 8px; padding: 6px 10px; border-radius: var(--radius-pill);
+  background: rgba(42, 30, 20, 0.3); pointer-events: none;
+}
 .gallery__dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 247, 236, 0.5); transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
 .gallery__dot.is-on { background: #fff; transform: scale(1.2); }
 
@@ -238,7 +243,6 @@
 }
 .viewer__img {
   display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;
-  mix-blend-mode: multiply;    /* igual que en la galería: el fondo blanco de estudio toma el tono crema */
   transform-origin: 50% 50%; cursor: zoom-in; -webkit-user-drag: none;
   transition: opacity var(--t-fast) var(--ease);
 }
