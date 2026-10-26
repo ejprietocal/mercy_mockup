@@ -214,8 +214,8 @@ window.Mercy = window.Mercy || {};
     }, 0);
   }
 
-  /* → { lines, parked, removed, capped }: quita líneas imposibles (color/talla/horma/estampado ya no existen,
-     agotado), ajusta cantidades al stock (por prenda + color + talla, sumando estampados y hormas; las líneas anteriores
+  /* → { lines, parked, removed, capped }: quita líneas imposibles (color/talla/horma ya no existen, el color ya no
+     lleva ese estampado, agotado), ajusta cantidades al stock (por prenda + color + talla, sumando estampados y hormas; las líneas anteriores
      tienen prioridad) y une líneas que quedan iguales. Las de un producto que NO se encuentra
      (borrador, renombrado sin alias, borrado) van a `parked` (con la fecha en que se apartaron) y vuelven solas si el
      producto reaparece; pasan 30 días y se olvidan. `removed` cuenta solo las que se veían en el carrito. */
@@ -240,10 +240,12 @@ window.Mercy = window.Mercy || {};
         else if (p.fits.indexOf(l.fit) < 0) return drop();
         else fit = l.fit;
       }
+      /* Estampado: uno que lleve ese color (sin estampado guardado, su primero); si el color ya no lleva ninguno, sin estampado */
       let print = "";
-      if (p.prints) {
-        if (l.print && !p.prints.some(function (x) { return x.id === l.print; })) return drop();
-        print = l.print || p.prints[0].id;
+      const prints = data.printsOf(p, l.color);
+      if (prints.length) {
+        if (l.print && !prints.some(function (x) { return x.id === l.print; })) return drop();
+        print = l.print || prints[0].id;
       }
       const stock = data.stockOf(p, l.color, l.size);
       if (stock <= 0) return drop();
@@ -346,8 +348,10 @@ window.Mercy = window.Mercy || {};
       const color = sel.color || p.colors[0];
       const size = sel.size;
       const fit = p.fits && p.fits.length ? (sel.fit || p.fits[0]) : "";
-      const print = p.prints ? (sel.print || p.prints[0].id) : "";
       if (p.colors.indexOf(color) < 0) return { ok: false, reason: "color" };
+      /* Estampados del color: el elegido si ese color lo lleva; si no, su primero ("" = el color no lleva) */
+      const prints = data.printsOf(p, color);
+      const print = prints.some(function (x) { return x.id === sel.print; }) ? sel.print : (prints.length ? prints[0].id : "");
       if (!size || p.sizes.indexOf(size) < 0) return { ok: false, reason: "talla" };
       const stock = data.stockOf(p, color, size);
       if (stock <= 0) return { ok: false, reason: "sin-stock" };

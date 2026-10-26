@@ -506,8 +506,8 @@ await mediaApi.remove(id);                                     // 409 in_use →
   desde la biblioteca, el equipo o una URL, y tope `max` (por defecto 4; los productos pasan 10, contrato §3) con contador «n/max fotos».
   - `noun` (por defecto `"color"`): a qué pertenecen las fotos en los avisos del tope («Solo se agregaron 2 de 5: máximo 10 fotos por
     color.», «Llegaste al máximo de fotos por estampado…»).
-  - `emptyHint`: texto junto al contador cuando la lista está vacía, para decir qué mostrará la tienda (por defecto «Este color usará
-    las fotos del primer color que tenga.»; `""` no muestra nada).
+  - `emptyHint`: texto junto al contador cuando la lista está vacía, para decir qué mostrará la tienda (por defecto «Sin fotos: en la
+    tienda este color muestra la tarjeta de color (nunca las fotos de otro color).»; `""` no muestra nada).
   - `onUploadStart()` (opcional): se llama al empezar cada subida desde el equipo y devuelve `(foto) => …`, que recibe la foto al
     terminar **en lugar** de agregarla a la copia local de la lista.
 
@@ -538,11 +538,13 @@ kind)` y `URL_MESSAGES` (mismas reglas que el servidor) · `siteUrl(u)` (convier
 panel) · `fileNameOf(url)`.
 
 Fotos de producto (misma regla que la tienda y el servidor, contrato §3 «Fotos de producto»; reciben el producto con la forma del
-contenido, `colors[].photos` / `colors[].printPhotos`):
-- `productPhotos(p, colorId, printId)` → lo que muestra la ficha para esa variante: la combinación color + estampado, si no las del
-  color, si no las de ese estampado en el primer color que las tenga, si no las del primer color con fotos, si no `[]`. `printId` sin
-  pasar = el primer estampado; `""` = sin estampado.
-- `productMainPhoto(p)` → foto principal `{ src, thumb, alt, zoom, ox, oy } | null` (la de la tarjeta de la tienda y de `og:image`).
+contenido, `colors[].photos` / `colors[].prints` / `colors[].printPhotos`):
+- `colorPrintIds(p, color)` → ids de los estampados que lleva ese color (orden del producto; sin la clave `prints` = todos).
+- `productPhotos(p, colorId, printId)` → lo que muestra la ficha para esa variante: la combinación color + estampado (si el color lleva
+  ese estampado), si no las del color, si no `[]`. Nunca las de otro color. `printId` sin pasar = el primer estampado de ese color;
+  `""` = sin estampado.
+- `productMainPhoto(p)` → foto principal `{ src, thumb, alt, zoom, ox, oy } | null` (la de la tarjeta de la tienda y de `og:image`):
+  la primera del color inicial (su primer estampado, sus fotos, sus demás estampados); si no tiene ninguna, la del primer color que tenga.
   Úsala para TODA miniatura de un producto en el panel (lista, Escritorio, cupones, taxonomías, «Más vendidos»); no tomes
   `colors[0].photos[0]` a mano.
 - `initialColorIndex(p)` → índice del color con que abre la tienda (el primero con stock; si ninguno, el primero).

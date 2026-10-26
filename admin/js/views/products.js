@@ -9,11 +9,11 @@
                         vendidos, novedades, stock, actualizado) y acciones: editar, ver en la tienda,
                         duplicar, publicar / pasar a borrador, eliminar.
    · #/productos/nuevo  y #/productos/:id  editor por pestañas con barra de guardado:
-                        General · Colores y stock (hormas, tallas, colores con hasta 10 fotos, hasta 10
-                        fotos por combinación color + estampado y stock por talla) · Descripción (detalles
+                        General · Colores y stock (hormas, tallas, colores con hasta 10 fotos, los estampados
+                        que lleva cada color con hasta 10 fotos por combinación y stock por talla) · Descripción (detalles
                         y cuidados heredables) · Estampados · Video · Tarjeta sin foto (vista previa en
                         vivo) · Orden y reseñas. Columna lateral con la tarjeta tal como se ve en el
-                        catálogo. Maneja 422 (cada error en su campo, también colors.N.photos,
+                        catálogo. Maneja 422 (cada error en su campo, también colors.N.photos, colors.N.prints,
                         colors.N.printPhotos.ESTAMPADO y colors.N.stock.TALLA), 409 por edición
                         concurrente e id repetido.
    La tienda lee estos datos en js/data.js (solo productos publicados) y los muestra en catalogo.html,
@@ -30,7 +30,8 @@ import {
   promptDialog, showApiError, statusBadge, tabs, toast,
 } from "../core/ui.js";
 import {
-  HEX_RE, SLUG_RE, clone, dateTime, fold, initialColorIndex, money, number, plural, productMainPhoto, relativeTime, siteUrl, slugify,
+  HEX_RE, SLUG_RE, clone, colorPrintIds, dateTime, fold, initialColorIndex, money, number, plural, productMainPhoto, relativeTime, siteUrl,
+  slugify,
 } from "../core/format.js";
 
 export const LOW_STOCK = 10;           // igual que el servidor y el Escritorio: 1–10 unidades en total = poco stock
@@ -64,8 +65,8 @@ function emptyCells(p) {
   return n;
 }
 
-/** Fotos con estampado de un color (solo de estampados que existen en el producto). */
-const printPhotoCount = (c, printIds) => printIds.reduce((a, id) => a + (c?.printPhotos?.[id]?.length || 0), 0);
+/** Fotos con estampado de un color (solo de los estampados del producto que lleva ese color). */
+const printPhotoCount = (p, c) => colorPrintIds(p, c).reduce((a, id) => a + (c?.printPhotos?.[id]?.length || 0), 0);
 
 /** URL de una foto para un ancho dado (Pexels con ?w=, subidas con su miniatura de 600 px). */
 function photoSrc(ph, w = 600) {
@@ -389,7 +390,7 @@ function newProduct(data) {
     bestRank: Math.min(9999, best.length ? Math.max(...best) + 1 : 1),
     newRank: news.length ? Math.max(0, Math.min(...news) - 1) : 1,
     rating: 0, reviewsCount: 0,
-    colors: [{ color: "", photos: [], printPhotos: {}, stock: Object.fromEntries(STD_SIZES.map((s) => [s, 0])) }],
+    colors: [{ color: "", photos: [], prints: [], printPhotos: {}, stock: Object.fromEntries(STD_SIZES.map((s) => [s, 0])) }],
     prints: [], video: null,
     tile: { from: TILE_FROM, to: TILE_TO, lines: [], sub: "", stacked: false, small: false, fs: null },
     tags: [], desc: "", story: "", details: [], care: [],
@@ -403,22 +404,26 @@ function newProduct(data) {
 function normalize(p) {
   p.colors = Array.isArray(p.colors) ? p.colors : [];
   p.sizes = Array.isArray(p.sizes) ? p.sizes : [];
+  p.prints = Array.isArray(p.prints) ? p.prints : [];
+  const printIds = p.prints.map((x) => x?.id).filter(Boolean);
   for (const c of p.colors) {
     c.photos = Array.isArray(c.photos) ? c.photos : [];
+    // Estampados que lleva el color; sin la clave (contenido de antes de los estampados por color) = todos, como el servidor
+    c.prints = Array.isArray(c.prints) ? c.prints : printIds.slice();
     // Siempre un objeto: las rutas colors.N.printPhotos.<id> no crean listas aunque el id sea numérico («2025»)
     c.printPhotos = c.printPhotos && typeof c.printPhotos === "object" && !Array.isArray(c.printPhotos) ? c.printPhotos : {};
     c.stock = c.stock && typeof c.stock === "object" ? c.stock : {};
   }
-  p.prints = Array.isArray(p.prints) ? p.prints : [];
   p.tile = { from: TILE_FROM, to: TILE_TO, lines: [], sub: "", stacked: false, small: false, fs: null, ...(p.tile || {}) };
   for (const k of ["fits", "tags", "details", "care"]) if (!Array.isArray(p[k])) p[k] = [];
   return p;
 }
 
 /**
- * Lo que se envía al servidor: stock exacto por talla, video vacío = null, ids de estampados y fotos con
- * estampado bajo el id que se envía (sin claves de estampados que ya no existen ni listas vacías; sin
- * printPhotos si el color no tiene ninguna, como lo guarda el servidor).
+ * Lo que se envía al servidor: stock exacto por talla, video vacío = null, ids de estampados, los estampados de cada
+ * color y sus fotos bajo el id que se envía (en el orden de los estampados; sin estampados que ya no existen o que el
+ * color no lleva ni listas vacías; sin printPhotos si el color no tiene ninguna y sin prints si el producto no tiene
+ * estampados, como lo guarda el servidor).
  */
 function prepare(v) {
   const p = clone(v);
@@ -432,10 +437,12 @@ function prepare(v) {
     if (x.id && !idMap.has(x.id)) idMap.set(x.id, id);
     return { ...x, id };
   });
-  p.colors = (p.colors || []).map(({ printPhotos, ...c }) => {
+  p.colors = (p.colors || []).map(({ prints: own, printPhotos, ...c }) => {
     const out = { ...c, stock: Object.fromEntries(sizes.map((s) => [s, Number.isFinite(c.stock?.[s]) ? c.stock[s] : 0])) };
+    const carried = [...idMap].filter(([from]) => Array.isArray(own) && own.includes(from));
+    if (p.prints.length) out.prints = carried.map(([, to]) => to);
     const pp = {};
-    for (const [from, to] of idMap) {
+    for (const [from, to] of carried) {
       const list = printPhotos?.[from];
       if (Array.isArray(list) && list.length) pp[to] = list;
     }
@@ -780,7 +787,8 @@ async function editorView(el, id, ctx) {
       const used = new Set(arr.map((c) => c.color));
       const free = palette.find((c) => !used.has(c.id));
       if (!free) toast("Ya usaste todos los colores de la paleta. Crea uno nuevo en Colores.", { type: "warning" });
-      return { color: free?.id || "", photos: [], printPhotos: {}, stock: Object.fromEntries((form.get("sizes") || []).map((s) => [s, 0])) };
+      // Un color nuevo no lleva estampados hasta que los marques (no muestra los de otro color)
+      return { color: free?.id || "", photos: [], prints: [], printPhotos: {}, stock: Object.fromEntries((form.get("sizes") || []).map((s) => [s, 0])) };
     },
     itemLabel: (it, i) => paletteById.get(it?.color)?.name || it?.color || `Color ${i + 1} (sin elegir)`,
     renderItem: (p, i) => {
@@ -789,7 +797,7 @@ async function editorView(el, id, ctx) {
         f.photos(form, `${p}.photos`, {
           label: "Fotos",
           max: MAX_PHOTOS,
-          help: `Hasta ${MAX_PHOTOS} por color. La primera es la principal: abre la galería y es la de la tarjeta del catálogo. Si la prenda tiene estampados, estas fotos se ven cuando el estampado elegido no tiene fotos propias en este color. Se optimizan solas al subirlas.`,
+          help: `Hasta ${MAX_PHOTOS} por color. La primera es la principal: abre la galería y es la de la tarjeta del catálogo. Si este color lleva estampados, estas fotos se ven cuando el estampado elegido no tiene fotos propias. Un color sin fotos nunca muestra las de otro color. Se optimizan solas al subirlas.`,
         }),
         printPhotosBlock(p),
         stockGrid(`${p}.stock`));
@@ -797,67 +805,142 @@ async function editorView(el, id, ctx) {
   });
   colorsField.classList.add("pe-colors");
 
-  /* --- Fotos con estampado (colors.N.printPhotos.<id>): una lista por estampado dentro de cada color --- */
+  /* --- Estampados de cada color (colors.N.prints) y sus fotos (colors.N.printPhotos.<id>) --- */
   const printIds = () => (form.get("prints") || []).map((x) => x?.id).filter(Boolean);
 
-  /** Fotos con estampado de un color. Si cambian los ids o el orden de los estampados se rehace; si solo cambian
-   *  nombres o colores, se actualizan las etiquetas en su sitio (no se rehacen las listas ni se cortan sus subidas). */
+  /** Estampados que lleva un color (se marcan) y, por cada uno marcado, sus fotos. Si cambian los ids o el orden de
+   *  los estampados se rehace; si solo cambian nombres o colores, se actualizan las etiquetas en su sitio; si cambian
+   *  los estampados de ESTE color, solo se agregan o quitan esas listas (las demás no se rehacen ni se cortan sus subidas). */
   function printPhotosBlock(p) {
     const box = h("div.pe-pphotos");
     const idsOf = () => JSON.stringify((form.get("prints") || []).map((x) => x?.id || ""));
     const labelsOf = () => JSON.stringify((form.get("prints") || []).map((x) => [x?.name || "", x?.hex || ""]));
-    let ids = null, labels = null;
-    let parts = [];   // por estampado: { el, label, grid } para cambiar nombre y muestra sin rehacer
+    const ownOf = () => JSON.stringify(form.get(`${p}.prints`) || []);
+    let ids = null, labels = null, own = null;
+    let paintChips = () => {};
+    let list = null;            // listas de fotos de los estampados marcados
+    let fields = new Map();     // id → { el, label, grid }: se conservan al marcar o desmarcar otro estampado
     const nameOf = (x, j) => String(x?.name || "").trim() || `Estampado ${j + 1}`;
+
+    function photoField(x, j) {
+      const name = nameOf(x, j);
+      const path = `${p}.printPhotos.${x.id}`;
+      const field = f.photos(form, path, {
+        label: name,
+        listLabel: `Fotos con estampado ${name}`,
+        className: "pe-pphoto",
+        max: MAX_PRINT_PHOTOS,
+        noun: "estampado",
+        emptyHint: "Sin fotos: se usarán las fotos del color.",
+        help: `Hasta ${MAX_PRINT_PHOTOS}. Sin fotos: se usan las fotos de este color.`,
+        // Una subida que termina después de renombrar (o quitar) el estampado va a su ruta de ese momento
+        uploadPath: () => printPathLater(p, x.id),
+        // Sin fotos la clave desaparece (undefined): agregar y quitar la misma foto no deja «cambios sin guardar»
+        onChange: (arr) => { if (!arr.length) form.set(path, undefined); },
+      });
+      field.style.setProperty("--pe-print-hex", hexOr(x?.hex, "#999999"));
+      return { el: field, label: field.querySelector(":scope > .field__label"), grid: field.querySelector(".photo-list__grid") };
+    }
+
+    /** Selector «Estampados de este color» (colors.N.prints): un botón por estampado del producto. */
+    function printsSelect() {
+      return f.custom(form, `${p}.prints`, {
+        label: "Estampados de este color",
+        group: true,
+        help: "Marca los que se venden en este color. Sin ninguno, la ficha no muestra el selector «Estampado» al elegir este color.",
+        create: ({ value, onChange }) => {
+          const root = h("div.chips.pe-cprints", { role: "group" });
+          let cur = Array.isArray(value) ? value.slice() : [];
+          paintChips = () => {
+            replace(root, (form.get("prints") || []).map((x, j) => {
+              const on = !!x?.id && cur.includes(x.id);
+              const b = h("button.chip", {
+                type: "button", "aria-pressed": String(on), disabled: !x?.id, dataset: { print: x?.id || "" },
+                title: x?.id ? null : "Escribe primero el nombre del estampado (pestaña Estampados)",
+              },
+              h("span.chip__swatch", { style: { background: hexOr(x?.hex, "#999999") } }),
+              h("span", nameOf(x, j)),
+              icon(on ? "check" : "plus", { size: 14, className: "chip__icon" }));
+              b.addEventListener("click", () => toggle(x?.id, nameOf(x, j)));
+              return b;
+            }));
+          };
+          const toggle = async (id, name) => {
+            if (!id) return;
+            if (cur.includes(id)) {
+              // Quitar el estampado del color: sus fotos en este color también se van (se avisa si tiene)
+              const n = form.get(`${p}.printPhotos`)?.[id]?.length || 0;
+              if (n && !(await confirmDialog({
+                title: `¿Quitar «${name}» de este color?`,
+                message: `Tiene ${plural(n, "foto", "fotos")} con este estampado en este color. Se quitarán al guardar.`,
+                confirmLabel: "Quitar estampado",
+                danger: true,
+              }))) return;
+              if (!cur.includes(id)) return;   // mientras se confirmaba, otro cambio ya lo quitó
+              const pp = { ...(form.get(`${p}.printPhotos`) || {}) };
+              if (pp[id] !== undefined) { delete pp[id]; form.set(`${p}.printPhotos`, pp); }
+              cur = cur.filter((v) => v !== id);
+            } else {
+              const set = new Set([...cur, id]);
+              cur = printIds().filter((v) => set.has(v));
+            }
+            onChange(cur);
+            paintChips();
+            root.querySelector(`[data-print="${CSS.escape(id)}"]`)?.focus();
+          };
+          paintChips();
+          return {
+            el: root,
+            setValue: (v) => { cur = Array.isArray(v) ? v.slice() : []; paintChips(); },
+            focus: () => root.querySelector("button:not([disabled])")?.focus(),
+          };
+        },
+      });
+    }
+
+    /** Listas de fotos de los estampados marcados en este color (reutiliza las que ya estaban). */
+    function paintPhotos() {
+      own = ownOf();
+      const mine = new Set(form.get(`${p}.prints`) || []);
+      const next = new Map();
+      const els = [];
+      (form.get("prints") || []).forEach((x, j) => {
+        if (!x?.id || !mine.has(x.id)) return;
+        const part = fields.get(x.id) || photoField(x, j);
+        next.set(x.id, part);
+        els.push(part.el);
+      });
+      fields = next;
+      replace(list, els.length
+        ? [h("div.pe-pphotos__head",
+          h("p.pe-pphotos__title", "Fotos con estampado"),
+          h("p.field__help", "Fotos de este color con cada estampado. En la ficha, al elegir la combinación se ven solo sus fotos.")), els]
+        : h("p.pe-pphotos__hint", "Este color no lleva estampados: en la ficha se ven solo sus fotos y no sale el selector «Estampado»."));
+    }
+
     function render() {
       ids = idsOf();
       labels = labelsOf();
-      parts = [];
+      fields = new Map();
       const prints = form.get("prints") || [];
       if (!prints.length) {
+        own = ownOf();
+        paintChips = () => {};
         replace(box, h("p.pe-pphotos__hint",
           "¿La prenda viene con varios colores de estampado? Agrégalos en la pestaña ",
           h("button.pe-pphotos__link", { type: "button", onClick: goToPrints }, "Estampados"),
-          " y aquí podrás cargar las fotos de cada combinación."));
+          " y aquí podrás marcar los que lleva este color y cargar las fotos de cada combinación."));
         return;
       }
-      replace(box,
-        h("div.pe-pphotos__head",
-          h("p.pe-pphotos__title", "Fotos con estampado"),
-          h("p.field__help", "Fotos de este color con cada estampado. En la ficha, al elegir la combinación se ven solo sus fotos.")),
-        prints.map((x, j) => {
-          const name = nameOf(x, j);
-          const hex = hexOr(x?.hex, "#999999");
-          if (!x?.id) {
-            const el = h("div.pe-pphoto.pe-pphoto--pending", { style: { "--pe-print-hex": hex } },
-              h("span.field__label", name),
-              h("p.field__help", "Escribe el nombre del estampado (pestaña Estampados) para cargar sus fotos."));
-            parts.push({ el, label: el.firstChild, grid: null });
-            return el;
-          }
-          const path = `${p}.printPhotos.${x.id}`;
-          const field = f.photos(form, path, {
-            label: name,
-            listLabel: `Fotos con estampado ${name}`,
-            className: "pe-pphoto",
-            max: MAX_PRINT_PHOTOS,
-            noun: "estampado",
-            emptyHint: "Sin fotos: se usarán las fotos del color.",
-            help: `Hasta ${MAX_PRINT_PHOTOS}. Sin fotos: se usan las fotos del color.`,
-            // Una subida que termina después de renombrar (o quitar) el estampado va a su ruta de ese momento
-            uploadPath: () => printPathLater(p, x.id),
-            // Sin fotos la clave desaparece (undefined): agregar y quitar la misma foto no deja «cambios sin guardar»
-            onChange: (arr) => { if (!arr.length) form.set(path, undefined); },
-          });
-          field.style.setProperty("--pe-print-hex", hex);
-          parts.push({ el: field, label: field.querySelector(":scope > .field__label"), grid: field.querySelector(".photo-list__grid") });
-          return field;
-        }));
+      list = h("div.pe-pphotos__list");
+      replace(box, printsSelect(), list);
+      paintPhotos();
     }
     function relabel() {
       labels = labelsOf();
+      paintChips();
       (form.get("prints") || []).forEach((x, j) => {
-        const part = parts[j];
+        const part = x?.id && fields.get(x.id);
         if (!part) return;
         const name = nameOf(x, j);
         if (part.label) part.label.textContent = name;
@@ -869,8 +952,9 @@ async function editorView(el, id, ctx) {
     const off = form.on("change", () => {
       if (!box.isConnected) { if (seen) off(); return; }
       seen = true;
-      if (idsOf() !== ids) render();
-      else if (labelsOf() !== labels) relabel();
+      if (idsOf() !== ids) { render(); return; }
+      if (labelsOf() !== labels) relabel();
+      if (ownOf() !== own && list) paintPhotos();
     });
     // Visto en cuanto entra al documento: si sale por un redibujo antes de otro cambio (p. ej. «Agregar color» y
     // guardar o descartar en seguida), el siguiente cambio suelta el listener igual
@@ -886,7 +970,7 @@ async function editorView(el, id, ctx) {
     const from = printRenames.length;
     return () => {
       const cur = printRenames.slice(from).reduce((acc, [a, b]) => (acc === a ? b : acc), id);
-      return cur && printIds().includes(cur) ? `${p}.printPhotos.${cur}` : "";
+      return cur && printIds().includes(cur) && (form.get(`${p}.prints`) || []).includes(cur) ? `${p}.printPhotos.${cur}` : "";
     };
   }
 
@@ -897,11 +981,14 @@ async function editorView(el, id, ctx) {
     requestAnimationFrame(() => t.panel("estampados")?.querySelector("input, button:not([disabled])")?.focus());
   }
 
-  /** Mueve las fotos de un estampado a otro id en TODOS los colores (to = "" las quita). */
+  /** Mueve un estampado a otro id en TODOS los colores: sus fotos y la marca de los colores que lo llevan
+   *  (to = "" lo quita). */
   function movePrintPhotos(from, to) {
     if (!from || from === to) return;
     printRenames.push([from, to]);
     (form.get("colors") || []).forEach((c, i) => {
+      const own = Array.isArray(c?.prints) ? c.prints : [];
+      if (own.includes(from)) form.set(`colors.${i}.prints`, to ? own.map((x) => (x === from ? to : x)) : own.filter((x) => x !== from));
       const pp = c?.printPhotos;
       if (!pp || pp[from] === undefined) return;
       const next = { ...pp };
@@ -911,10 +998,12 @@ async function editorView(el, id, ctx) {
     });
   }
 
-  /** Quita de todos los colores las fotos de estampados que ya no están en la lista. */
+  /** Quita de todos los colores los estampados que ya no están en la lista (la marca y sus fotos). */
   function prunePrintPhotos() {
     const ids = new Set(printIds());
     (form.get("colors") || []).forEach((c, i) => {
+      const own = Array.isArray(c?.prints) ? c.prints : [];
+      if (own.some((k) => !ids.has(k))) form.set(`colors.${i}.prints`, own.filter((k) => ids.has(k)));
       const pp = c?.printPhotos;
       if (!pp || typeof pp !== "object") return;
       const gone = Object.keys(pp).filter((k) => !ids.has(k));
@@ -927,6 +1016,8 @@ async function editorView(el, id, ctx) {
 
   /** Fotos de un estampado sumando todos los colores. */
   const photosOfPrint = (id) => (id ? (form.get("colors") || []).reduce((a, c) => a + (c?.printPhotos?.[id]?.length || 0), 0) : 0);
+  /** Colores que llevan un estampado (sus nombres, en el orden del producto). */
+  const colorsOfPrint = (id) => (id ? (form.get("colors") || []).filter((c) => (c?.prints || []).includes(id)).map((c) => paletteById.get(c.color)?.name || c.color || "Color sin elegir") : []);
 
   /** Encabezado de cada color: muestra, "Primero en la tienda", fotos y unidades. */
   function refreshColorHeads() {
@@ -934,7 +1025,7 @@ async function editorView(el, id, ctx) {
     if (!ol) return;
     const colors = form.get("colors") || [];
     const first = initialColorIndex(form.get());
-    const pids = printIds();
+    const hasPrints = printIds().length > 0;
     Array.from(ol.children).forEach((li, i) => {
       const c = colors[i];
       const toggle = li.querySelector(":scope > .list-item__head .list-item__toggle");
@@ -948,11 +1039,12 @@ async function editorView(el, id, ctx) {
       sw.classList.toggle("is-empty", !hex);
       const tot = (form.get("sizes") || []).reduce((a, s) => a + (Number(c.stock?.[s]) || 0), 0);
       const n = c.photos?.length || 0;
-      const np = printPhotoCount(c, pids);
+      const cp = colorPrintIds(form.get(), c).length;
+      const np = printPhotoCount(form.get(), c);
       replace(meta,
         i === first && colors.length > 1 ? h("span.pe-chip.pe-chip--accent", "Primero en la tienda") : null,
         h("span.pe-chip", { class: !n && "is-muted" }, n ? `${n}/${MAX_PHOTOS} fotos` : "Sin fotos"),
-        pids.length ? h("span.pe-chip", { class: !np && "is-muted" }, np ? `+${np} con estampado` : "Sin fotos con estampado") : null,
+        hasPrints ? h("span.pe-chip", { class: !cp && "is-muted" }, cp ? `${plural(cp, "estampado", "estampados")}${np ? ` · +${np} ${np === 1 ? "foto" : "fotos"}` : ""}` : "Sin estampados") : null,
         h("span.pe-chip", { class: !tot && "is-danger" }, tot ? plural(tot, "ud.", "uds.") : "Sin stock"));
     });
   }
@@ -1098,10 +1190,36 @@ async function editorView(el, id, ctx) {
   /* ------------------------------------------------------------------ */
   /* Estampados                                                           */
   /* ------------------------------------------------------------------ */
+  /** Qué colores llevan un estampado (se actualiza al marcarlo o desmarcarlo en cada color). */
+  function usageNote(p) {
+    const note = h("p.field__help.pe-print-use");
+    const paint = () => {
+      const names = colorsOfPrint(form.get(`${p}.id`));
+      note.classList.toggle("is-warning", !names.length);
+      replace(note, names.length
+        ? ["Lo llevan: ", h("strong", names.join(", ")), "."]
+        : [icon("alert", { size: 14 }), h("span", "Ningún color lo lleva todavía: márcalo en "), h("button.pe-pphotos__link", { type: "button", onClick: goToColors }, "Colores y stock"), h("span", ", dentro de cada color. Mientras tanto no se ve en la tienda.")]);
+    };
+    let seen = false;
+    const off = form.on("change", ({ path }) => {
+      if (!note.isConnected) { if (seen) off(); return; }
+      seen = true;
+      if (!path || path.startsWith("colors") || path.startsWith("prints")) paint();
+    });
+    requestAnimationFrame(() => { if (note.isConnected) seen = true; });
+    paint();
+    return note;
+  }
+  /** Abre la pestaña Colores y stock. */
+  function goToColors() {
+    t.select("colores");
+    ctx.setQuery({ tab: "colores" });
+    requestAnimationFrame(() => t.panel("colores")?.querySelector(".pe-cprints button:not([disabled]), button.list-item__toggle")?.focus());
+  }
   const initialPrintIds = () => new Set((form.initial.prints || []).map((x) => x.id));
   const printsTab = card({
     title: "Estampados",
-    description: "Opcional. Si la prenda se ofrece con varios colores de estampado, la ficha muestra el selector «Estampado» (el primero viene elegido). Las fotos de cada combinación (p. ej. Negro + Naranja) se cargan en «Colores y stock», dentro de cada color.",
+    description: "Opcional. Aquí defines los estampados de la prenda; en «Colores y stock», dentro de cada color, marcas cuáles lleva ese color y cargas las fotos de cada combinación (p. ej. Negro + Naranja). En la ficha, el selector «Estampado» muestra solo los del color elegido (el primero viene elegido) y no sale en un color sin estampados.",
     body: f.list(form, "prints", {
       label: "Estampados",
       max: 12,
@@ -1109,7 +1227,7 @@ async function editorView(el, id, ctx) {
       emptyText: "Sin estampados: la ficha no muestra el selector.",
       newItem: () => ({ id: "", name: "", hex: "#bb3f17" }),
       itemLabel: (it, i) => it?.name || `Estampado ${i + 1}`,
-      // Quitar un estampado con fotos: se avisa, y sus fotos salen de todos los colores (onChange → prunePrintPhotos)
+      // Quitar un estampado con fotos: se avisa, y sale de todos los colores con sus fotos (onChange → prunePrintPhotos)
       beforeRemove: async (it) => {
         const n = photosOfPrint(it?.id);
         if (!n) return true;
@@ -1138,7 +1256,8 @@ async function editorView(el, id, ctx) {
                   // Nombre sin letras ni números latinos («★», un emoji): el mismo código de respaldo que prepare()
                   const slug = slugify(v);
                   let next = slug ? uniqueSlug(slug, taken) : String(v || "").trim() ? uniqueSlug("estampado", taken) : "";
-                  if (!next && cur && photosOfPrint(cur)) next = cur;   // nombre borrado: conserva el código para no perder sus fotos
+                  // Nombre borrado: conserva el código para no perder sus fotos ni los colores que lo llevan
+                  if (!next && cur && (photosOfPrint(cur) || colorsOfPrint(cur).length)) next = cur;
                   if (next !== cur) {
                     movePrintPhotos(cur, next);
                     form.set(`${p}.id`, next);
@@ -1148,7 +1267,8 @@ async function editorView(el, id, ctx) {
               },
             }),
             f.color(form, `${p}.hex`, { label: "Color del estampado", required: true })),
-          idNote);
+          idNote,
+          usageNote(p));
         showId();
         return el;
       },
@@ -1291,15 +1411,16 @@ async function editorView(el, id, ctx) {
         p.envioGratis ? h("p.pe-card__ship", icon("package", { size: 14 }), "Envío gratis") : null));
     const total = productStock(p);
     const nPhotos = colors.reduce((a, c) => a + (c.photos?.length || 0), 0);
-    const pids = (p.prints || []).map((x) => x?.id).filter(Boolean);
-    const nPrint = colors.reduce((a, c) => a + printPhotoCount(c, pids), 0);
+    const nPrint = colors.reduce((a, c) => a + printPhotoCount(p, c), 0);
+    // Colores sin ninguna foto (ni propias ni de sus estampados): en la ficha muestran la tarjeta de color
+    const bare = colors.filter((c) => !c.photos?.length && !printPhotoCount(p, c)).length;
     const empty = emptyCells(p);
     replace(facts,
       h("dt", "Estado"), h("dd", h("span.cluster", statusBadge(p.status === "published" ? "published" : "draft"), soldOut ? statusBadge("soldout") : isLow(p) ? statusBadge("low") : null)),
       h("dt", "Stock"), h("dd", plural(total, "unidad", "unidades"), empty ? h("span.muted", ` · ${plural(empty, "talla sin stock", "tallas sin stock")}`) : null),
       h("dt", "Colores"), h("dd", plural(colors.length, "color", "colores")),
       h("dt", "Fotos"), h("dd", nPhotos || nPrint
-        ? [nPhotos ? plural(nPhotos, "foto", "fotos") : "Sin fotos del color", nPrint ? ` · ${number(nPrint)} con estampado` : "", colors.some((c) => !c.photos?.length) && nPhotos ? " · algunos colores usan las de otro" : ""].join("")
+        ? [nPhotos ? plural(nPhotos, "foto", "fotos") : "Sin fotos del color", nPrint ? ` · ${number(nPrint)} con estampado` : "", bare ? ` · ${plural(bare, "color sin fotos", "colores sin fotos")} (se ve la tarjeta de color)` : ""].join("")
         : "Sin fotos: se ve la tarjeta de color"),
       !isNew && value.updatedAt ? [h("dt", "Actualizado"), h("dd", h("time", { datetime: form.initial.updatedAt, title: dateTime(form.initial.updatedAt) }, relativeTime(form.initial.updatedAt)), form.initial.updatedBy ? ` por ${form.initial.updatedBy}` : "")] : null);
     replace(asideNote,

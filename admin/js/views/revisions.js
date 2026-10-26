@@ -232,7 +232,8 @@ function primitiveValue(v, key, L) {
 function arrayValue(list, other, side, key, L) {
   if (!list.length) return emptyNode();
   const names = key === "fits" ? L.fits : null;
-  const label = (x) => (names?.get(x) || String(x));
+  // colors[negro].prints = ["naranja", "azul"] (estampados que lleva el color): como las claves de printPhotos
+  const label = (x) => (names?.get(x) || (key === "prints" ? capitalize(String(x)) : String(x)));
   const otherSet = new Set((other || []).map(String));
   const mark = (x) => (Array.isArray(other) && !otherSet.has(String(x)) ? (side === "before" ? "is-removed" : "is-added") : null);
   const long = list.some((x) => String(x).length > 28);

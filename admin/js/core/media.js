@@ -647,7 +647,7 @@ const normPhoto = (p) => ({
  */
 export function photoListField({
   max = 4, value = [], onChange, label = "Fotos", noun = "color",
-  emptyHint = "Este color usará las fotos del primer color que tenga.",
+  emptyHint = "Sin fotos: en la tienda este color muestra la tarjeta de color (nunca las fotos de otro color).",
   onUploadStart = null,
 } = {}) {
   let photos = (value || []).map(normPhoto);

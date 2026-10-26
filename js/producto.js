@@ -1,12 +1,14 @@
 /* ==========================================================================
    Mercy Studio — producto.js
    Pantalla de detalle de producto:  producto.html?id=<id>[&color=<id>&print=<id>]
-   (color / print válidos fijan la variante con la que abre: enlaces del carrito y del checkout).
+   (color / print válidos fijan la variante con la que abre: enlaces del carrito y del checkout; print solo si ese
+   color lo lleva). Cada color tiene sus estampados: el selector «Estampado» muestra los del color elegido y no sale
+   si ese color no lleva ninguno.
    Comentarios aplicados: C23/C24 (stock / no disponible), C25 (etiqueta de color
    encima), C26/C27 (solo "Agregar al carrito"), C28 (acordeones ítem por ítem +
    Medidas/Tallas), C32/C34 (envío), C43 (tachón diagonal), C44 (carrito overlay).
    Galería: fotos (hasta 10) de la combinación COLOR + ESTAMPADO elegida o, si no tiene, las del
-   color base (Mercy.data.photosFor; no se mezclan) + diapositiva de video al final SOLO si la
+   color (Mercy.data.photosFor; no se mezclan ni se toman de otro color) + diapositiva de video al final SOLO si la
    prenda tiene video. Se rehace al cambiar de color o de estampado si cambia el juego de fotos.
    Sin fotos: 3 degradados (+ video si lo hay). Con una sola diapositiva no hay flechas, puntos
    ni miniaturas.
@@ -84,16 +86,22 @@
   /* Estado de la selección                                               */
   /* ------------------------------------------------------------------ */
   const hasFits = !!(p.fits && p.fits.length);
-  const hasPrints = !!(p.prints && p.prints.length);
   const hasChart = !!p.sizeChart;
+
+  /* Estampado válido para un color: el pedido si ese color lo lleva; si no, su primero ("" = el color no lleva) */
+  function printFor(color, want) {
+    const list = D.printsOf(p, color);
+    return list.some(function (x) { return x.id === want; }) ? want : (list.length ? list[0].id : "");
+  }
 
   /* Variante pedida en la dirección (?color=&print=, p. ej. desde el carrito): solo si existe en la prenda */
   const askColor = U.qs().get("color"), askPrint = U.qs().get("print");
+  const startColor = askColor && p.colors.indexOf(askColor) > -1 ? askColor
+    : p.initialColor || p.colors.filter(function (c) { return D.colorHasStock(p, c); })[0] || p.colors[0] || "";
   const st = {
-    color: askColor && p.colors.indexOf(askColor) > -1 ? askColor
-      : p.initialColor || p.colors.filter(function (c) { return D.colorHasStock(p, c); })[0] || p.colors[0] || "",
+    color: startColor,
     fit: hasFits ? p.fits[0] : "",
-    print: hasPrints ? (askPrint && p.prints.some(function (x) { return x.id === askPrint; }) ? askPrint : p.prints[0].id) : "",
+    print: printFor(startColor, askPrint),
     size: "",
     qty: 1
   };
@@ -564,13 +572,7 @@
         ' aria-label="' + esc(col.name) + (has ? "" : " (agotado)") + '" title="' + esc(col.name) + (has ? "" : " · agotado") + '">' +
         '<span class="swatch" style="--c:' + col.hex + '"></span></button>';
     }).join("");
-    if (hasPrints) {
-      $("#opt-print").hidden = false;
-      printGroup.innerHTML = p.prints.map(function (x) {
-        return '<button type="button" class="swatch-btn" role="radio" aria-checked="false" tabindex="-1" data-print="' + esc(x.id) + '"' +
-          ' aria-label="' + esc(x.name) + '" title="' + esc(x.name) + '"><span class="swatch" style="--c:' + x.hex + '"></span></button>';
-      }).join("");
-    }
+    renderPrints();
     sizeGroup.innerHTML = p.sizes.map(function (s) {
       return '<button type="button" class="size-btn" role="radio" aria-checked="false" tabindex="-1" data-size="' + esc(s) + '">' + esc(s) + "</button>";
     }).join("");
@@ -582,6 +584,16 @@
     }
     $("#qty-slot").innerHTML = U.stepperHTML(1);
     $("#add-btn").innerHTML = '<span class="add-btn__icon">' + I("cart", { size: 22 }) + '</span><span class="add-btn__label"></span>';
+  }
+
+  /* Estampados del color elegido (se rehace al cambiar de color); sin ninguno, el selector no se muestra */
+  function renderPrints() {
+    const list = D.printsOf(p, st.color);
+    $("#opt-print").hidden = !list.length;
+    printGroup.innerHTML = list.map(function (x) {
+      return '<button type="button" class="swatch-btn" role="radio" aria-checked="false" tabindex="-1" data-print="' + esc(x.id) + '"' +
+        ' aria-label="' + esc(x.name) + '" title="' + esc(x.name) + '"><span class="swatch" style="--c:' + x.hex + '"></span></button>';
+    }).join("");
   }
 
   function setRadio(group, attr, value) {
@@ -707,9 +719,9 @@
       $("#fit-label").innerHTML = "Fit: <b>" + esc(D.FITS[st.fit]) + "</b>";
       setRadio(fitGroup, "data-fit", st.fit);
     }
-    if (hasPrints) {
-      const pr = p.prints.filter(function (x) { return x.id === st.print; })[0];
-      $("#print-label").innerHTML = "Estampado: <b>" + esc(pr ? pr.name : "") + "</b>";
+    const pr = D.printsOf(p, st.color).filter(function (x) { return x.id === st.print; })[0];
+    if (pr) {
+      $("#print-label").innerHTML = "Estampado: <b>" + esc(pr.name) + "</b>";
       setRadio(printGroup, "data-print", st.print);
     }
     $("#size-label").innerHTML = "Talla: <b>" + (st.size ? esc(st.size) : "—") + "</b>";
@@ -866,6 +878,11 @@
   });
   bindRadio(colorGroup, "data-color", function (v) {
     st.color = v;
+    /* Si el color nuevo no lleva el estampado elegido, pasa a su primero (o a ninguno) */
+    const next = printFor(v, st.print);
+    const samePrints = D.printsOf(p, v).map(function (x) { return x.id; }).join("|") === $$("[data-print]", printGroup).map(function (b) { return b.getAttribute("data-print"); }).join("|");
+    st.print = next;
+    if (!samePrints) renderPrints();
     st.size = pickSize();
     update();
     refreshGallery();                  /* fotos del color (+ estampado) elegido */

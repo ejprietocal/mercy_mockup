@@ -89,7 +89,7 @@ Para probar contenido sin servidor se puede inyectar `window.MercyContent` con `
 | `Mercy.content` | contenido resuelto (esquema del contrato §3) + `discountModal.welcome` |
 | `Mercy.api` | `{ enabled }` — `true` solo con contenido del servidor (los endpoints públicos del contrato §4.1 solo se usan entonces) |
 | `Mercy.config` | derivado de `settings`/`home`/`discountModal`: `brand`, `whatsapp`, `whatsappDisplay`, `whatsappGreeting`, `discount {code, percent}` (solo compatibilidad: la tienda ya no lo lee; code vacío con servidor), `discountEnabled`, `discountAutoOpen`, `discountOnCartOpen`, `discountPopupDelay`, `discountImage`, `giftMaxChars`, `pageSize`, `heroMedia {type: video\|image\|none, src, poster, fallback{src,poster}}`, `stockPhotos` (= `settings.showPhotos`), `showAdminLink`, `logo`, `social`, `storageKey` |
-| `Mercy.data` | `PRODUCTS` (solo publicados), `CATEGORIES` (`{id,name,details,sizeChart,inFooter}`), `COLLECTIONS`, `FITS` (`{id: nombre}`), `COLORS` (`{id: {id,name,hex}}`), `REVIEWS` (solo visibles), `MARQUEE`, `SIZE_CHARTS` + `SIZE_CHART_IDS`, `SHIPPING_INFO`, `RETURNS_INFO`, `CARE`, `DEPARTMENTS`, `PAYMENT_METHODS`; `byId(id)` (también con un id anterior de un producto renombrado, `products[].formerIds`: devuelve el producto con su id ACTUAL), `category(id)`, `collectionById(id)`, `color(id)`, `stockOf(p,color,size)`, `colorHasStock(p,color)`, `photosFor(p,colorId,printId)` (regla de fotos; ver «Fotos por color y por estampado»), `photoUrl(foto,w)`, `photoSrcset(foto,anchos)` |
+| `Mercy.data` | `PRODUCTS` (solo publicados), `CATEGORIES` (`{id,name,details,sizeChart,inFooter}`), `COLLECTIONS`, `FITS` (`{id: nombre}`), `COLORS` (`{id: {id,name,hex}}`), `REVIEWS` (solo visibles), `MARQUEE`, `SIZE_CHARTS` + `SIZE_CHART_IDS`, `SHIPPING_INFO`, `RETURNS_INFO`, `CARE`, `DEPARTMENTS`, `PAYMENT_METHODS`; `byId(id)` (también con un id anterior de un producto renombrado, `products[].formerIds`: devuelve el producto con su id ACTUAL), `category(id)`, `collectionById(id)`, `color(id)`, `stockOf(p,color,size)`, `colorHasStock(p,color)`, `photosFor(p,colorId,printId)` (regla de fotos; ver «Fotos por color y por estampado»), `printsOf(p,color)` (estampados que lleva ese color), `photoUrl(foto,w)`, `photoSrcset(foto,anchos)` |
 | `Mercy.icons` | `svg(name,{size,cls,stroke})` (nombre desconocido → `""`), `bank("nequi"|"breb"|"bancolombia")` |
 | `Mercy.ui` | `$ $$ esc money thousands norm qs debounce waLink waGreeting pluralize`, **`rich(text,{lines,accent,fill})`**, **`fill(text)`**, `plain(text)`, `safeUrl(url)`, `tileHTML(p,{variant,index,video,color,print,size,sub,alt,eager})`, `cardHTML(p,{meta,sub})`, `stepperHTML(qty)`, `syncFavButtons()`, `overlay.open/close/closeAll`, `createModal`, `createDrawer`, `infoModal(id,title,html)`, `initAccordions(root,{single})`, `toast(msg,{icon})`, `validators.{required,email,phone,cedula,name}`, `setError(input,msg)` |
 | `Mercy.store` | `cart.{items,add,setQty,remove,clear,count,subtotal,shipping,discountInfo,discountAmount,total}`, `favs.{has,toggle,list,count}`, `discount.{claimed,email,applied,couponApplied,code,label,claimedCoupon,claimedCode,claimedApplied,pendingClaim,welcomeLabel,claim,applyCoupon,removeCoupon,revalidate,redeem}`, `session.{get,set}`. Eventos: `mercy:cart`, `mercy:favs`, `mercy:discount` (`detail.action`: claim, coupon, remove, refresh, invalid, claim-invalid). Ver «Cupones y suscripción» |
@@ -103,9 +103,10 @@ Marcas para pruebas: `data-admin-link` (botón del header y enlace del menú), `
 ### Forma de `Mercy.data.PRODUCTS[i]`
 `{ id, ref, name, category, collection (NOMBRE, "" si no hay), collectionId, fits, sizes, price, badge, envioGratis, soldOut (= soldOut || todo el stock en 0),
 bestRank, newRank, rating, reviews (= reviewsCount), colors: [ids], stock[color][talla], colorPhotos[color]: [fotos] (0–10, fotos base),
-printPhotos[color][estampado]: [fotos] (1–10; solo combinaciones con fotos y estampados que existen; {} si no hay ninguna),
-initialColor (1.er color con stock, si ninguno el primero), initialPrint (prints[0].id o ""), photos (= fotos principales, ver abajo),
-prints (solo si hay estampados), video ({src, poster} | null; solo con src), tile, tags, desc, story,
+colorPrints[color]: [ids de estampados que lleva ese color, en el orden de prints] ([] = ninguno),
+printPhotos[color][estampado]: [fotos] (1–10; solo combinaciones con fotos y estampados que lleva ese color; {} si no hay ninguna),
+initialColor (1.er color con stock, si ninguno el primero), initialPrint (1.er estampado del color inicial o ""), photos (= fotos principales, ver abajo),
+prints (solo los estampados que lleva al menos un color; la propiedad no existe si no hay), video ({src, poster} | null; solo con src), tile, tags, desc, story,
 sizeChart (id de la guía de su categoría o ""), details (propios o los de la categoría), care (propios o texts.care) }`.
 `SIZE_CHARTS[idGuía]` conserva la forma de siempre `{ head, regular: [[talla, …]], oversize: […] }` (claves enumerables = `head` + ids de hormas) y además
 `id`, `name`, `unit`, `fits` (orden de las pestañas) como propiedades NO enumerables; `SIZE_CHART_IDS` = orden de las pestañas de la guía.
@@ -119,23 +120,25 @@ sizeChart (id de la guía de su categoría o ""), details (propios o los de la c
 - Todas las URL del contenido pasan por `Mercy.ui.safeUrl` (bloquea `javascript:`, `data:`, `vbscript:`…).
 
 ### Fotos por color y por estampado (contrato §3 «Fotos de producto»)
-- Cada color de un producto tiene 0–10 fotos **base** `{ src, thumb, alt, zoom, ox, oy, fit? }` y, opcionalmente, 1–10 por **combinación con un
-  estampado** (`colors[].printPhotos[idEstampado]`). `data.js` las normaliza en `p.colorPhotos[color]` y `p.printPhotos[color][estampado]`:
-  recorta a 10 y descarta las claves de estampados que ya no existen en la prenda y las listas vacías. Los estampados no tienen stock
-  propio (el stock sigue siendo color × talla) y en la ficha se eligen con el círculo de color (`hex`).
-- **`Mercy.data.photosFor(p, color, print)`** — `print` sin pasar (`undefined`) = `p.initialPrint`; `""` = sin estampado. Devuelve la
-  primera lista con fotos de: 1) la combinación color + estampado; 2) las fotos base del color; 3) la combinación en el primer color
-  (orden de la prenda) que la tenga; 4) las fotos base del primer color con fotos; 5) `[]` (degradado `tile`). Las listas **no se
-  mezclan**. Sin estampados los pasos 1 y 3 no aplican: es la regla de siempre. El panel (`productPhotos` en `admin/js/core/format.js`)
-  y el servidor (`server/lib/social.js`) aplican la misma regla.
-- **Fotos principales** `p.photos` = `photosFor(p, initialColor, initialPrint)`; si queda vacía, la primera lista de `printPhotos`
-  (colores en orden y, en cada uno, estampados en el orden de `prints`). Las usan las tarjetas del catálogo y del Inicio, la búsqueda
-  y los favoritos (`tileHTML` sin `color` ni `print`); la primera es la que sale en `og:image` y en las miniaturas del panel.
-- **`Mercy.ui.tileHTML(p, { color, print })`** → `photosFor(p, color, print)` (sin `print` = estampado inicial). Carrito (`layout.js`)
+- Cada color de un producto tiene 0–10 fotos **base** `{ src, thumb, alt, zoom, ox, oy, fit? }`, dice qué estampados lleva
+  (`colors[].prints`; sin la clave = todos, contenido anterior) y, opcionalmente, tiene 1–10 fotos por **combinación con cada uno de
+  esos estampados** (`colors[].printPhotos[idEstampado]`). `data.js` las normaliza en `p.colorPhotos[color]`, `p.colorPrints[color]` y
+  `p.printPhotos[color][estampado]`: recorta a 10 y descarta los estampados que ya no existen en la prenda o que ese color no lleva y las
+  listas vacías. Los estampados no tienen stock propio (el stock sigue siendo color × talla) y en la ficha se eligen con el círculo de
+  color (`hex`).
+- **`Mercy.data.photosFor(p, color, print)`** — `print` sin pasar (`undefined`) = el primer estampado de ese color; `""` = sin estampado.
+  Devuelve: 1) la combinación color + estampado, si ese color lo lleva y tiene fotos; si no, 2) las fotos base del color; si no,
+  3) `[]` (degradado `tile`). Las listas **no se mezclan** y **nunca se toman de otro color**. El panel (`productPhotos` en
+  `admin/js/core/format.js`) y el servidor (`server/lib/social.js`) aplican la misma regla.
+- **Fotos principales** `p.photos` = la primera lista con fotos del color inicial (su primer estampado, sus fotos base, sus demás
+  estampados); si no tiene ninguna, la del primer color que tenga alguna (mismo orden). Las usan las tarjetas del catálogo y del Inicio,
+  la búsqueda y los favoritos (`tileHTML` sin `color` ni `print`); la primera es la que sale en `og:image` y en las miniaturas del panel.
+- **`Mercy.ui.tileHTML(p, { color, print })`** → `photosFor(p, color, print)` (sin `print` = primer estampado del color). Carrito (`layout.js`)
   y checkout (`checkout.js`) pasan el color **y el estampado de la línea** (la miniatura es la foto de esa variante) y enlazan a
   `producto.html?id=…&color=…&print=…` (`print` solo si la línea tiene estampado).
-- **Ficha** (`producto.js`): `?color=<id>&print=<id>` fija la variante inicial si el color está en `p.colors` y el estampado en
-  `p.prints`; si no, color inicial y primer estampado. `galleryPlan(color, print)` = las fotos de `photosFor` + la diapositiva de video al
+- **Ficha** (`producto.js`): `?color=<id>&print=<id>` fija la variante inicial si el color está en `p.colors` y ese color lleva el
+  estampado; si no, color inicial y su primer estampado. El selector «Estampado» muestra solo `printsOf(p, color)` y se oculta si el
+  color no lleva ninguno; al cambiar a un color que no lleva el estampado elegido, pasa a su primero (o a ninguno). `galleryPlan(color, print)` = las fotos de `photosFor` + la diapositiva de video al
   final **solo si `p.video && p.video.src`** (sin video `VIDEO_INDEX = -1`). Al cambiar de color **o** de estampado la galería se rehace
   (miniaturas, puntos, contador «Foto n de N», flechas, teclado y scroll-snap) solo si cambia el juego de fotos —se compara por contenido
   (`src`/`zoom`/`ox`/`oy`), no por referencia; dos juegos vacíos no la rehacen— y vuelve a la foto 1.
@@ -189,7 +192,7 @@ colección inexistente → no se muestra "Colección …" · red social vacía o
   `percent` → `round(elegible × valor / 100)`; `fixed` → `min(valor, elegible)`.
 - **Mensajes por motivo:** not_found "Ese código no existe." · inactive "Este código no está activo." · not_started "Este código aún no está vigente." ·
   expired "Este código ya venció." · exhausted "Este código ya alcanzó su límite de usos." · red "No pudimos validar el código. Revisa tu conexión e inténtalo de nuevo."
-- **Al cargar cada página** (tras `DOMContentLoaded`): se quitan las líneas del carrito cuyo color, talla, horma o estampado ya no existe (o que
+- **Al cargar cada página** (tras `DOMContentLoaded`): se quitan las líneas del carrito cuyo color, talla u horma ya no existe, cuyo color ya no lleva su estampado (o que
   quedaron agotadas), las cantidades se ajustan al stock **compartido** (ver «Stock» en Reglas de negocio: las líneas anteriores tienen prioridad;
   toast "Actualizamos tu carrito…" / "Ajustamos las cantidades…") y se revalida el cupón aplicado: en el checkout siempre,
   en las demás páginas como mucho 1 vez por minuto (límite público 60/10 min por IP). Si ya no vale: se quita y toast "Quitamos el código X: <motivo>".

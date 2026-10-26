@@ -720,9 +720,24 @@ function vPhoto(c, p, x) {
 }
 
 /**
+ * Estampados que lleva UN color: [idEstampado…] (sin repetir, en el orden de los estampados del producto).
+ * · Ausente o null → todos los estampados del producto (contenido guardado antes de que cada color eligiera los suyos).
+ * · No es una lista → error; un elemento que no es texto → error.
+ * · Ids que no son estampados del producto (p. ej. uno que se borró o renombró) → se descartan sin error.
+ */
+function vColorPrints(c, path, v, printIds) {
+  if (v === undefined || v === null) return printIds.slice();
+  if (!Array.isArray(v)) { c.add(path, "Formato inválido (se esperaba una lista)."); return []; }
+  v.forEach((x, i) => { if (typeof x !== "string") c.add(J(path, i), "Debe ser un texto."); });
+  const want = new Set(v.filter((x) => typeof x === "string"));
+  return printIds.filter((id) => want.has(id));
+}
+
+/**
  * Fotos de las combinaciones color + estampado de UN color: { [idEstampado]: [Foto…] } (1–MAX_PHOTOS_PER_PRINT cada una).
  * · Ausente o null → sin fotos de estampado. No es un objeto → error.
- * · Claves que no son estampados del producto (p. ej. uno que se borró o renombró) → se descartan sin error.
+ * · Claves que no son estampados de ESTE color (p. ej. uno que se borró, se renombró o se quitó del color) → se
+ *   descartan sin error.
  * · Listas vacías → se descartan. Orden de las claves = orden de los estampados.
  * Devuelve null si no queda ninguna lista con fotos (el color no lleva la clave printPhotos).
  */
@@ -793,7 +808,7 @@ export function validateProduct(value, refs) {
   });
   fits.forEach((f, i) => { if (fits.indexOf(f) !== i) c.add(`fits.${i}`, "Horma repetida."); });
 
-  // Estampados ANTES que los colores: las claves de colors[].printPhotos se filtran con estos ids
+  // Estampados ANTES que los colores: colors[].prints y las claves de colors[].printPhotos se filtran con estos ids
   const prints = c.list("prints", o.prints, {
     max: 12,
     item: (p, x) => {
@@ -818,7 +833,8 @@ export function validateProduct(value, refs) {
         maxMsg: `Máximo ${MAX_PHOTOS_PER_COLOR} fotos por color.`,
         item: (q, ph) => vPhoto(c, q, ph),
       });
-      const printPhotos = vPrintPhotos(c, J(p, "printPhotos"), pc.printPhotos, printIds);
+      const colorPrints = vColorPrints(c, J(p, "prints"), pc.prints, printIds);
+      const printPhotos = vPrintPhotos(c, J(p, "printPhotos"), pc.printPhotos, colorPrints);
       // Stock: exactamente las tallas del producto (faltantes = 0, sobrantes se eliminan)
       let stockIn = pc.stock;
       if (stockIn === undefined || stockIn === null) stockIn = {};
@@ -829,8 +845,13 @@ export function validateProduct(value, refs) {
         const raw = Object.hasOwn(stockIn, s) ? stockIn[s] : 0;
         stock[s] = c.int(`${p}.stock.${s}`, raw ?? 0, { min: 0, max: 100000, def: 0 });
       }
-      // Sin fotos de estampado la clave no existe (forma de siempre: { color, photos, stock })
-      return printPhotos ? { color, photos, printPhotos, stock } : { color, photos, stock };
+      // Sin estampados en el producto no hay clave prints, y sin fotos de estampado no hay printPhotos
+      // (forma de siempre: { color, photos, stock }). Con estampados, prints siempre va (también vacía).
+      const out = { color, photos };
+      if (printIds.length) out.prints = colorPrints;
+      if (printPhotos) out.printPhotos = printPhotos;
+      out.stock = stock;
+      return out;
     },
   });
   c.uniqueBy("colors", colors, "color", "Este color ya está en el producto.");

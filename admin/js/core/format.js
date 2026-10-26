@@ -4,7 +4,8 @@
    · money(89900) → "$89.900" · number · bytes · date / dateTime / relativeTime (hora de Colombia)
    · slugify, fold (minúsculas sin tildes), escapeHtml, debounce, clone, deepEqual
    · getPath / setPath con rutas "a.b.0.c" (las que usa Form y los errores del servidor)
-   · productPhotos / productMainPhoto: qué fotos muestra la tienda para un color + estampado y cuál es la principal
+   · colorPrintIds / productPhotos / productMainPhoto: estampados de cada color, qué fotos muestra la tienda para un
+     color + estampado y cuál es la principal
    ========================================================================== */
 
 export const TZ = "America/Bogota";
@@ -220,41 +221,44 @@ export function initialColorIndex(p) {
 }
 
 /**
+ * Estampados que lleva un color (ids de prints, en el orden del producto). Sin la clave colors[].prints (contenido de
+ * antes de los estampados por color) = todos.
+ */
+export function colorPrintIds(p, c) {
+  const ids = (Array.isArray(p?.prints) ? p.prints : []).map((x) => x?.id).filter(Boolean);
+  if (!c) return [];
+  return Array.isArray(c.prints) ? ids.filter((id) => c.prints.includes(id)) : ids;
+}
+
+/** Fotos de la combinación color + estampado (solo si ese color lleva el estampado). */
+const comboPhotos = (p, c, printId) => (printId && colorPrintIds(p, c).includes(printId) ? photoList(c?.printPhotos?.[printId]) : []);
+
+/**
  * Fotos que muestra la ficha para un color y un estampado (colors[].photos y colors[].printPhotos[idEstampado]):
- *   1. las de la combinación color + estampado · 2. las del color · 3. las de ese estampado en el primer color que
- *   las tenga · 4. las del primer color con fotos · 5. [] (la tienda usa el degradado de la tarjeta).
- * printId sin pasar = el estampado inicial (el primero); "" = sin estampado. Sin estampados = la regla de siempre.
+ *   1. las de la combinación color + estampado (si el color lleva ese estampado) · 2. las del color · 3. [] (la tienda
+ *   usa el degradado de la tarjeta). Nunca se toman de otro color.
+ * printId sin pasar = el primer estampado de ese color; "" = sin estampado.
  */
 export function productPhotos(p, colorId, printId) {
   const colors = Array.isArray(p?.colors) ? p.colors : [];
-  const prints = (Array.isArray(p?.prints) ? p.prints : []).map((x) => x?.id).filter(Boolean);
-  const pr = printId === undefined ? prints[0] || "" : printId;
-  const combo = (c) => (pr && prints.includes(pr) ? photoList(c?.printPhotos?.[pr]) : []);
-  const base = (c) => photoList(c?.photos);
   const own = colors.find((c) => c?.color === colorId);
-  const firstWith = (fn) => colors.map(fn).find((l) => l.length) || [];
-  for (const get of [() => combo(own), () => base(own), () => firstWith(combo), () => firstWith(base)]) {
-    const list = get();
-    if (list.length) return list;
-  }
-  return [];
+  const pr = printId === undefined ? colorPrintIds(p, own)[0] || "" : printId;
+  const combo = comboPhotos(p, own, pr);
+  return combo.length ? combo : photoList(own?.photos);
 }
 
 /**
- * Foto principal del producto (tarjeta del catálogo, og:image y miniaturas del panel): la primera de
- * productPhotos(color inicial, estampado inicial); si no hay, la primera foto con estampado que exista
- * (colores en orden y, en cada uno, estampados en orden). → { src, thumb, alt, zoom, ox, oy } | null
+ * Foto principal del producto (tarjeta del catálogo, og:image y miniaturas del panel): la primera del color inicial
+ * (su primer estampado, sus fotos, sus demás estampados); si ese color no tiene ninguna, la del primer color que tenga
+ * alguna (mismo orden). → { src, thumb, alt, zoom, ox, oy } | null
  */
 export function productMainPhoto(p) {
-  const colors = Array.isArray(p?.colors) ? p.colors : [];
-  const first = productPhotos(p, colors[initialColorIndex(p)]?.color)[0];
-  if (first) return first;
-  const prints = (Array.isArray(p?.prints) ? p.prints : []).map((x) => x?.id).filter(Boolean);
-  for (const c of colors) {
-    for (const id of prints) {
-      const list = photoList(c?.printPhotos?.[id]);
-      if (list.length) return list[0];
-    }
+  const colors = (Array.isArray(p?.colors) ? p.colors : []).filter(Boolean);
+  const first = colors[initialColorIndex(p)];
+  for (const c of first ? [first, ...colors.filter((x) => x !== first)] : colors) {
+    const ids = colorPrintIds(p, c);
+    const list = [comboPhotos(p, c, ids[0]), photoList(c.photos), ...ids.slice(1).map((id) => comboPhotos(p, c, id))].find((l) => l.length);
+    if (list) return list[0];
   }
   return null;
 }

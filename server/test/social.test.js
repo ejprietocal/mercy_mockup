@@ -166,31 +166,40 @@ test("og:image = foto principal: color inicial (el primero con stock) + estampad
   r = await anon().get("/producto.html?id=principal-estampado", { headers: PUBLIC });
   assert.equal(meta(r.text, "og:image"), abs("crema-naranja"));
 
-  // El color inicial sin fotos de ese estampado ni propias → las del estampado inicial en el primer color que las tenga
-  const c = product("principal-otro-color", [
+  // El color inicial sin fotos de su primer estampado ni propias → las de sus demás estampados (no las de otro color)
+  const c = product("principal-otro-estampado", [
     { color: "negro", photos: [ph("negro-1")], printPhotos: { naranja: [ph("negro-naranja")] }, stock: { S: 0, M: 0 } },
     { color: "crema", photos: [], printPhotos: { azul: [ph("crema-azul")] }, stock: { S: 1, M: 0 } },
   ], [NARANJA, AZUL]);
   assert.equal((await admin.post("/api/admin/products", c)).status, 201);
-  r = await anon().get("/producto.html?id=principal-otro-color", { headers: PUBLIC });
-  assert.equal(meta(r.text, "og:image"), abs("negro-naranja"));
+  r = await anon().get("/producto.html?id=principal-otro-estampado", { headers: PUBLIC });
+  assert.equal(meta(r.text, "og:image"), abs("crema-azul"));
+
+  // Estampado inicial = el primero que lleva el color inicial (crema solo lleva azul)
+  const d = product("principal-estampados-del-color", [
+    { color: "negro", photos: [ph("negro-1")], prints: ["naranja", "azul"], printPhotos: { naranja: [ph("negro-naranja")] }, stock: { S: 0, M: 0 } },
+    { color: "crema", photos: [ph("crema-1")], prints: ["azul"], printPhotos: { azul: [ph("crema-azul")] }, stock: { S: 1, M: 0 } },
+  ], [NARANJA, AZUL]);
+  assert.equal((await admin.post("/api/admin/products", d)).status, 201);
+  r = await anon().get("/producto.html?id=principal-estampados-del-color", { headers: PUBLIC });
+  assert.equal(meta(r.text, "og:image"), abs("crema-azul"));
 });
 
-test("og:image con SOLO fotos de estampado (ni del color ni del estampado inicial): primera combinación con fotos", async () => {
-  // Estampado inicial = naranja, sin fotos en ningún color; ningún color tiene fotos base →
-  // se recorre color por color (orden del producto) y, en cada uno, estampado por estampado
+test("og:image cuando el color inicial no tiene ninguna foto: el primer color que tenga alguna (en su mismo orden)", async () => {
+  // crema (color inicial) no tiene fotos → negro, el primer color con alguna: su primer estampado (naranja) no tiene,
+  // tampoco fotos propias → su siguiente estampado (azul)
   const p = product("solo-estampado", [
     { color: "negro", photos: [], printPhotos: { azul: [ph("negro-azul")] }, stock: { S: 0, M: 0 } },
-    { color: "crema", photos: [], printPhotos: { azul: [ph("crema-azul")] }, stock: { S: 3, M: 0 } },
+    { color: "crema", photos: [], stock: { S: 3, M: 0 } },
   ], [NARANJA, AZUL]);
   assert.equal((await admin.post("/api/admin/products", p)).status, 201);
   const r = await anon().get("/producto.html?id=solo-estampado", { headers: PUBLIC });
   assert.equal(meta(r.text, "og:image"), abs("negro-azul"));
-  // Orden del recorrido: primero el color (negro solo tiene rosa, el último estampado) y no el estampado
-  // (recorriendo estampado por estampado saldría crema-azul): así coincide con la tarjeta de la tienda
+  // Colores en orden y, en cada uno, sus estampados en orden: negro (rosa) antes que verde (azul)
   const o = product("solo-estampado-orden", [
     { color: "negro", photos: [], printPhotos: { rosa: [ph("negro-rosa")] }, stock: { S: 0, M: 0 } },
-    { color: "crema", photos: [], printPhotos: { azul: [ph("crema-azul")] }, stock: { S: 1, M: 0 } },
+    { color: "crema", photos: [], prints: [], stock: { S: 1, M: 0 } },
+    { color: "verde", photos: [], printPhotos: { azul: [ph("verde-azul")] }, stock: { S: 0, M: 0 } },
   ], [NARANJA, AZUL, ROSA]);
   assert.equal((await admin.post("/api/admin/products", o)).status, 201);
   const ro = await anon().get("/producto.html?id=solo-estampado-orden", { headers: PUBLIC });
@@ -230,26 +239,34 @@ test("feed de Meta: image_link = foto principal; additional_image_link = resto s
   assert.deepEqual(extra.slice(0, 3), [abs("b0"), abs("b1"), abs("b2")]);
 });
 
-test("regla de fotos (photosFor): combinación → color → estampado en otro color → primer color con fotos → []", () => {
+test("regla de fotos (photosFor): combinación (si el color lleva el estampado) → fotos del color → []; nunca de otro color", () => {
   const p = {
     sizes: ["S"],
     prints: [NARANJA, AZUL],
     colors: [
-      { color: "negro", photos: [ph("negro-1")], printPhotos: { azul: [ph("negro-azul")] }, stock: { S: 0 } },
-      { color: "crema", photos: [], printPhotos: { naranja: [ph("crema-naranja")], fantasma: [ph("crema-fantasma")] }, stock: { S: 1 } },
-      { color: "verde", photos: [], stock: { S: 1 } },
+      { color: "negro", photos: [ph("negro-1")], prints: ["naranja", "azul"], printPhotos: { azul: [ph("negro-azul")] }, stock: { S: 0 } },
+      { color: "crema", photos: [], prints: ["naranja"], printPhotos: { naranja: [ph("crema-naranja")], azul: [ph("crema-azul")], fantasma: [ph("crema-fantasma")] }, stock: { S: 1 } },
+      { color: "verde", photos: [], prints: [], stock: { S: 1 } },
+      // Sin la clave prints (contenido de antes de los estampados por color) = lleva todos
+      { color: "gris", photos: [ph("gris-1")], printPhotos: { azul: [ph("gris-azul")] }, stock: { S: 1 } },
     ],
   };
   const srcs = (list) => list.map((x) => x.src.replace(/^\/uploads\/2026\/10\/m-|\.webp$/g, ""));
-  assert.deepEqual(srcs(photosFor(p, "crema")), ["crema-naranja"], "sin estampado = el inicial (naranja)");
+  assert.deepEqual(srcs(photosFor(p, "crema")), ["crema-naranja"], "sin estampado = el primero que lleva ese color");
   assert.deepEqual(srcs(photosFor(p, "crema", "naranja")), ["crema-naranja"]);
-  assert.deepEqual(srcs(photosFor(p, "negro", "naranja")), ["negro-1"], "el color base antes que el estampado de otro color");
-  assert.deepEqual(srcs(photosFor(p, "verde", "azul")), ["negro-azul"], "estampado en el primer color que lo tenga");
-  assert.deepEqual(srcs(photosFor(p, "verde", "")), ["negro-1"], "\"\" = sin estampado → primer color con fotos");
-  assert.deepEqual(srcs(photosFor(p, "crema", "fantasma")), ["negro-1"], "un estampado que no existe en el producto no cuenta");
-  assert.deepEqual(srcs([productMainPhoto(p)]), ["crema-naranja"]);
-  assert.deepEqual(srcs(productPhotos(p).map((src) => ({ src }))), ["crema-naranja", "negro-1", "negro-azul"]);
-  // Respaldo de la foto principal: colores en orden y, en cada uno, estampados en orden (no al revés)
+  assert.deepEqual(srcs(photosFor(p, "crema", "azul")), [], "crema no lleva azul: esas fotos no cuentan y no tiene propias");
+  assert.deepEqual(srcs(photosFor(p, "crema", "fantasma")), [], "un estampado que no existe en el producto no cuenta");
+  assert.deepEqual(srcs(photosFor(p, "negro", "naranja")), ["negro-1"], "combinación sin fotos → las del color");
+  assert.deepEqual(srcs(photosFor(p, "negro", "azul")), ["negro-azul"]);
+  assert.deepEqual(srcs(photosFor(p, "verde", "azul")), [], "nunca las de otro color");
+  assert.deepEqual(srcs(photosFor(p, "verde")), []);
+  assert.deepEqual(srcs(photosFor(p, "verde", "")), []);
+  assert.deepEqual(srcs(photosFor(p, "gris", "azul")), ["gris-azul"]);
+  assert.deepEqual(srcs(photosFor(p, "gris")), ["gris-1"], "primer estampado (naranja) sin fotos → las del color");
+  assert.deepEqual(srcs([productMainPhoto(p)]), ["crema-naranja"], "color inicial (crema, el primero con stock) + su primer estampado");
+  assert.deepEqual(srcs(productPhotos(p).map((src) => ({ src }))), ["crema-naranja", "negro-1", "negro-azul", "gris-1", "gris-azul"],
+    "por color: las del color y las de los estampados que lleva (las de crema-azul no cuentan)");
+  // Foto principal: primero todo el color inicial (su primer estampado, sus fotos, sus demás estampados)…
   const r = {
     sizes: ["S"],
     prints: [NARANJA, AZUL, ROSA],
@@ -258,10 +275,15 @@ test("regla de fotos (photosFor): combinación → color → estampado en otro c
       { color: "crema", photos: [], printPhotos: { azul: [ph("crema-azul")] }, stock: { S: 1 } },
     ],
   };
-  assert.deepEqual(srcs([productMainPhoto(r)]), ["negro-rosa"], "color por color; recorriendo primero por estampado saldría crema-azul");
-  // Sin estampados: la regla de siempre (color o el primero con fotos)
+  assert.deepEqual(srcs([productMainPhoto(r)]), ["crema-azul"]);
+  // …y si no tiene ninguna, el primer color que tenga alguna
+  r.colors[1].printPhotos = {};
+  assert.deepEqual(srcs([productMainPhoto(r)]), ["negro-rosa"]);
+  // Sin estampados: las fotos del color o ninguna (ya no se toman las del primer color con fotos)
   const q = { sizes: ["S"], colors: [{ color: "negro", photos: [], stock: { S: 1 } }, { color: "crema", photos: [ph("crema-1")], stock: { S: 0 } }] };
-  assert.deepEqual(srcs(photosFor(q, "negro")), ["crema-1"]);
+  assert.deepEqual(srcs(photosFor(q, "negro")), []);
+  assert.deepEqual(srcs(photosFor(q, "crema")), ["crema-1"]);
+  assert.deepEqual(srcs([productMainPhoto(q)]), ["crema-1"], "la foto principal del producto sí sale del primer color con fotos");
   assert.deepEqual(photosFor({ colors: [{ color: "negro", photos: [] }] }, "negro"), []);
   assert.equal(productMainPhoto({ colors: [] }), null);
 });

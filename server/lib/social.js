@@ -49,7 +49,8 @@ export function absUrl(origin, u) {
 }
 
 /* ---------- Fotos del producto (MISMA regla que Mercy.data.photosFor en js/data.js y el panel) ----------
-   colors[] = { color, photos (color base, 0–10), printPhotos?: { [idEstampado]: [1–10 fotos] }, stock }. */
+   colors[] = { color, photos (color base, 0–10), prints?: [idEstampado] (los que lleva ese color; ausente = todos),
+   printPhotos?: { [idEstampado]: [1–10 fotos] }, stock }. Un color nunca muestra fotos de otro color. */
 const photoList = (list, max = MAX_PHOTOS_PER_COLOR) => (Array.isArray(list) ? list.filter((ph) => ph && typeof ph.src === "string" && ph.src.trim()).slice(0, max) : []);
 /** Colores del producto sin repetir (el primero gana, como la tienda). */
 function colorEntries(p) {
@@ -61,9 +62,15 @@ function colorEntries(p) {
   });
 }
 const printIdsOf = (p) => (p.prints || []).map((x) => (x && x.id ? String(x.id) : "")).filter(Boolean);
-/** Fotos de la combinación color + estampado (solo si el estampado existe en el producto). */
+/** Estampados que lleva un color (en el orden del producto). Sin la clave prints (contenido anterior) = todos. */
+function colorPrintIds(p, c) {
+  const ids = printIdsOf(p);
+  if (!c) return [];
+  return Array.isArray(c.prints) ? ids.filter((id) => c.prints.includes(id)) : ids;
+}
+/** Fotos de la combinación color + estampado (solo si ese color lleva el estampado). */
 function printList(p, c, printId) {
-  if (!printId || !c || !c.printPhotos || typeof c.printPhotos !== "object" || !printIdsOf(p).includes(printId)) return [];
+  if (!printId || !c || !c.printPhotos || typeof c.printPhotos !== "object" || !colorPrintIds(p, c).includes(printId)) return [];
   return Object.hasOwn(c.printPhotos, printId) ? photoList(c.printPhotos[printId], MAX_PHOTOS_PER_PRINT) : [];
 }
 function colorHasStock(p, c) {
@@ -71,46 +78,49 @@ function colorHasStock(p, c) {
 }
 /** Color inicial de la ficha: el primero con stock; si ninguno, el primero (como js/data.js). */
 export const initialColor = (p) => { const cs = colorEntries(p); return (cs.find((c) => colorHasStock(p, c)) || cs[0])?.color || ""; };
-/** Estampado inicial: el primero del producto o "" (sin estampados). */
-export const initialPrint = (p) => printIdsOf(p)[0] || "";
+/** Estampado inicial de un color (por defecto, el color inicial): el primero que lleva o "" (ninguno). */
+export const initialPrint = (p, colorId = initialColor(p)) => colorPrintIds(p, colorEntries(p).find((c) => c.color === colorId))[0] || "";
 
 /**
- * Fotos que muestra la ficha para color + estampado (printId undefined = estampado inicial; "" = sin estampado):
- * 1. las de la combinación · 2. las del color base · 3. las de ese estampado en el primer color que las tenga
- * · 4. las del primer color con fotos · 5. [] (la tienda usa los degradados de marca).
+ * Fotos que muestra la ficha para color + estampado (printId undefined = el primer estampado de ese color; "" = sin
+ * estampado): 1. las de la combinación (si el color lleva ese estampado) · 2. las del color · 3. [] (la tienda usa
+ * los degradados de marca). Nunca se toman de otro color.
  */
 export function photosFor(p, colorId, printId) {
-  if (printId === undefined) printId = initialPrint(p);
-  const cs = colorEntries(p);
-  const c = cs.find((x) => x.color === colorId);
-  let list = printList(p, c, printId);
-  if (list.length) return list;
-  if ((list = photoList(c?.photos)).length) return list;
-  for (const x of cs) if ((list = printList(p, x, printId)).length) return list;
-  for (const x of cs) if ((list = photoList(x.photos)).length) return list;
-  return [];
+  const c = colorEntries(p).find((x) => x.color === colorId);
+  if (printId === undefined) printId = colorPrintIds(p, c)[0] || "";
+  const list = printList(p, c, printId);
+  return list.length ? list : photoList(c?.photos);
 }
 
-/** FOTO PRINCIPAL (tarjetas, og:image, feed): la primera de color + estampado iniciales; si no hay, la de la primera
- *  combinación con fotos (colores en orden y, en cada uno, estampados en orden). → objeto foto | null */
+/** Fotos de un color en orden de preferencia para la foto principal: su primer estampado, las del color y sus demás
+ *  estampados. */
+function colorPhotoLists(p, c) {
+  const ids = colorPrintIds(p, c);
+  return [printList(p, c, ids[0]), photoList(c.photos), ...ids.slice(1).map((id) => printList(p, c, id))];
+}
+
+/** FOTO PRINCIPAL (tarjetas, og:image, feed): la primera del color inicial (su primer estampado, sus fotos, sus demás
+ *  estampados); si ese color no tiene, la del primer color que tenga alguna (mismo orden). → objeto foto | null */
 export function productMainPhoto(p) {
-  const first = photosFor(p, initialColor(p), initialPrint(p))[0];
-  if (first) return first;
-  const ids = printIdsOf(p);
-  for (const c of colorEntries(p)) for (const id of ids) { const l = printList(p, c, id); if (l.length) return l[0]; }
+  const cs = colorEntries(p);
+  const first = cs.find((c) => c.color === initialColor(p));
+  for (const c of first ? [first, ...cs.filter((x) => x !== first)] : cs) {
+    const list = colorPhotoLists(p, c).find((l) => l.length);
+    if (list) return list[0];
+  }
   return null;
 }
 
 /** URL de las fotos del producto sin repetir: la principal y luego, por color, las del color base y las de cada
- *  estampado (orden de los estampados). */
+ *  estampado que lleva (orden de los estampados). */
 export function productPhotos(p) {
   const out = [];
   const add = (ph) => { if (ph && ph.src && !out.includes(ph.src)) out.push(ph.src); };
   add(productMainPhoto(p));
-  const ids = printIdsOf(p);
   for (const c of colorEntries(p)) {
     photoList(c.photos).forEach(add);
-    for (const id of ids) printList(p, c, id).forEach(add);
+    for (const id of colorPrintIds(p, c)) printList(p, c, id).forEach(add);
   }
   return out;
 }

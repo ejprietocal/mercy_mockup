@@ -41,8 +41,11 @@ test("textos: «Video próximamente» ya no existe (se descarta); «Ver video» 
   const { value, fields } = validateSection("texts", old);
   assert.deepEqual(fields, {});
   assert.deepEqual(value, content.texts, "un contenido anterior con esos textos se normaliza sin ellos");
-  // Productos de fábrica: sin fotos de estampado → sin clave printPhotos (forma de siempre)
-  for (const p of content.products) for (const c of p.colors) assert.deepEqual(Object.keys(c), ["color", "photos", "stock"], p.id);
+  // Productos de fábrica: sin fotos de estampado → sin clave printPhotos (forma de siempre); los que tienen estampados
+  // dicen en cada color cuáles lleva (colors[].prints)
+  for (const p of content.products) {
+    for (const c of p.colors) assert.deepEqual(Object.keys(c), p.prints.length ? ["color", "photos", "prints", "stock"] : ["color", "photos", "stock"], p.id);
+  }
 });
 
 test("URLs seguras según §2", () => {

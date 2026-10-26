@@ -6,7 +6,7 @@ Si algo no está aquí, se decide con el criterio de los CMS conocidos (WordPres
 Decisiones del cliente:
 - Persistencia: **servidor Node propio, sin dependencias npm** (Node ≥ 22), contenido en JSON, archivos subidos en disco (volumen persistente en Easypanel). Los cambios los ven **todos** los visitantes.
 - Usuarios: **varios usuarios con roles** (Administrador / Editor).
-- Módulos: inicio (video del hero y frases), textos del sitio, productos (colores → hasta **10 fotos por color** y hasta **10 por combinación color + estampado**), modal de descuento, **cupones** (listado + creación), **suscriptores**, **reseñas / categorías / colecciones / colores / hormas / guía de tallas**, **historial de cambios** (actividad + revisiones restaurables), medios, usuarios, ajustes.
+- Módulos: inicio (video del hero y frases), textos del sitio, productos (colores → hasta **10 fotos por color**, los **estampados que lleva cada color** y hasta **10 fotos por combinación color + estampado**), modal de descuento, **cupones** (listado + creación), **suscriptores**, **reseñas / categorías / colecciones / colores / hormas / guía de tallas**, **historial de cambios** (actividad + revisiones restaurables), medios, usuarios, ajustes.
 - Idioma de toda la interfaz: **español de Colombia**. Moneda: COP sin decimales (`$89.900`).
 
 ---
@@ -202,14 +202,17 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     colors: [ {                                    // 1–12 colores; orden = orden en la tienda
       color: "negro",                              // id de colors[]
       photos: [ Foto ],                            // fotos del COLOR BASE: 0–10 (MÁX 10); la primera es la principal
+      prints: ["naranja", "azul"],                 // estampados que lleva ESTE color (ids de prints, en su orden; [] = ninguno).
+                                                   //   Solo existe si el producto tiene estampados; ausente en contenido anterior = todos
       printPhotos: {                               // OPCIONAL: fotos de cada combinación color + estampado (ver «Fotos de producto»)
-        naranja: [ Foto ],                         //   clave = prints[].id del MISMO producto; valor = 1–10 fotos (MÁX 10)
+        naranja: [ Foto ],                         //   clave = id de un estampado que lleva ESTE color; valor = 1–10 fotos (MÁX 10)
         azul:    [ Foto ]                          //   sin fotos de estampado la clave printPhotos NO existe
       },
       stock:  { S: 4, M: 5, L: 6, XL: 7, XXL: 0 }  // una clave por cada talla de sizes; entero ≥ 0 (compartido por todos los estampados)
     } ],
     prints: [ { id: "naranja", name: "Naranja", hex: "#e8620a" } ],   // estampados opcionales (0–12; sin fotos ni stock propios:
-                                                   //   en la ficha se eligen con el círculo de color hex)
+                                                   //   cada color dice cuáles lleva en colors[].prints; en la ficha se eligen
+                                                   //   con el círculo de color hex)
     video: { src: url, poster: url|"" } | null,    // video de la prenda: última diapositiva de la galería + botón «Ver video».
                                                    //   null = sin video: la ficha no muestra la diapositiva, la miniatura ▶ ni el botón
     tile: { from: "#c5a68b", to: "#a44809", lines: ["FE"], sub: "", stacked: false, small: false, fs: null },  // respaldo sin foto; lines [] = el nombre ACTUAL
@@ -230,11 +233,13 @@ Reglas de integridad (el servidor las valida; el panel las previene):
 - Ids únicos dentro de cada lista. Un color/horma/categoría/colección/guía **en uso** no se puede borrar (409 `in_use` con la lista de productos).
 - `product.colors[].color` ∈ `colors`, `product.category` ∈ `categories`, `product.fits ⊆ fits`, `collection` ∈ `collections` o "".
 - `product.colors[].stock` tiene exactamente las tallas de `product.sizes` (faltantes = 0, sobrantes se eliminan).
-- `photos.length ≤ 10` por color; `printPhotos`: claves = ids de `prints` del producto, cada lista 1–10. Producto "agotado" en la tienda =
+- `photos.length ≤ 10` por color; `colors[].prints ⊆ prints[].id`; `printPhotos`: claves = estampados que lleva ese color, cada lista
+  1–10. Producto "agotado" en la tienda =
   `soldOut` o todo el stock en 0. El stock es por color × talla y lo comparten todos los estampados.
 - Fotos: qué fotos se ven en cada caso (color, combinación color + estampado, respaldo) lo fija la **regla de fotos** de abajo; sin
   ninguna foto se usa el `tile` (degradado).
-- El primer color con stock es el color inicial en la ficha y en las tarjetas; el primer estampado (`prints[0]`) es el estampado inicial.
+- El primer color con stock es el color inicial en la ficha y en las tarjetas; el estampado inicial es el primero que lleva ese color
+  (`""` si no lleva ninguno). Al cambiar de color, la ficha muestra solo los estampados de ese color (sin ninguno, no sale el selector).
 - *(servidor)* Forma del 409 `in_use` de secciones: `{ error: { code: "in_use", message, usages: ["products/fe", "coupons/MERCY20",
   "categories/hoodies"], products: [{ id, name }] } }`. Bloquean: colores/hormas/colecciones usados por productos; categorías usadas por
   productos **o** por cupones (`appliesTo: "categories"`); guías de tallas usadas por categorías. Al borrar una horma SIN productos, sus
@@ -254,34 +259,40 @@ Reglas de integridad (el servidor las valida; el panel las previene):
   ya no existe: sin video la ficha no muestra nada del video). Nadie las lee; en un `content.json` ya creado desaparecen la próxima vez
   que se guarda «Textos del sitio» (el normalizador estricto descarta las claves desconocidas). `texts.product.videoChip` se conserva.
 
-### Fotos de producto: color base y combinaciones color + estampado
-- Cada color tiene sus fotos **base** (`colors[].photos`, 0–10) y, opcionalmente, fotos por **combinación con un estampado**
-  (`colors[].printPhotos[idEstampado]`, 1–10 cada una): p. ej. Negro + Naranja tiene sus fotos y Blanco + Naranja otras. Los estampados
-  (`prints[]`) no tienen fotos ni stock propios.
+### Fotos de producto: color base, estampados de cada color y combinaciones color + estampado
+- Cada color tiene sus fotos **base** (`colors[].photos`, 0–10), dice **qué estampados lleva** (`colors[].prints`, ids de `prints[]`) y,
+  opcionalmente, tiene fotos por **combinación con cada uno de esos estampados** (`colors[].printPhotos[idEstampado]`, 1–10 cada una):
+  p. ej. Negro lleva Naranja y Azul con sus fotos, y Crema no lleva ninguno. Los estampados (`prints[]`) no tienen fotos ni stock propios.
+- `colors[].prints` **ausente** (contenido guardado antes de los estampados por color) = el color lleva **todos** los estampados; así
+  nada cambia hasta que se edita. El servidor guarda siempre la lista explícita cuando el producto tiene estampados.
 - **Regla de fotos** `photosFor(p, colorId, printId)`, idéntica en la tienda (`Mercy.data.photosFor`), en las vistas previas del panel
-  y en el servidor (`server/lib/social.js`). `printId` ausente (`undefined`) = estampado inicial (`prints[0].id`, o `""` si no hay);
+  y en el servidor (`server/lib/social.js`). `printId` ausente (`undefined`) = el primer estampado que lleva ese color (`""` si ninguno);
   `""` = sin estampado. Se devuelve la primera lista con fotos de:
-  1. `printPhotos[printId]` del color pedido (si hay estampado);
+  1. `printPhotos[printId]` del color pedido (solo si ese color lleva el estampado);
   2. las fotos base del color pedido;
-  3. `printPhotos[printId]` del primer color (en el orden del producto) que las tenga;
-  4. las fotos base del primer color que tenga;
-  5. ninguna → `[]` (degradados de marca, `tile`).
+  3. ninguna → `[]` (degradados de marca, `tile`).
 
-  Las listas **no se mezclan**: si la combinación elegida tiene fotos se ven solo esas; si no, solo las del color. Sin estampados los
-  pasos 1 y 3 no aplican y la regla es la de siempre (fotos del color o, si no tiene, las del primer color con fotos).
+  Las listas **no se mezclan** y **nunca se toman de otro color**: si la combinación elegida tiene fotos se ven solo esas; si no, solo
+  las del color; un color sin fotos muestra el degradado aunque otro color sí tenga.
 - **Foto principal** (tarjetas del catálogo, del Inicio, de la búsqueda y de favoritos —`p.photos` en la tienda—, `og:image` del
-  producto, `image_link` del feed de Meta y miniaturas del panel): `photosFor(p, colorInicial, estampadoInicial)`; si queda vacía, la
-  primera lista no vacía de `printPhotos` recorriendo los colores en orden y, dentro de cada color, los estampados en el orden de
-  `prints`. Color inicial = primer color con stock (si ninguno tiene, el primero); estampado inicial = `prints[0].id` o `""`. La
-  foto principal es la primera de esa lista.
-- La tienda también recorta a 10 al normalizar y descarta las claves de `printPhotos` que no son estampados del producto.
+  producto, `image_link` del feed de Meta y miniaturas del panel): la primera foto del **color inicial**, buscando en este orden: su
+  primer estampado, sus fotos base y sus demás estampados (en el orden de `prints`); si ese color no tiene ninguna, la del primer color
+  (en el orden del producto) que tenga alguna, con el mismo orden. Color inicial = primer color con stock (si ninguno tiene, el primero).
+  Es una foto del producto, no de una variante: por eso aquí sí puede salir de otro color.
+- La tienda también recorta a 10 al normalizar, descarta las claves de `printPhotos` de estampados que ese color no lleva y no muestra
+  (ni en la ficha ni en el buscador) un estampado que no lleva ningún color. `Mercy.data.printsOf(p, color)` da los estampados de un color.
 - *(servidor)* `server/lib/validate.js`: `MAX_PHOTOS_PER_COLOR = 10` y `MAX_PHOTOS_PER_PRINT = 10`. Más de 10 fotos base → 422 en
-  `colors.N.photos` «Máximo 10 fotos por color.». Los estampados se validan **antes** que los colores para filtrar `printPhotos`:
-  ausente o `null` → se omite; si no es un objeto → `colors.N.printPhotos` «Formato inválido (se esperaba un objeto).»; una clave que no
-  es id de un estampado del producto (se borró o se renombró) se **descarta sin error**; cada lista admite hasta 10 («Máximo 10 fotos
+  `colors.N.photos` «Máximo 10 fotos por color.». Los estampados se validan **antes** que los colores para filtrar `colors.N.prints`
+  y `printPhotos`. `colors.N.prints`: ausente o `null` → todos los estampados del producto; si no es una lista → `colors.N.prints`
+  «Formato inválido (se esperaba una lista).»; un elemento que no es texto → `colors.N.prints.M` «Debe ser un texto.»; ids que no son
+  estampados del producto se **descartan sin error**; sin repetidos y en el orden de `prints`; con estampados en el producto la clave
+  siempre sale (también `[]`), sin estampados **no aparece**. `printPhotos`: ausente o `null` → se omite; si no es un objeto →
+  `colors.N.printPhotos` «Formato inválido (se esperaba un objeto).»; una clave que no es un estampado que lleva ese color (se borró, se
+  renombró o se quitó del color) se **descarta sin error**; cada lista admite hasta 10 («Máximo 10 fotos
   por estampado.») y cada foto se valida como las demás (ruta `colors.N.printPhotos.<id>.M`); las listas vacías se descartan y las
   claves quedan en el orden de `prints`. Si no queda ninguna lista, la clave `printPhotos` **no aparece** en la salida: un producto sin
-  fotos de estampado conserva exactamente la forma `{ color, photos, stock }` (sin ruido en las revisiones ni en js/defaults.js).
+  estampados conserva exactamente la forma `{ color, photos, stock }` (sin ruido en las revisiones ni en js/defaults.js) y uno con
+  estampados, `{ color, photos, prints, printPhotos?, stock }`.
 - *(servidor)* Las fotos de `printPhotos` cuentan como uso de un medio (borrarlo → 409 `in_use` con `products/<id>`) y entran en
   `missingMedia` al restaurar, como las demás (el servidor recorre todo el contenido).
 
@@ -515,20 +526,22 @@ Orden de scripts en las 4 páginas (todos `defer`):
 - `Mercy.content` = contenido resuelto; `Mercy.api.enabled` = `MercyContent.__source === "server"`.
 - `config.js` sigue exponiendo `Mercy.config` (mismas claves que usa el código) derivado de `settings`/`home`/`discountModal`.
 - `data.js` sigue exponiendo `Mercy.data` con la forma que ya usa la tienda (PRODUCTS con `colors: [ids]`, `stock[color][talla]`,
-  `photos` = fotos principales, `colorPhotos[color]`, `printPhotos[color][estampado]`, `initialPrint`, `reviews` = número,
-  `collection` = nombre…) más `photosFor(p, colorId, printId)` (regla de fotos, §3) y `COLLECTIONS`.
+  `photos` = fotos principales, `colorPhotos[color]`, `colorPrints[color]`, `printPhotos[color][estampado]`, `initialPrint`, `reviews`
+  = número, `collection` = nombre…) más `photosFor(p, colorId, printId)` (regla de fotos, §3), `printsOf(p, color)` y `COLLECTIONS`.
 - Galería de producto: muestra `photosFor(p, color, estampado)` (§3): las fotos (1–10) de la **combinación color + estampado elegida**
   si tiene; si no, las del **color** (no se mezclan). Se rehace al cambiar de color o de estampado solo si cambia el juego de fotos, y
   vuelve a la foto 1. La diapositiva de video (última), su miniatura ▶, su punto y el botón «Ver video» existen **solo si la prenda
   tiene video** (`video.src`); sin video no hay ningún aviso. Con una sola diapositiva se ocultan flechas, puntos y miniaturas. Tocar una
   foto (o el botón «Ver foto completa», o Enter en el carrusel) abre el **visor**: la foto entera a pantalla completa, con flechas/deslizar
   para pasar de foto y clic, doble toque, rueda o pellizco para acercar. Las fotos con `fit: "contain"` se ven enteras también en el marco. `producto.html?id=…&color=<id>&print=<id>`
-  abre la ficha en esa variante (si el color o el estampado no son del producto, se ignoran). Tarjetas, búsqueda y favoritos usan la
+  abre la ficha en esa variante (si el color no es del producto o ese color no lleva el estampado, se ignoran). Tarjetas, búsqueda y favoritos usan la
   foto principal (§3); carrito y checkout, la foto de la variante de la línea (color + estampado), y su enlace abre la ficha en esa
   variante. Fotos de Pexels → `srcset` con `?w=`; fotos subidas → `srcset` con `thumb` (600 w) y `src`.
 - *(tienda, `js/store.js`)* Tope de cantidad del carrito = stock de (color, talla) **menos** lo que ya piden las OTRAS líneas del mismo
   producto + color + talla con cualquier estampado u horma (el stock es color × talla y lo comparten). Se aplica al agregar, al cambiar
-  la cantidad y al sanear el carrito al cargar (las líneas anteriores tienen prioridad; mismos avisos de siempre).
+  la cantidad y al sanear el carrito al cargar (las líneas anteriores tienen prioridad; mismos avisos de siempre). Al sanear, una línea
+  con un estampado que su color ya no lleva se quita; si el color ya no lleva ninguno, queda sin estampado; sin estampado guardado
+  y con un color que ahora sí lleva, toma el primero (como las hormas).
 - Cupones/suscripción: con `Mercy.api.enabled` se usan los endpoints públicos (§4.1); si no, se validan contra `DEFAULT_COUPONS`.
   *(tienda, `js/store.js`)* Estado guardado: `discount = { email, claimedAt, coupon: CupónPúblico|null, claimedCoupon, checkedAt }`
   (`claimedCoupon` = cupón recibido al suscribirse, para volver a mostrar/copiar el código). El estado viejo del mockup (`coupon: true|false`
@@ -579,8 +592,10 @@ el panel va directo al ingreso sin llamar a `/api/auth/me`. Ruta desconocida →
 `#/productos?estado=poco-stock` (la lista de productos puede usarlos como filtro inicial). Framework de vistas (registro de rutas,
 componentes, formularios, medios): `admin/README.md`.
 *(panel)* Editor de producto: las fotos se cargan en la pestaña **«Colores y stock»**, dentro de cada color: sus fotos base (hasta 10;
-la primera es la principal) y, si la prenda tiene estampados, **«Fotos con estampado»** con una lista por estampado (hasta 10; sin
-fotos se usan las del color). Renombrar un estampado nuevo mueve sus fotos al id nuevo; quitar uno con fotos pide confirmación y las
-quita de todos los colores al guardar. La pestaña **Video** es opcional (sin video la ficha no muestra la diapositiva ni el botón
+la primera es la principal) y, si la prenda tiene estampados, **«Estampados de este color»** (se marcan los que lleva; un color nuevo
+empieza sin ninguno) y **«Fotos con estampado»** con una lista por cada estampado marcado (hasta 10; sin fotos se usan las del color).
+Desmarcar un estampado con fotos en ese color pide confirmación y quita esas fotos. En la pestaña **Estampados** cada uno dice qué
+colores lo llevan (o avisa que ninguno, y entonces no se ve en la tienda). Renombrar un estampado nuevo mueve sus fotos y sus marcas al
+id nuevo; quitar uno con fotos pide confirmación y lo quita (con sus fotos) de todos los colores al guardar. La pestaña **Video** es opcional (sin video la ficha no muestra la diapositiva ni el botón
 «Ver video»). Las miniaturas de producto del panel (lista, Escritorio, cupones, taxonomías, «Más vendidos» del Inicio) usan la foto
 principal (§3).

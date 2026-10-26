@@ -767,6 +767,7 @@ Mercy.DEFAULT_CONTENT = {
             { src: "https://images.pexels.com/photos/19099186/pexels-photo-19099186.jpeg", thumb: "", alt: "", zoom: 2.1, ox: "52%", oy: "70%" },
             { src: "https://images.pexels.com/photos/19099186/pexels-photo-19099186.jpeg", thumb: "", alt: "", zoom: 1.6, ox: "50%", oy: "38%" }
           ],
+          prints: ["naranja", "azul"],
           stock: { S: 4, M: 5, L: 6, XL: 7 }
         }
       ],

@@ -91,7 +91,7 @@ window.Mercy = window.Mercy || {};
   /* --- Tile (placeholder de foto con degradado, como en las capturas) ----
      opts: variant (0–2 degradados alternos · 3 = diapositiva de video), index (foto a usar, por defecto = variant),
            video (ícono de play), color / print (fotos de esa variante con la regla de Mercy.data.photosFor; sin
-           ninguno de los dos, la foto principal p.photos; print sin pasar = estampado inicial), size (thumb|card|large),
+           ninguno de los dos, la foto principal p.photos; print sin pasar = primer estampado del color), size (thumb|card|large),
            sub, alt, eager. */
   function tileHTML(p, opts) {
     opts = opts || {};
