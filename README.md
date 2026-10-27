@@ -28,7 +28,7 @@ muestra la barra flotante **"Editar esta página"**. Dos roles: **Administrador*
 Qué se administra:
 - **Inicio:** video o imagen del hero, título, frases de la franja en movimiento, más vendidos, propósito, reseñas y comunidad.
 - **Textos del sitio:** todo lo que no es de un producto ni del Inicio: franja superior, menú y ayuda, búsqueda, favoritos y carrito, catálogo, avisos de envío, cuidados, guía de tallas, etiquetas de la ficha, página de pago (incluido el inicio y cierre del mensaje de WhatsApp), suscripción y pie de página.
-- **Productos:** precio, tallas, hormas (**cada color elige en cuáles viene**: p. ej. Rojo Burdeo solo en Regular), estampados (**cada color elige cuáles lleva**), stock por color y talla, **hasta 10 fotos por
+- **Productos:** precio, tallas, hormas (**cada color elige en cuáles viene**: p. ej. Rojo Burdeo solo en Regular), estampados (**cada color elige cuáles lleva**), stock por color y talla (**un estampado puede tener el suyo**: p. ej. Azul solo en M), **hasta 10 fotos por
   color** y **hasta 10 por combinación color + estampado** (p. ej. Negro + Naranja tiene las suyas y Crema no lleva estampados); un
   color sin fotos nunca muestra las de otro, casilla **«Mostrar completa (sin recortar)»** por
   foto, video opcional (sin video, la ficha no muestra la diapositiva ni el botón «Ver video»), borradores y duplicar. En la ficha, tocar
@@ -47,7 +47,7 @@ Contrato técnico (esquema, API, roles, rutas): [`docs/ADMIN-CONTRATO.md`](docs/
 |---------|----------|-----------|
 | `index.html` | Inicio | Hero a pantalla completa con único botón **COMPRA**, franja en movimiento, "Los más vendidos", propósito, reseñas, pop-up de descuento (configurable en el panel) |
 | `catalogo.html` | Catálogo | Filtros en acordeón (cerrados), orden, "Ver más", `?vista=mas-vendidos`, `?cat=hoodies`, `?q=jecvv` |
-| `producto.html?id=fe` | Producto | Color/estampado (solo los del color elegido)/talla/fit (un color que no viene en el fit elegido sale tachado y no se puede elegir), fotos del color elegido (o de la combinación color + estampado, si tiene), talla agotada tachada en diagonal, **Agregar al carrito**, acordeones (Detalles, Cuidados, Medidas/Tallas…), `?id=amen` (agotado), `?id=jesus-es-el-camino&color=negro&print=azul` (abre en esa variante) |
+| `producto.html?id=fe` | Producto | Color/estampado (solo los del color elegido)/talla/fit (un color que no viene en el fit elegido sale tachado y no se puede elegir; las tallas siguen al estampado si tiene stock propio), fotos del color elegido (o de la combinación color + estampado, si tiene), talla agotada tachada en diagonal, **Agregar al carrito**, acordeones (Detalles, Cuidados, Medidas/Tallas…), `?id=amen` (agotado), `?id=jesus-es-el-camino&color=negro&print=azul` (abre en esa variante) |
 | `checkout.html` | Finalizar compra | Validación obligatoria, Departamento → Ciudad, envío gratis / no incluido, ¿es un regalo?, cupón de descuento, pago con logos, mensaje de WhatsApp |
 | `admin/` | Panel | Escritorio, edición de cada sección, productos con fotos por color y por estampado, cupones, suscriptores, actividad y revisiones |
 

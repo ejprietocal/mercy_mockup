@@ -14,6 +14,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { requestHost, sendBody } from "./http.js";
 import { STORE_CSP } from "./static.js";
+import { isPlainObject } from "./util.js";
 import { MAX_PHOTOS_PER_COLOR, MAX_PHOTOS_PER_PRINT } from "./validate.js";
 
 const PAGE_FILES = { "/": "index.html", "/index.html": "index.html", "/catalogo.html": "catalogo.html", "/producto.html": "producto.html", "/checkout.html": "checkout.html" };
@@ -73,13 +74,39 @@ function printList(p, c, printId) {
   if (!printId || !c || !c.printPhotos || typeof c.printPhotos !== "object" || !colorPrintIds(p, c).includes(printId)) return [];
   return Object.hasOwn(c.printPhotos, printId) ? photoList(c.printPhotos[printId], MAX_PHOTOS_PER_PRINT) : [];
 }
+/* ---------- Stock (MISMA regla que Mercy.data.stockOf en js/data.js y el panel) ----------
+   colors[].stock = { talla: n } del color; colors[].printStock?: { [idEstampado]: { talla: n } } = stock propio de un
+   estampado que lleva ese color (los demás usan el del color). */
+const units = (v) => Math.max(0, Math.floor(Number(v) || 0));
+/** Unidades de un color en una talla: las de sus estampados con stock propio + las del color si algún estampado que
+ *  lleva las usa (o si no lleva estampados). */
+export function colorUnits(p, c, size) {
+  const ids = colorPrintIds(p, c);
+  if (!ids.length) return units(c?.stock?.[size]);
+  const ps = isPlainObject(c.printStock) ? c.printStock : {};
+  let n = 0;
+  let shared = false;
+  for (const id of ids) {
+    if (Object.hasOwn(ps, id) && isPlainObject(ps[id])) n += units(ps[id][size]);
+    else shared = true;
+  }
+  return n + (shared ? units(c?.stock?.[size]) : 0);
+}
 function colorHasStock(p, c) {
-  return (p.sizes || []).some((s) => Math.floor(Number(c.stock?.[s]) || 0) > 0);
+  return (p.sizes || []).some((s) => colorUnits(p, c, s) > 0);
 }
 /** Color inicial de la ficha: el primero con stock; si ninguno, el primero (como js/data.js). */
 export const initialColor = (p) => { const cs = colorEntries(p); return (cs.find((c) => colorHasStock(p, c)) || cs[0])?.color || ""; };
-/** Estampado inicial de un color (por defecto, el color inicial): el primero que lleva o "" (ninguno). */
-export const initialPrint = (p, colorId = initialColor(p)) => colorPrintIds(p, colorEntries(p).find((c) => c.color === colorId))[0] || "";
+/** Estampado inicial de un color (por defecto, el color inicial): el primero que lleva con stock, o su primero, o ""
+ *  (ninguno), como js/data.js. */
+export const initialPrint = (p, colorId = initialColor(p)) => {
+  const c = colorEntries(p).find((x) => x.color === colorId);
+  const ids = colorPrintIds(p, c);
+  const own = isPlainObject(c?.printStock) ? c.printStock : {};
+  // Con stock propio, el del estampado; sin él, el del color
+  const has = (id) => (p.sizes || []).some((s) => units(Object.hasOwn(own, id) && isPlainObject(own[id]) ? own[id][s] : c?.stock?.[s]) > 0);
+  return ids.find(has) || ids[0] || "";
+};
 
 /**
  * Fotos que muestra la ficha para color + estampado (printId undefined = el primer estampado de ese color; "" = sin
@@ -126,9 +153,10 @@ export function productPhotos(p) {
 }
 export const productImage = (p) => productMainPhoto(p)?.src || "";
 
+/** Unidades que se pueden vender de la prenda (todos sus colores y tallas). */
 export function stockTotal(p) {
   let n = 0;
-  for (const c of p.colors || []) for (const v of Object.values(c.stock || {})) n += Number(v) || 0;
+  for (const c of colorEntries(p)) for (const s of p.sizes || []) n += colorUnits(p, c, s);
   return n;
 }
 export const isAvailable = (p) => !p.soldOut && stockTotal(p) > 0;

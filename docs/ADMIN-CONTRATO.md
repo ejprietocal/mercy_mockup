@@ -211,10 +211,14 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
         naranja: [ Foto ],                         //   clave = id de un estampado que lleva ESTE color; valor = 1–10 fotos (MÁX 10)
         azul:    [ Foto ]                          //   sin fotos de estampado la clave printPhotos NO existe
       },
-      stock:  { S: 4, M: 5, L: 6, XL: 7, XXL: 0 }  // una clave por cada talla de sizes; entero ≥ 0 (compartido por todos los estampados)
+      printStock: {                                // OPCIONAL: stock propio de un estampado en ESTE color (ver «Stock por estampado»)
+        azul: { S: 0, M: 2, L: 0, XL: 0, XXL: 0 }  //   clave = id de un estampado que lleva ESTE color; mismas tallas que stock.
+      },                                           //   Sin la clave el estampado usa stock; sin ninguno, printStock NO existe
+      stock:  { S: 4, M: 5, L: 6, XL: 7, XXL: 0 }  // una clave por cada talla de sizes; entero ≥ 0 (lo comparten las hormas y los
+                                                   //   estampados de este color sin stock propio)
     } ],
-    prints: [ { id: "naranja", name: "Naranja", hex: "#e8620a" } ],   // estampados opcionales (0–12; sin fotos ni stock propios:
-                                                   //   cada color dice cuáles lleva en colors[].prints; en la ficha se eligen
+    prints: [ { id: "naranja", name: "Naranja", hex: "#e8620a" } ],   // estampados opcionales (0–12; las fotos y el stock propio van
+                                                   //   en cada color: colors[].prints dice cuáles lleva; en la ficha se eligen
                                                    //   con el círculo de color hex)
     video: { src: url, poster: url|"" } | null,    // video de la prenda: última diapositiva de la galería + botón «Ver video».
                                                    //   null = sin video: la ficha no muestra la diapositiva, la miniatura ▶ ni el botón
@@ -237,13 +241,14 @@ Reglas de integridad (el servidor las valida; el panel las previene):
 - `product.colors[].color` ∈ `colors`, `product.category` ∈ `categories`, `product.fits ⊆ fits`, `collection` ∈ `collections` o "".
 - `product.colors[].stock` tiene exactamente las tallas de `product.sizes` (faltantes = 0, sobrantes se eliminan).
 - `colors[].fits ⊆ product.fits` (al menos una; sin la clave = todas); el stock sigue siendo color × talla (lo comparten las hormas).
-- `photos.length ≤ 10` por color; `colors[].prints ⊆ prints[].id`; `printPhotos`: claves = estampados que lleva ese color, cada lista
-  1–10. Producto "agotado" en la tienda =
-  `soldOut` o todo el stock en 0. El stock es por color × talla y lo comparten todos los estampados.
+- `photos.length ≤ 10` por color; `colors[].prints ⊆ prints[].id`; `printPhotos` y `printStock`: claves = estampados que lleva ese
+  color (cada lista de fotos 1–10; cada tabla de stock con las tallas de `sizes`). Producto "agotado" en la tienda = `soldOut` o
+  ninguna unidad que se pueda vender (ver «Stock por estampado»). El stock es por color × talla y lo comparten las hormas y los
+  estampados de ese color sin stock propio.
 - Fotos: qué fotos se ven en cada caso (color, combinación color + estampado, respaldo) lo fija la **regla de fotos** de abajo; sin
   ninguna foto se usa el `tile` (degradado).
-- El primer color con stock es el color inicial en la ficha y en las tarjetas; el estampado inicial es el primero que lleva ese color
-  (`""` si no lleva ninguno). Al cambiar de color, la ficha muestra solo los estampados de ese color (sin ninguno, no sale el selector).
+- El primer color con stock es el color inicial en la ficha y en las tarjetas; el estampado inicial es el primero con stock que lleva
+  ese color (si ninguno tiene, su primero; `""` si no lleva ninguno). Al cambiar de color, la ficha muestra solo los estampados de ese color (sin ninguno, no sale el selector).
 - *(servidor)* Forma del 409 `in_use` de secciones: `{ error: { code: "in_use", message, usages: ["products/fe", "coupons/MERCY20",
   "categories/hoodies"], products: [{ id, name }] } }`. Bloquean: colores/hormas/colecciones usados por productos; categorías usadas por
   productos **o** por cupones (`appliesTo: "categories"`); guías de tallas usadas por categorías. Al borrar una horma SIN productos, sus
@@ -282,10 +287,41 @@ Reglas de integridad (el servidor las valida; el panel las previene):
   en el producto la clave no aparece. Quitar o renombrar una horma usada por un producto ya está bloqueado (409 `in_use`), así que
   `colors[].fits` nunca apunta a una horma inexistente.
 
+### Stock por estampado
+- Un estampado puede tener **su propio stock en un color** (`colors[].printStock[idEstampado] = { talla: n }`): p. ej. Negro lleva
+  Naranja y Azul, y Azul solo viene en M → `printStock: { azul: { S: 0, M: 2, L: 0, XL: 0 } }`. Naranja, sin la clave, sigue usando el
+  stock del color (`colors[].stock`), como siempre.
+- **Unidades** de un color en una talla (regla común: `Mercy.data.stockOf` en la tienda, `colorUnits` en el panel —
+  `admin/js/core/format.js`— y en el servidor —`server/lib/social.js`—): las de sus estampados con stock propio + las del color si
+  algún estampado que lleva lo usa (o si no lleva estampados). Si todos los estampados de un color tienen stock propio, el del color
+  no se usa. Con esa suma salen el color agotado, la prenda agotada (`soldOut`), el color inicial, el filtro «Solo en stock» del
+  catálogo, `product:availability` / el feed de Meta y los totales del panel y del Escritorio (`/api/admin/stats`).
+- Ficha: las tallas siguen al **estampado elegido** (con Azul solo se puede elegir M y dice «Quedan 2 unidades»); al cambiar de
+  estampado se conserva la talla si sigue con stock (si no, M o la primera). Un estampado sin unidades en ese color sale **tachado**
+  (se puede elegir para ver sus fotos, como un color agotado) y el botón dice «Agotado» con el aviso «Este estampado está agotado en
+  este color. Prueba con otro estampado.». Al elegir un color, la ficha abre en su primer estampado con stock.
+  `Mercy.data.stockOf(p, color, talla, estampado)` da las unidades con ese estampado (sin pasar el estampado, todas las del color);
+  `colorHasStock(p, color, estampado?)`, `printStockOf(p, color, estampado)` y `firstPrintWithStock(p, color)`.
+- Carrito: el tope de una línea con un estampado con stock propio es ese stock menos las otras líneas del **mismo estampado** (otra
+  horma); las demás líneas del color se reparten el stock del color. `cart.add` con una talla sin unidades → `reason: "sin-stock"`.
+  Al sanear, una línea de un estampado sin unidades en esa talla se quita y una con más de las que quedan se ajusta.
+- Panel: en cada color, bajo cada estampado marcado, el interruptor «Stock propio de este estampado»: encendido, muestra su grilla de
+  tallas (empieza en 0); apagado, el estampado usa el stock del color (si tenía unidades, pide confirmación). Debajo del stock del
+  color, una nota dice qué estampados lo usan (o que ya no se usa). El encabezado del color cuenta las unidades con esta regla.
+  Quitar un estampado del color o del producto se lleva su stock propio; renombrar uno nuevo lo mueve al código nuevo; agregar o
+  quitar tallas cambia también estas grillas.
+- *(servidor)* `colors.N.printStock`: ausente o `null` → ninguno; si no es un objeto → `colors.N.printStock` «Formato inválido (se
+  esperaba un objeto).»; una clave que no es un estampado que lleva ese color se **descarta sin error** (como `printPhotos`) y un valor
+  `null` = sin stock propio; si una tabla no es un objeto → `colors.N.printStock.<id>` «Formato inválido (se esperaba un objeto).»;
+  cada tabla tiene exactamente las tallas de `sizes` (faltantes = 0, sobrantes fuera; enteros 0–100 000, ruta
+  `colors.N.printStock.<id>.<talla>`). Claves en el orden de `prints`; sin ninguna, la clave **no aparece** (forma
+  `{ color, photos, fits?, prints, printPhotos?, printStock?, stock }`).
+
 ### Fotos de producto: color base, estampados de cada color y combinaciones color + estampado
 - Cada color tiene sus fotos **base** (`colors[].photos`, 0–10), dice **qué estampados lleva** (`colors[].prints`, ids de `prints[]`) y,
   opcionalmente, tiene fotos por **combinación con cada uno de esos estampados** (`colors[].printPhotos[idEstampado]`, 1–10 cada una):
-  p. ej. Negro lleva Naranja y Azul con sus fotos, y Crema no lleva ninguno. Los estampados (`prints[]`) no tienen fotos ni stock propios.
+  p. ej. Negro lleva Naranja y Azul con sus fotos, y Crema no lleva ninguno. Las fotos (y el stock propio, «Stock por estampado») de
+  un estampado van en cada color, no en `prints[]`.
 - `colors[].prints` **ausente** (contenido guardado antes de los estampados por color) = el color lleva **todos** los estampados; así
   nada cambia hasta que se edita. El servidor guarda siempre la lista explícita cuando el producto tiene estampados.
 - **Regla de fotos** `photosFor(p, colorId, printId)`, idéntica en la tienda (`Mercy.data.photosFor`), en las vistas previas del panel
@@ -503,7 +539,8 @@ Solo administrador:
 - `POST /api/admin/media`: 415 si la firma no es de un formato permitido; 413 si supera el límite; 400 si llega vacío. El nombre guardado
   es el de `X-File-Name` (decodificado). Si vienen `X-Media-Width/Height` se usan (corrigen la orientación EXIF); si no, el servidor lee las
   medidas de la cabecera (PNG/JPEG/GIF/WebP/AVIF). Al reemplazar una miniatura con el mismo nombre, `thumbUrl` lleva `?v=…`.
-- `GET /api/admin/stats`: `soldOut` = `soldOut` o stock total 0; `lowStock` = stock total entre 1 y 10; `coupons.active` = vigentes hoy.
+- `GET /api/admin/stats`: `soldOut` = `soldOut` o stock total 0; `lowStock` = stock total entre 1 y 10 (unidades con el stock propio de
+  los estampados, §3 «Stock por estampado»); `coupons.active` = vigentes hoy.
   Al editor, `recentActivity` le llega sin entradas de cupones, usuarios, suscriptores ni sesiones.
 
 ### 4.4 Archivos estáticos
@@ -551,7 +588,8 @@ Orden de scripts en las 4 páginas (todos `defer`):
 - `data.js` sigue exponiendo `Mercy.data` con la forma que ya usa la tienda (PRODUCTS con `colors: [ids]`, `stock[color][talla]`,
   `photos` = fotos principales, `colorPhotos[color]`, `colorPrints[color]`, `printPhotos[color][estampado]`, `initialPrint`, `reviews`
   = número, `collection` = nombre…) más `photosFor(p, colorId, printId)` (regla de fotos, §3), `printsOf(p, color)`, `fitsOf(p, color)`
-  (hormas del color, §3 «Hormas por color»; con `colorFits[color]`) y `COLLECTIONS`.
+  (hormas del color, §3 «Hormas por color»; con `colorFits[color]`), `stockOf(p, color, talla, estampado?)` (con
+  `printStock[color][estampado]`, §3 «Stock por estampado») y `COLLECTIONS`.
 - Galería de producto: muestra `photosFor(p, color, estampado)` (§3): las fotos (1–10) de la **combinación color + estampado elegida**
   si tiene; si no, las del **color** (no se mezclan). Se rehace al cambiar de color o de estampado solo si cambia el juego de fotos, y
   vuelve a la foto 1. La diapositiva de video (última), su miniatura ▶, su punto y el botón «Ver video» existen **solo si la prenda
@@ -562,7 +600,8 @@ Orden de scripts en las 4 páginas (todos `defer`):
   foto principal (§3); carrito y checkout, la foto de la variante de la línea (color + estampado), y su enlace abre la ficha en esa
   variante. Fotos de Pexels → `srcset` con `?w=`; fotos subidas → `srcset` con `thumb` (600 w) y `src`.
 - *(tienda, `js/store.js`)* Tope de cantidad del carrito = stock de (color, talla) **menos** lo que ya piden las OTRAS líneas del mismo
-  producto + color + talla con cualquier estampado u horma (el stock es color × talla y lo comparten). Se aplica al agregar, al cambiar
+  producto + color + talla con cualquier horma u otro estampado sin stock propio (lo comparten); con un estampado con stock propio,
+  su stock menos las otras líneas de ese mismo estampado (§3 «Stock por estampado»). Se aplica al agregar, al cambiar
   la cantidad y al sanear el carrito al cargar (las líneas anteriores tienen prioridad; mismos avisos de siempre). Al sanear, una línea
   con un estampado que su color ya no lleva se quita; si el color ya no lleva ninguno, queda sin estampado; sin estampado guardado
   y con un color que ahora sí lleva, toma el primero (como las hormas). Una línea con una horma en que su color ya no viene se quita.

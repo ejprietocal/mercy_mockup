@@ -31,8 +31,8 @@ import {
   promptDialog, showApiError, statusBadge, tabs, toast,
 } from "../core/ui.js";
 import {
-  HEX_RE, SLUG_RE, clone, colorPrintIds, dateTime, fold, initialColorIndex, money, number, plural, productMainPhoto, relativeTime, siteUrl,
-  slugify,
+  HEX_RE, SLUG_RE, clone, colorPrintIds, colorStockShared, colorStockTotal, colorUnits, dateTime, fold, initialColorIndex, money,
+  number, plural, printStockOf, productMainPhoto, productUnits, relativeTime, siteUrl, slugify,
 } from "../core/format.js";
 
 export const LOW_STOCK = 10;           // igual que el servidor y el Escritorio: 1–10 unidades en total = poco stock
@@ -53,18 +53,20 @@ const storeUrl = (id) => `../producto.html?id=${enc(id)}`;
 /* ==========================================================================
    Utilidades de producto (mismas reglas que la tienda, js/data.js)
    ========================================================================== */
-const colorTotal = (c) => Object.values(c?.stock || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-export const productStock = (p) => (p?.colors || []).reduce((s, c) => s + colorTotal(c), 0);
+/** Unidades de la prenda, con el stock propio de los estampados (como la tienda). */
+export const productStock = (p) => productUnits(p);
 const isSoldOut = (p) => !!p.soldOut || productStock(p) === 0;
 const isLow = (p) => !isSoldOut(p) && productStock(p) <= LOW_STOCK;
 const hexOr = (v, d) => (typeof v === "string" && HEX_RE.test(v) ? v : d);
 
-/** Celdas color × talla en 0 ("tallas sin stock"). */
+/** Celdas color × talla sin unidades ("tallas sin stock"; con el stock propio de los estampados). */
 function emptyCells(p) {
   let n = 0;
-  for (const c of p.colors || []) for (const s of p.sizes || []) if (!(Number(c.stock?.[s]) > 0)) n++;
+  for (const c of p.colors || []) for (const s of p.sizes || []) if (!(colorUnits(p, c, s) > 0)) n++;
   return n;
 }
+/** Unidades de una tabla { talla: n } (solo las tallas de la prenda). */
+const tableTotal = (t, sizes) => (sizes || []).reduce((a, s) => a + (Number(t?.[s]) || 0), 0);
 
 /** Fotos con estampado de un color (solo de los estampados del producto que lleva ese color). */
 const printPhotoCount = (p, c) => colorPrintIds(p, c).reduce((a, id) => a + (c?.printPhotos?.[id]?.length || 0), 0);
@@ -391,7 +393,7 @@ function newProduct(data) {
     bestRank: Math.min(9999, best.length ? Math.max(...best) + 1 : 1),
     newRank: news.length ? Math.max(0, Math.min(...news) - 1) : 1,
     rating: 0, reviewsCount: 0,
-    colors: [{ color: "", photos: [], fits: [], prints: [], printPhotos: {}, stock: Object.fromEntries(STD_SIZES.map((s) => [s, 0])) }],
+    colors: [{ color: "", photos: [], fits: [], prints: [], printPhotos: {}, printStock: {}, stock: Object.fromEntries(STD_SIZES.map((s) => [s, 0])) }],
     prints: [], video: null,
     tile: { from: TILE_FROM, to: TILE_TO, lines: [], sub: "", stacked: false, small: false, fs: null },
     tags: [], desc: "", story: "", details: [], care: [],
@@ -416,6 +418,8 @@ function normalize(p) {
     c.prints = Array.isArray(c.prints) ? c.prints : printIds.slice();
     // Siempre un objeto: las rutas colors.N.printPhotos.<id> no crean listas aunque el id sea numérico («2025»)
     c.printPhotos = c.printPhotos && typeof c.printPhotos === "object" && !Array.isArray(c.printPhotos) ? c.printPhotos : {};
+    // Stock propio de los estampados del color ({ id: { talla: n } }); sin la clave = todos usan el del color
+    c.printStock = c.printStock && typeof c.printStock === "object" && !Array.isArray(c.printStock) ? c.printStock : {};
     c.stock = c.stock && typeof c.stock === "object" ? c.stock : {};
   }
   p.tile = { from: TILE_FROM, to: TILE_TO, lines: [], sub: "", stacked: false, small: false, fs: null, ...(p.tile || {}) };
@@ -424,9 +428,10 @@ function normalize(p) {
 
 /**
  * Lo que se envía al servidor: stock exacto por talla, video vacío = null, ids de estampados, las hormas de cada color
- * (solo si no viene en todas las del producto), los estampados de cada color y sus fotos bajo el id que se envía (en el
- * orden de los estampados; sin estampados que ya no existen o que el color no lleva ni listas vacías; sin printPhotos
- * si el color no tiene ninguna y sin prints si el producto no tiene estampados, como lo guarda el servidor).
+ * (solo si no viene en todas las del producto), los estampados de cada color con sus fotos y su stock propio bajo el id
+ * que se envía (en el orden de los estampados; sin estampados que ya no existen o que el color no lleva ni listas
+ * vacías; sin printPhotos / printStock si el color no tiene y sin prints si el producto no tiene estampados, como lo
+ * guarda el servidor).
  */
 function prepare(v) {
   const p = clone(v);
@@ -441,8 +446,9 @@ function prepare(v) {
     return { ...x, id };
   });
   const fits = p.fits || [];
-  p.colors = (p.colors || []).map(({ prints: own, printPhotos, fits: ownFits, ...c }) => {
-    const out = { ...c, stock: Object.fromEntries(sizes.map((s) => [s, Number.isFinite(c.stock?.[s]) ? c.stock[s] : 0])) };
+  const exact = (t) => Object.fromEntries(sizes.map((s) => [s, Number.isFinite(t?.[s]) ? t[s] : 0]));
+  p.colors = (p.colors || []).map(({ prints: own, printPhotos, printStock, fits: ownFits, ...c }) => {
+    const out = { ...c, stock: exact(c.stock) };
     const cf = Array.isArray(ownFits) ? fits.filter((x) => ownFits.includes(x)) : fits;
     if (cf.length < fits.length) out.fits = cf;
     const carried = [...idMap].filter(([from]) => Array.isArray(own) && own.includes(from));
@@ -453,6 +459,12 @@ function prepare(v) {
       if (Array.isArray(list) && list.length) pp[to] = list;
     }
     if (Object.keys(pp).length) out.printPhotos = pp;
+    const ps = {};
+    for (const [from, to] of carried) {
+      const t = printStock?.[from];
+      if (t && typeof t === "object" && !Array.isArray(t)) ps[to] = exact(t);
+    }
+    if (Object.keys(ps).length) out.printStock = ps;
     return out;
   });
   p.tile = { ...p.tile, lines: (p.tile?.lines || []).map((l) => String(l ?? "").trim()).filter(Boolean) };
@@ -503,7 +515,7 @@ async function editorView(el, id, ctx) {
   const showPhotos = data.settings?.showPhotos !== false;
   const homeCount = Math.max(1, Math.min(12, Number(data.home?.bestSellers?.count) || 4));
   let idTouched = !isNew;
-  const stockMemory = new Map();      // color → { talla: unidades } (no perder lo escrito al quitar/poner tallas)
+  const stockMemory = new Map();      // color (o «color|estampado») → { talla: unidades } (no perder lo escrito al quitar/poner tallas)
   const colorSelects = new Set();      // refrescos de los selectores de color (colores ya usados)
 
   if (!isNew) ctx.setTitle(value.name);
@@ -632,8 +644,12 @@ async function editorView(el, id, ctx) {
   /* ------------------------------------------------------------------ */
   /* Colores, fotos y stock                                               */
   /* ------------------------------------------------------------------ */
-  /** Grilla de stock por talla de un color (cada talla es un campo con su propio error). */
-  function stockGrid(path) {
+  /** Grilla de stock por talla de un color o de un estampado (cada talla es un campo con su propio error). */
+  function stockGrid(path, {
+    label = "Stock por talla",
+    help = "Unidades disponibles. Las tallas en 0 salen tachadas («agotada») en la tienda.",
+    fillHelp = "Pon el mismo número en todas las tallas de este color. Luego puedes ajustar cada una.",
+  } = {}) {
     const total = h("strong.pe-stock__total");
     const outInfo = h("span.pe-stock__out");
     const grid = h("div.pe-stock__grid", { role: "group", "aria-label": "Unidades por talla" });
@@ -641,10 +657,10 @@ async function editorView(el, id, ctx) {
     const fillBtn = button({ label: "Llenar todas con…", size: "sm", variant: "ghost", icon: "edit", onClick: () => fill() });
     const root = h("div.pe-stock",
       h("div.pe-stock__head",
-        h("div.pe-stock__titles", h("span.field__label", "Stock por talla"), h("span.pe-stock__sum", "Total: ", total, outInfo)),
+        h("div.pe-stock__titles", h("span.field__label", label), h("span.pe-stock__sum", "Total: ", total, outInfo)),
         fillBtn),
       grid, err,
-      h("p.field__help", "Unidades disponibles. Las tallas en 0 salen tachadas («agotada») en la tienda."));
+      h("p.field__help", help));
     let cellOffs = [];
 
     const updTotal = () => {
@@ -720,7 +736,7 @@ async function editorView(el, id, ctx) {
         title: "Llenar todas las tallas",
         label: "Unidades por talla",
         value: "0",
-        help: "Pon el mismo número en todas las tallas de este color. Luego puedes ajustar cada una.",
+        help: fillHelp,
         confirmLabel: "Llenar",
         validate: (x) => (/^\d+$/.test(x) && Number(x) <= MAX_STOCK ? null : `Escribe un número entero entre 0 y ${number(MAX_STOCK)}.`),
       });
@@ -794,7 +810,7 @@ async function editorView(el, id, ctx) {
       const free = palette.find((c) => !used.has(c.id));
       if (!free) toast("Ya usaste todos los colores de la paleta. Crea uno nuevo en Colores.", { type: "warning" });
       // Un color nuevo viene en todas las hormas y no lleva estampados hasta que los marques (no muestra los de otro color)
-      return { color: free?.id || "", photos: [], fits: (form.get("fits") || []).slice(), prints: [], printPhotos: {}, stock: Object.fromEntries((form.get("sizes") || []).map((s) => [s, 0])) };
+      return { color: free?.id || "", photos: [], fits: (form.get("fits") || []).slice(), prints: [], printPhotos: {}, printStock: {}, stock: Object.fromEntries((form.get("sizes") || []).map((s) => [s, 0])) };
     },
     itemLabel: (it, i) => paletteById.get(it?.color)?.name || it?.color || `Color ${i + 1} (sin elegir)`,
     renderItem: (p, i) => {
@@ -807,7 +823,9 @@ async function editorView(el, id, ctx) {
           help: `Hasta ${MAX_PHOTOS} por color. La primera es la principal: abre la galería y es la de la tarjeta del catálogo. Si este color lleva estampados, estas fotos se ven cuando el estampado elegido no tiene fotos propias. Un color sin fotos nunca muestra las de otro color. Se optimizan solas al subirlas.`,
         }),
         printPhotosBlock(p),
-        stockGrid(`${p}.stock`));
+        stockGrid(`${p}.stock`),
+        // Si hay estampados con stock propio, dice quiénes usan este stock (lo pinta refreshColorHeads)
+        h("p.field__help.pe-cstock-note", { hidden: true }));
     },
   });
   colorsField.classList.add("pe-colors");
@@ -893,10 +911,11 @@ async function editorView(el, id, ctx) {
     fitsBefore = clone(now);
   });
 
-  /* --- Estampados de cada color (colors.N.prints) y sus fotos (colors.N.printPhotos.<id>) --- */
+  /* --- Estampados de cada color (colors.N.prints), sus fotos (colors.N.printPhotos.<id>) y su stock propio
+         (colors.N.printStock.<id>) --- */
   const printIds = () => (form.get("prints") || []).map((x) => x?.id).filter(Boolean);
 
-  /** Estampados que lleva un color (se marcan) y, por cada uno marcado, sus fotos. Si cambian los ids o el orden de
+  /** Estampados que lleva un color (se marcan) y, por cada uno marcado, sus fotos y su stock propio. Si cambian los ids o el orden de
    *  los estampados se rehace; si solo cambian nombres o colores, se actualizan las etiquetas en su sitio; si cambian
    *  los estampados de ESTE color, solo se agregan o quitan esas listas (las demás no se rehacen ni se cortan sus subidas). */
   function printPhotosBlock(p) {
@@ -907,7 +926,7 @@ async function editorView(el, id, ctx) {
     let ids = null, labels = null, own = null;
     let paintChips = () => {};
     let list = null;            // listas de fotos de los estampados marcados
-    let fields = new Map();     // id → { el, label, grid }: se conservan al marcar o desmarcar otro estampado
+    let fields = new Map();     // id → { el, field, label, grid, stock }: se conservan al marcar o desmarcar otro estampado
     const nameOf = (x, j) => String(x?.name || "").trim() || `Estampado ${j + 1}`;
 
     function photoField(x, j) {
@@ -927,7 +946,54 @@ async function editorView(el, id, ctx) {
         onChange: (arr) => { if (!arr.length) form.set(path, undefined); },
       });
       field.style.setProperty("--pe-print-hex", hexOr(x?.hex, "#999999"));
-      return { el: field, label: field.querySelector(":scope > .field__label"), grid: field.querySelector(".photo-list__grid") };
+      const stock = printStockField(x.id);
+      return { el: h("div.pe-pprint", field, stock.el), field, label: field.querySelector(":scope > .field__label"), grid: field.querySelector(".photo-list__grid"), stock };
+    }
+
+    /** «Stock propio de este estampado» (colors.N.printStock.<id>): apagado, el estampado usa el stock del color; encendido,
+     *  tiene sus propias unidades por talla (p. ej. Azul solo en M: las demás tallas salen agotadas con ese estampado). */
+    function printStockField(id) {
+      const path = `${p}.printStock.${id}`;
+      const holder = h("div.pe-pstock__body", { hidden: true });
+      const sw = switchControl({
+        label: "Stock propio de este estampado",
+        description: "Actívalo si este estampado no viene en todas las tallas o tiene sus propias unidades (p. ej. solo en M). Apagado, usa el stock del color.",
+        onChange: async (on) => {
+          const cur = form.get(`${p}.printStock`) || {};
+          if (on) {
+            if (!cur[id]) form.set(`${p}.printStock`, { ...cur, [id]: Object.fromEntries((form.get("sizes") || []).map((s) => [s, 0])) });
+          } else if (cur[id]) {
+            const u = tableTotal(cur[id], form.get("sizes"));
+            const name = nameOf((form.get("prints") || []).find((x) => x?.id === id), (form.get("prints") || []).findIndex((x) => x?.id === id));
+            if (u && !(await confirmDialog({
+              title: `¿Quitar el stock propio de «${name}»?`,
+              message: `Tiene ${plural(u, "unidad", "unidades")}. En este color, el estampado volverá a usar el stock del color.`,
+              confirmLabel: "Quitar stock propio",
+              danger: true,
+            }))) { paint(); return; }
+            const next = { ...(form.get(`${p}.printStock`) || {}) };
+            delete next[id];
+            form.set(`${p}.printStock`, next);
+          }
+          paint();
+          if (on) requestAnimationFrame(() => holder.querySelector("input")?.focus());
+        },
+      });
+      function paint() {
+        const on = !!form.get(path);
+        sw.set(on);
+        if (on && !holder.firstChild) {
+          holder.append(stockGrid(path, {
+            label: "Stock de este estampado por talla",
+            help: "Unidades de este color con este estampado. Las tallas en 0 salen agotadas al elegir este estampado; el stock del color no se usa para él.",
+            fillHelp: "Pon el mismo número en todas las tallas de este estampado. Luego puedes ajustar cada una.",
+          }));
+        }
+        if (!on && holder.firstChild) holder.replaceChildren();
+        holder.hidden = !on;
+      }
+      paint();
+      return { el: h("div.pe-pstock", sw.el, holder), paint };
     }
 
     /** Selector «Estampados de este color» (colors.N.prints): un botón por estampado del producto. */
@@ -956,17 +1022,22 @@ async function editorView(el, id, ctx) {
           const toggle = async (id, name) => {
             if (!id) return;
             if (cur.includes(id)) {
-              // Quitar el estampado del color: sus fotos en este color también se van (se avisa si tiene)
+              // Quitar el estampado del color: sus fotos y su stock propio en este color también se van (se avisa si tiene)
               const n = form.get(`${p}.printPhotos`)?.[id]?.length || 0;
-              if (n && !(await confirmDialog({
+              const ownStock = form.get(`${p}.printStock`)?.[id];
+              const u = ownStock ? tableTotal(ownStock, form.get("sizes")) : 0;
+              const what = [n ? `${plural(n, "foto", "fotos")} con este estampado` : null, u ? `stock propio (${plural(u, "unidad", "unidades")})` : null].filter(Boolean);
+              if (what.length && !(await confirmDialog({
                 title: `¿Quitar «${name}» de este color?`,
-                message: `Tiene ${plural(n, "foto", "fotos")} con este estampado en este color. Se quitarán al guardar.`,
+                message: `Tiene ${what.join(" y ")} en este color. Se ${n > 1 || what.length > 1 ? "quitarán" : "quitará"} al guardar.`,
                 confirmLabel: "Quitar estampado",
                 danger: true,
               }))) return;
               if (!cur.includes(id)) return;   // mientras se confirmaba, otro cambio ya lo quitó
               const pp = { ...(form.get(`${p}.printPhotos`) || {}) };
               if (pp[id] !== undefined) { delete pp[id]; form.set(`${p}.printPhotos`, pp); }
+              const ps = { ...(form.get(`${p}.printStock`) || {}) };
+              if (ps[id] !== undefined) { delete ps[id]; form.set(`${p}.printStock`, ps); }
               cur = cur.filter((v) => v !== id);
             } else {
               const set = new Set([...cur, id]);
@@ -1001,8 +1072,8 @@ async function editorView(el, id, ctx) {
       fields = next;
       replace(list, els.length
         ? [h("div.pe-pphotos__head",
-          h("p.pe-pphotos__title", "Fotos con estampado"),
-          h("p.field__help", "Fotos de este color con cada estampado. En la ficha, al elegir la combinación se ven solo sus fotos.")), els]
+          h("p.pe-pphotos__title", "Fotos y stock de cada estampado"),
+          h("p.field__help", "Fotos de este color con cada estampado: en la ficha, al elegir la combinación se ven solo sus fotos. Si un estampado no viene en todas las tallas, activa su stock propio.")), els]
         : h("p.pe-pphotos__hint", "Este color no lleva estampados: en la ficha se ven solo sus fotos y no sale el selector «Estampado»."));
     }
 
@@ -1033,7 +1104,7 @@ async function editorView(el, id, ctx) {
         const name = nameOf(x, j);
         if (part.label) part.label.textContent = name;
         part.grid?.setAttribute("aria-label", `Fotos con estampado ${name}`);
-        part.el.style.setProperty("--pe-print-hex", hexOr(x?.hex, "#999999"));
+        part.field.style.setProperty("--pe-print-hex", hexOr(x?.hex, "#999999"));
       });
     }
     let seen = false;
@@ -1043,6 +1114,8 @@ async function editorView(el, id, ctx) {
       if (idsOf() !== ids) { render(); return; }
       if (labelsOf() !== labels) relabel();
       if (ownOf() !== own && list) paintPhotos();
+      // Stock propio encendido o apagado desde fuera (descartar, deshacer, quitar una talla…)
+      fields.forEach((part) => part.stock.paint());
     });
     // Visto en cuanto entra al documento: si sale por un redibujo antes de otro cambio (p. ej. «Agregar color» y
     // guardar o descartar en seguida), el siguiente cambio suelta el listener igual
@@ -1069,14 +1142,21 @@ async function editorView(el, id, ctx) {
     requestAnimationFrame(() => t.panel("estampados")?.querySelector("input, button:not([disabled])")?.focus());
   }
 
-  /** Mueve un estampado a otro id en TODOS los colores: sus fotos y la marca de los colores que lo llevan
-   *  (to = "" lo quita). */
+  /** Mueve un estampado a otro id en TODOS los colores: sus fotos, su stock propio y la marca de los colores que lo
+   *  llevan (to = "" lo quita). */
   function movePrintPhotos(from, to) {
     if (!from || from === to) return;
     printRenames.push([from, to]);
     (form.get("colors") || []).forEach((c, i) => {
       const own = Array.isArray(c?.prints) ? c.prints : [];
       if (own.includes(from)) form.set(`colors.${i}.prints`, to ? own.map((x) => (x === from ? to : x)) : own.filter((x) => x !== from));
+      const ps = c?.printStock;
+      if (ps && ps[from] !== undefined) {
+        const next = { ...ps };
+        if (to) next[to] = ps[from];
+        delete next[from];
+        form.set(`colors.${i}.printStock`, next);
+      }
       const pp = c?.printPhotos;
       if (!pp || pp[from] === undefined) return;
       const next = { ...pp };
@@ -1086,12 +1166,19 @@ async function editorView(el, id, ctx) {
     });
   }
 
-  /** Quita de todos los colores los estampados que ya no están en la lista (la marca y sus fotos). */
+  /** Quita de todos los colores los estampados que ya no están en la lista (la marca, su stock propio y sus fotos). */
   function prunePrintPhotos() {
     const ids = new Set(printIds());
     (form.get("colors") || []).forEach((c, i) => {
       const own = Array.isArray(c?.prints) ? c.prints : [];
       if (own.some((k) => !ids.has(k))) form.set(`colors.${i}.prints`, own.filter((k) => ids.has(k)));
+      const ps = c?.printStock;
+      const goneStock = ps && typeof ps === "object" ? Object.keys(ps).filter((k) => !ids.has(k)) : [];
+      if (goneStock.length) {
+        const next = { ...ps };
+        goneStock.forEach((k) => delete next[k]);
+        form.set(`colors.${i}.printStock`, next);
+      }
       const pp = c?.printPhotos;
       if (!pp || typeof pp !== "object") return;
       const gone = Object.keys(pp).filter((k) => !ids.has(k));
@@ -1126,7 +1213,7 @@ async function editorView(el, id, ctx) {
       const hex = paletteById.get(c.color)?.hex;
       sw.style.background = hex || "";
       sw.classList.toggle("is-empty", !hex);
-      const tot = (form.get("sizes") || []).reduce((a, s) => a + (Number(c.stock?.[s]) || 0), 0);
+      const tot = colorStockTotal(form.get(), c);
       const n = c.photos?.length || 0;
       const cp = colorPrintIds(form.get(), c).length;
       const np = printPhotoCount(form.get(), c);
@@ -1137,6 +1224,19 @@ async function editorView(el, id, ctx) {
         h("span.pe-chip", { class: !n && "is-muted" }, n ? `${n}/${MAX_PHOTOS} fotos` : "Sin fotos"),
         hasPrints ? h("span.pe-chip", { class: !cp && "is-muted" }, cp ? `${plural(cp, "estampado", "estampados")}${np ? ` · +${np} ${np === 1 ? "foto" : "fotos"}` : ""}` : "Sin estampados") : null,
         h("span.pe-chip", { class: !tot && "is-danger" }, tot ? plural(tot, "ud.", "uds.") : "Sin stock"));
+      // Quién usa el stock del color cuando algún estampado tiene el suyo
+      const note = li.querySelector(".pe-cstock-note");
+      if (!note) return;
+      const ids = colorPrintIds(form.get(), c);
+      const own = ids.filter((id) => printStockOf(form.get(), c, id));
+      const names = ids.filter((id) => !own.includes(id)).map((id) => {
+        const j = (form.get("prints") || []).findIndex((x) => x?.id === id);
+        return String((form.get("prints") || [])[j]?.name || "").trim() || `Estampado ${j + 1}`;
+      });
+      note.hidden = !own.length;
+      note.textContent = !own.length ? ""
+        : colorStockShared(form.get(), c) ? `Este stock lo usan los estampados sin stock propio: ${names.join(", ")}.`
+          : "Todos los estampados de este color tienen stock propio: este stock no se usa en la tienda.";
     });
   }
 
@@ -1163,11 +1263,16 @@ async function editorView(el, id, ctx) {
 
   function syncStock() {
     const sizes = form.get("sizes") || [];
+    const fit = (key, cur) => {
+      const mem = { ...(stockMemory.get(key) || {}), ...cur };
+      stockMemory.set(key, mem);
+      return Object.fromEntries(sizes.map((s) => [s, cur[s] ?? mem[s] ?? 0]));
+    };
     (form.get("colors") || []).forEach((c, i) => {
-      const cur = c.stock || {};
-      const mem = { ...(stockMemory.get(c.color) || {}), ...cur };
-      stockMemory.set(c.color, mem);
-      form.set(`colors.${i}.stock`, Object.fromEntries(sizes.map((s) => [s, cur[s] ?? mem[s] ?? 0])));
+      form.set(`colors.${i}.stock`, fit(c.color, c.stock || {}));
+      // El stock propio de cada estampado sigue las mismas tallas
+      const ps = c.printStock && typeof c.printStock === "object" ? c.printStock : {};
+      if (Object.keys(ps).length) form.set(`colors.${i}.printStock`, Object.fromEntries(Object.entries(ps).map(([id, t]) => [id, fit(`${c.color}|${id}`, t || {})])));
     });
   }
 

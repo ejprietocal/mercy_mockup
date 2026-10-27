@@ -73,7 +73,7 @@ const FIELD = {
   ref: "Referencia", status: "Estado", category: "Categoría", collection: "Colección", fits: "Hormas", sizes: "Tallas", price: "Precio",
   badge: "Etiqueta", envioGratis: "Envío gratis", soldOut: "Marcado como agotado", bestRank: "Puesto en Más vendidos",
   newRank: "Puesto en Novedades", rating: "Calificación", reviewsCount: "Número de reseñas", colors: "Colores", photos: "Fotos",
-  printPhotos: "Fotos con estampado",
+  printPhotos: "Fotos con estampado", printStock: "Stock propio de estampados",
   stock: "Stock", prints: "Estampados", video: "Video", tile: "Respaldo sin foto", tags: "Etiquetas de búsqueda",
   desc: "Descripción corta", story: "Historia", thumb: "Miniatura", alt: "Texto alternativo", zoom: "Acercamiento",
   ox: "Encuadre horizontal", oy: "Encuadre vertical", from: "Color inicial", to: "Color final", lines: "Líneas", sub: "Subtítulo",
@@ -98,9 +98,10 @@ function parsePath(path) {
   let p = String(path || "");
   const order = p.endsWith(" (orden)");
   if (order) p = p.slice(0, -8);
-  // Las tallas pueden llevar punto («7.5»): lo que sigue a «.stock.» es UNA sola clave (no «Talla 7 › 5»)
+  // Las tallas pueden llevar punto («7.5»): lo que sigue a «.stock.» (o a «.printStock.<estampado>.») es UNA sola clave
+  // (no «Talla 7 › 5»)
   let size = null;
-  const sm = /^(.*\.stock)\.(.+)$/.exec(p);
+  const sm = /^(.*\.stock)\.(.+)$/.exec(p) || /^(.*\.printStock\.[^.[\]]+)\.(.+)$/.exec(p);
   if (sm) { p = sm[1]; size = sm[2]; }
   const segs = [];
   const re = /([^.[\]]+)|\[([^\]]*)\]/g;
@@ -155,7 +156,13 @@ function humanParts(section, rest, L, order) {
     else if (section === "home" && prev === "reviews" && k === "count") out.push("Número de reseñas");
     else if (section === "home" && prev === "media" && k === "type") out.push("Tipo de fondo");
     else if (section === "texts" && prev === null && k === "care") out.push("Cuidados por defecto");
-    else if (prev === "printPhotos") {
+    else if (prev === "printStock") {
+      // colors[negro].printStock.azul.M → «Stock propio de estampados › Estampado «Azul» › Talla M»
+      out.push(itemLabel("prints", k, L, { byId: true }));
+      listKey = "stock";
+      prev = "stock";
+      continue;
+    } else if (prev === "printPhotos") {
       // colors[negro].printPhotos.naranja[0] → «Fotos con estampado › Estampado «Naranja» › Foto 1»
       out.push(itemLabel("prints", k, L, { byId: true }));   // la clave siempre es el id (puede ser «2025»), nunca un índice
       listKey = "photos";
@@ -282,7 +289,8 @@ function changeRow(c, group, L) {
   const { segs, order } = parsePath(c.path);
   const parts = humanParts(group.section, group.rest, L, order);
   const lastKey = [...segs].reverse().find((s) => s.key !== undefined)?.key;
-  const last = segs.length >= 2 && segs[segs.length - 2].key === "stock" ? "__stock" : lastKey;
+  const last = (segs.length >= 2 && segs[segs.length - 2].key === "stock") || (segs.length >= 3 && segs[segs.length - 3].key === "printStock")
+    ? "__stock" : lastKey;
   const lastIsItem = segs[segs.length - 1]?.id !== undefined;
   const added = isEmpty(c.before) && !isEmpty(c.after) && lastIsItem;
   const removed = !isEmpty(c.before) && isEmpty(c.after) && lastIsItem;

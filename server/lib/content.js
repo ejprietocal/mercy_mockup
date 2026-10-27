@@ -21,6 +21,7 @@ import {
 } from "./validate.js";
 import { colombiaToday, deepEqual, formatDateTimeEs, isPlainObject, nowIso } from "./util.js";
 import { INITIAL_SUMMARY } from "./revisions.js";
+import { stockTotal } from "./social.js";
 
 const SYSTEM = { id: null, name: "Sistema" };
 export const RESEED_SUMMARY = "Contenido de fábrica (content.json se creó de nuevo)";
@@ -83,9 +84,8 @@ function joinNames(names) {
 }
 function plural(n, one, many) { return `${n} ${n === 1 ? one : many}`; }
 
-export function productStock(p) {
-  return (p.colors || []).reduce((sum, c) => sum + Object.values(c.stock || {}).reduce((a, b) => a + (Number(b) || 0), 0), 0);
-}
+/** Unidades de la prenda (con el stock propio de los estampados: misma regla que la tienda). */
+export const productStock = (p) => stockTotal(p);
 
 export class ContentService {
   constructor(app) {

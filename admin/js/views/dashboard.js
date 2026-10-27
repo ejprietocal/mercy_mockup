@@ -9,7 +9,7 @@ import { api, isAbort } from "../core/api.js";
 import { content } from "../core/store.js";
 import { session } from "../core/session.js";
 import { button, card, emptyState, pageHeader, statCard, statusBadge } from "../core/ui.js";
-import { TZ, bytes, dateTime, number, plural, productMainPhoto, relativeTime } from "../core/format.js";
+import { TZ, bytes, colorUnits, dateTime, number, plural, productMainPhoto, productUnits, relativeTime } from "../core/format.js";
 import { pexelsSized } from "../core/media.js";
 
 export const LOW_STOCK = 10; // igual que el servidor: 1–10 unidades = poco stock
@@ -20,13 +20,13 @@ const SECTION_HREF = {
   categories: "#/categorias", collections: "#/colecciones", sizeCharts: "#/tallas", reviews: "#/resenas",
 };
 
-export function productStock(p) {
-  return (p.colors || []).reduce((s, c) => s + Object.values(c.stock || {}).reduce((a, b) => a + (Number(b) || 0), 0), 0);
-}
+/** Unidades de la prenda (con el stock propio de los estampados, como la tienda). */
+export const productStock = (p) => productUnits(p);
 
+/** Celdas color × talla sin unidades (contando el stock propio de los estampados). */
 function emptySizes(p) {
   let n = 0;
-  for (const c of p.colors || []) for (const v of Object.values(c.stock || {})) if (!(Number(v) > 0)) n++;
+  for (const c of p.colors || []) for (const s of p.sizes || Object.keys(c.stock || {})) if (!(colorUnits(p, c, s) > 0)) n++;
   return n;
 }
 

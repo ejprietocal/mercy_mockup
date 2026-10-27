@@ -13,8 +13,9 @@
        POST api/public/subscribe · coupons/validate · coupons/redeem.
        Sin servidor (file:// / hosting estático) se validan contra Mercy.DEFAULT_COUPONS
        (misma vigencia en hora de Colombia; sin red y sin contar usos).
-     · Stock por color × talla, compartido entre estampados y hormas: el tope de una línea es ese stock menos lo que
-       ya tienen las OTRAS líneas de la misma prenda + color + talla (al cargar, en add() y en setQty()).
+     · Stock por color × talla, compartido entre hormas y estampados, salvo un estampado con stock propio (tiene sus
+       unidades): el tope de una línea es ese stock menos lo que ya tienen las OTRAS líneas de la misma prenda + color +
+       talla que usan esas mismas unidades (al cargar, en add() y en setQty()).
      · Al cargar: limpia líneas cuyo color/talla/horma ya no exista o cuyo color ya no venga en esa horma (el panel puede borrarlos),
        ajusta cantidades al stock (las líneas anteriores tienen prioridad) y revalida el cupón aplicado
        (si ya no vale, se quita con aviso).
@@ -206,16 +207,20 @@ window.Mercy = window.Mercy || {};
      Carrito: saneamiento frente al contenido actual
      ====================================================================== */
   function lineKey(l) { return [l.id, l.color, l.fit || "", l.size, l.print || ""].join("|"); }
-  /* Unidades de la misma prenda + color + talla en las líneas `lines` salvo `except` (cualquier estampado u horma):
-     el stock es por color × talla, así que todas esas líneas se reparten las mismas unidades. */
-  function qtyInOthers(lines, id, color, size, except) {
+  /* Unidades que usa una línea: un estampado con stock propio tiene las suyas; los demás comparten las del color */
+  function poolOf(p, color, print) { return data.printStockOf(p, color, print) ? print : ""; }
+  /* Unidades de la misma prenda + color + talla en las líneas `lines` salvo `except` que salen de la misma bolsa
+     (cualquier horma; otro estampado solo si tampoco tiene stock propio): esas líneas se reparten las mismas unidades. */
+  function qtyInOthers(lines, id, color, size, print, except) {
+    const p = data.byId(id);
+    const pool = poolOf(p, color, print || "");
     return lines.reduce(function (n, x) {
-      return x !== except && x.id === id && x.color === color && x.size === size ? n + x.qty : n;
+      return x !== except && x.id === id && x.color === color && x.size === size && poolOf(p, x.color, x.print || "") === pool ? n + x.qty : n;
     }, 0);
   }
 
   /* → { lines, parked, removed, capped }: quita líneas imposibles (color/talla/horma ya no existen, el color ya no
-     lleva ese estampado o ya no viene en esa horma, agotado), ajusta cantidades al stock (por prenda + color + talla, sumando estampados y hormas; las líneas anteriores
+     lleva ese estampado o ya no viene en esa horma, agotado), ajusta cantidades al stock (por prenda + color + talla, sumando hormas y estampados que comparten unidades; las líneas anteriores
      tienen prioridad) y une líneas que quedan iguales. Las de un producto que NO se encuentra
      (borrador, renombrado sin alias, borrado) van a `parked` (con la fecha en que se apartaron) y vuelven solas si el
      producto reaparece; pasan 30 días y se olvidan. `removed` cuenta solo las que se veían en el carrito. */
@@ -249,14 +254,14 @@ window.Mercy = window.Mercy || {};
         if (l.print && !prints.some(function (x) { return x.id === l.print; })) return drop();
         print = l.print || prints[0].id;
       }
-      const stock = data.stockOf(p, l.color, l.size);
+      const stock = data.stockOf(p, l.color, l.size, print);
       if (stock <= 0) return drop();
       const key = lineKey({ id: p.id, color: l.color, fit: fit, size: l.size, print: print });
       const prev = byKey[key];
       let qty = Math.max(1, parseInt(l.qty, 10) || 1);
       if (prev) qty += prev.qty;
-      /* Lo que dejan las líneas anteriores de esa talla y color (con otro estampado u horma) */
-      const room = stock - qtyInOthers(out, p.id, l.color, l.size, prev);
+      /* Lo que dejan las líneas anteriores de esa talla y color que usan las mismas unidades (otra horma u otro estampado) */
+      const room = stock - qtyInOthers(out, p.id, l.color, l.size, print, prev);
       if (room <= 0) { if (!e.at) capped++; return; }
       if (qty > room) { qty = room; capped++; }
       if (prev) { prev.qty = qty; return; }
@@ -323,16 +328,17 @@ window.Mercy = window.Mercy || {};
   }
 
   const cart = {
-    /* stock = unidades de esa talla y color; max = tope de ESTA línea (stock menos las otras líneas de esa talla y color) */
+    /* stock = unidades de esa talla, color y estampado; max = tope de ESTA línea (stock menos las otras líneas que usan
+       esas unidades) */
     items: function () {
       return state.cart.map(function (l) {
         const p = data.byId(l.id);
-        const stock = data.stockOf(p, l.color, l.size);
+        const stock = data.stockOf(p, l.color, l.size, l.print || "");
         return {
           key: l.key, product: p, id: p.id, color: data.color(l.color), colorId: l.color,
           fit: l.fit || "", fitName: l.fit ? data.FITS[l.fit] : "", size: l.size,
           print: l.print ? (p.prints || []).filter(function (x) { return x.id === l.print; })[0] || null : null,
-          qty: l.qty, stock: stock, max: Math.max(0, stock - qtyInOthers(state.cart, l.id, l.color, l.size, l)),
+          qty: l.qty, stock: stock, max: Math.max(0, stock - qtyInOthers(state.cart, l.id, l.color, l.size, l.print, l)),
           unitPrice: p.price, lineTotal: p.price * l.qty
         };
       });
@@ -342,7 +348,8 @@ window.Mercy = window.Mercy || {};
       return state.cart.reduce(function (n, l) { return n + data.byId(l.id).price * l.qty; }, 0);
     },
     /* add({ id, color, fit, size, print, qty }) -> { ok, reason?, capped?, key? }
-       reason "tope": las otras líneas de esa talla y color (otro estampado u horma) ya tienen todo el stock. */
+       reason "sin-stock": esa talla no tiene unidades en ese color (con ese estampado, si tiene stock propio).
+       reason "tope": las otras líneas que usan esas unidades (otra horma u otro estampado) ya las tienen todas. */
     add: function (sel) {
       const p = data.byId(sel.id);
       if (!p) return { ok: false, reason: "producto" };
@@ -358,12 +365,12 @@ window.Mercy = window.Mercy || {};
       const prints = data.printsOf(p, color);
       const print = prints.some(function (x) { return x.id === sel.print; }) ? sel.print : (prints.length ? prints[0].id : "");
       if (!size || p.sizes.indexOf(size) < 0) return { ok: false, reason: "talla" };
-      const stock = data.stockOf(p, color, size);
+      const stock = data.stockOf(p, color, size, print);
       if (stock <= 0) return { ok: false, reason: "sin-stock" };
       const qty = Math.max(1, parseInt(sel.qty, 10) || 1);
       const key = lineKey({ id: p.id, color: color, fit: fit, size: size, print: print });
       let line = state.cart.filter(function (l) { return l.key === key; })[0];
-      const room = stock - qtyInOthers(state.cart, p.id, color, size, line);
+      const room = stock - qtyInOthers(state.cart, p.id, color, size, print, line);
       if (room <= 0) return { ok: false, reason: "tope" };
       let capped = false;
       if (line) {
@@ -381,8 +388,8 @@ window.Mercy = window.Mercy || {};
     setQty: function (key, qty) {
       const line = state.cart.filter(function (l) { return l.key === key; })[0];
       if (!line) return;
-      const stock = data.stockOf(data.byId(line.id), line.color, line.size);
-      const room = stock - qtyInOthers(state.cart, line.id, line.color, line.size, line);
+      const stock = data.stockOf(data.byId(line.id), line.color, line.size, line.print || "");
+      const room = stock - qtyInOthers(state.cart, line.id, line.color, line.size, line.print, line);
       line.qty = Math.max(1, Math.min(parseInt(qty, 10) || 1, room));
       emit("mercy:cart", { action: "qty", key: key });
     },

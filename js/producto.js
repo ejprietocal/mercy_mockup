@@ -5,6 +5,8 @@
    si ese color los lleva). Cada color tiene sus estampados: el selector «Estampado» muestra los del color elegido y no
    sale si ese color no lleva ninguno. Cada color viene en sus hormas: con un fit elegido, los colores que no vienen en
    él salen tachados y no se pueden elegir (al cambiar a un fit en que no viene el color elegido, pasa al primero que sí).
+   Un estampado puede tener su propio stock (p. ej. Azul solo en M): las tallas siguen al estampado elegido y un
+   estampado sin unidades en ese color sale tachado (se puede elegir para ver sus fotos, como un color agotado).
    Comentarios aplicados: C23/C24 (stock / no disponible), C25 (etiqueta de color
    encima), C26/C27 (solo "Agregar al carrito"), C28 (acordeones ítem por ítem +
    Medidas/Tallas), C32/C34 (envío), C43 (tachón diagonal), C44 (carrito overlay).
@@ -89,10 +91,10 @@
   const hasFits = !!(p.fits && p.fits.length);
   const hasChart = !!p.sizeChart;
 
-  /* Estampado válido para un color: el pedido si ese color lo lleva; si no, su primero ("" = el color no lleva) */
+  /* Estampado válido para un color: el pedido si ese color lo lleva; si no, su primero con stock ("" = el color no lleva) */
   function printFor(color, want) {
     const list = D.printsOf(p, color);
-    return list.some(function (x) { return x.id === want; }) ? want : (list.length ? list[0].id : "");
+    return list.some(function (x) { return x.id === want; }) ? want : D.firstPrintWithStock(p, color);
   }
 
   /* Fit válido para un color: el pedido si ese color viene en él; si no, su primero ("" = la prenda no tiene hormas) */
@@ -114,17 +116,18 @@
     qty: 1
   };
 
-  function availableSizes(color) {
-    return p.sizes.filter(function (s) { return D.stockOf(p, color, s) > 0; });
+  /* Tallas con stock del color + estampado elegidos (un estampado con stock propio tiene sus tallas) */
+  function availableSizes(color, print) {
+    return p.sizes.filter(function (s) { return D.stockOf(p, color, s, print) > 0; });
   }
   /* Conserva la talla si sigue con stock; si no, M; si no, la primera disponible */
   function pickSize() {
-    const avail = availableSizes(st.color);
+    const avail = availableSizes(st.color, st.print);
     if (st.size && avail.indexOf(st.size) > -1) return st.size;
     if (avail.indexOf("M") > -1) return "M";
     return avail[0] || "";
   }
-  function stockNow() { return st.size ? D.stockOf(p, st.color, st.size) : 0; }
+  function stockNow() { return st.size ? D.stockOf(p, st.color, st.size, st.print) : 0; }
   function isAvailable() { return !p.soldOut && !!st.size; }
 
   st.size = pickSize();
@@ -592,13 +595,14 @@
     $("#add-btn").innerHTML = '<span class="add-btn__icon">' + I("cart", { size: 22 }) + '</span><span class="add-btn__label"></span>';
   }
 
-  /* Estampados del color elegido (se rehace al cambiar de color); sin ninguno, el selector no se muestra */
+  /* Estampados del color elegido (se rehace al cambiar de color); sin ninguno, el selector no se muestra.
+     Etiquetas y tachado (agotado en este color): refreshPrints */
   function renderPrints() {
     const list = D.printsOf(p, st.color);
     $("#opt-print").hidden = !list.length;
     printGroup.innerHTML = list.map(function (x) {
-      return '<button type="button" class="swatch-btn" role="radio" aria-checked="false" tabindex="-1" data-print="' + esc(x.id) + '"' +
-        ' aria-label="' + esc(x.name) + '" title="' + esc(x.name) + '"><span class="swatch" style="--c:' + x.hex + '"></span></button>';
+      return '<button type="button" class="swatch-btn" role="radio" aria-checked="false" tabindex="-1" data-print="' + esc(x.id) + '">' +
+        '<span class="swatch" style="--c:' + x.hex + '"></span></button>';
     }).join("");
   }
 
@@ -655,10 +659,23 @@
       : "";
   }
 
+  /* Estampados: sin unidades en el color elegido = tachado, pero se puede elegir (para ver sus fotos) */
+  function refreshPrints() {
+    const list = D.printsOf(p, st.color);
+    $$("[data-print]", printGroup).forEach(function (b) {
+      const x = list.filter(function (y) { return y.id === b.getAttribute("data-print"); })[0];
+      if (!x) return;
+      const out = !D.colorHasStock(p, st.color, x.id);
+      b.classList.toggle("is-out", out);
+      b.setAttribute("aria-label", x.name + (out ? " (agotado)" : ""));
+      b.title = x.name + (out ? " · agotado" : "");
+    });
+  }
+
   function refreshSizes() {
     $$("[data-size]", sizeGroup).forEach(function (b) {
       const s = b.getAttribute("data-size");
-      const out = D.stockOf(p, st.color, s) <= 0 || p.soldOut;
+      const out = D.stockOf(p, st.color, s, st.print) <= 0 || p.soldOut;
       b.disabled = out;
       b.classList.toggle("is-out", out);
       b.setAttribute("aria-label", out ? "Talla " + s + ", agotada" : "Talla " + s);
@@ -751,6 +768,7 @@
       setRadio(fitGroup, "data-fit", st.fit);
     }
     const pr = D.printsOf(p, st.color).filter(function (x) { return x.id === st.print; })[0];
+    refreshPrints();
     if (pr) {
       $("#print-label").innerHTML = "Estampado: <b>" + esc(pr.name) + "</b>";
       setRadio(printGroup, "data-print", st.print);
@@ -778,7 +796,7 @@
   const REASONS = {
     talla: "Elige una talla para agregar la prenda al carrito.",
     "sin-stock": "Esa talla está agotada en este color. Elige otra.",
-    /* El stock es por color × talla: otras líneas del carrito (otro estampado u horma) ya tienen todas las unidades */
+    /* Otras líneas del carrito que usan esas unidades (otra horma, u otro estampado sin stock propio) ya las tienen todas */
     tope: "Ya tienes en el carrito todas las unidades disponibles de esta talla en este color.",
     agotado: "Esta prenda está agotada por ahora.",
     color: "Elige un color disponible.",
@@ -795,8 +813,9 @@
       r = S.cart.add({ id: p.id, color: st.color, fit: st.fit, size: st.size, print: st.print, qty: st.qty });
     }
     if (!r.ok) {
+      /* Sin talla con stock: el color está agotado, o solo este estampado (tiene stock propio y no le quedan) */
       const text = r.reason === "color-agotado"
-        ? "Este color está agotado. Prueba con otro color."
+        ? (st.print && D.colorHasStock(p, st.color) ? "Este estampado está agotado en este color. Prueba con otro estampado." : "Este color está agotado. Prueba con otro color.")
         : (REASONS[r.reason] || "No pudimos agregar la prenda. Intenta de nuevo.");
       showMsg(text);
       if (fromBar) U.toast(text, { icon: "info" });
@@ -932,6 +951,7 @@
   });
   bindRadio(printGroup, "data-print", function (v) {
     st.print = v;
+    st.size = pickSize();              /* un estampado con stock propio puede no tener la talla elegida */
     update();
     refreshGallery();                  /* fotos de la combinación, o las del color si no tiene */
   });

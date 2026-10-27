@@ -747,6 +747,38 @@ function vColorFits(c, path, v, fits) {
   return out;
 }
 
+/** Stock por talla: exactamente las tallas del producto (faltantes = 0, sobrantes se eliminan). */
+function vStock(c, path, v, sizes) {
+  let stockIn = v;
+  if (stockIn === undefined || stockIn === null) stockIn = {};
+  if (!isPlainObject(stockIn)) { c.add(path, "Formato inválido (se esperaba un objeto)."); stockIn = {}; }
+  const stock = {};
+  for (const s of sizes) {
+    if (!s) continue;
+    const raw = Object.hasOwn(stockIn, s) ? stockIn[s] : 0;
+    stock[s] = c.int(`${path}.${s}`, raw ?? 0, { min: 0, max: 100000, def: 0 });
+  }
+  return stock;
+}
+
+/**
+ * Stock propio de los estampados de UN color: { [idEstampado]: { talla: n } } (p. ej. Azul solo en M).
+ * · Ausente o null → ninguno: todos los estampados del color usan su stock. No es un objeto → error.
+ * · Claves que no son estampados de ESTE color → se descartan sin error (como printPhotos); un valor null = sin stock
+ *   propio. Cada tabla lleva exactamente las tallas del producto (faltantes = 0). Orden = orden de los estampados.
+ * Devuelve null si ningún estampado tiene stock propio (el color no lleva la clave printStock).
+ */
+function vPrintStock(c, path, v, printIds, sizes) {
+  if (v === undefined || v === null) return null;
+  if (!isPlainObject(v)) { c.add(path, "Formato inválido (se esperaba un objeto)."); return null; }
+  const out = {};
+  for (const id of printIds) {
+    if (!Object.hasOwn(v, id) || v[id] === null) continue;
+    out[id] = vStock(c, J(path, id), v[id], sizes);
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /**
  * Fotos de las combinaciones color + estampado de UN color: { [idEstampado]: [Foto…] } (1–MAX_PHOTOS_PER_PRINT cada una).
  * · Ausente o null → sin fotos de estampado. No es un objeto → error.
@@ -851,23 +883,16 @@ export function validateProduct(value, refs) {
       const colorFits = vColorFits(c, J(p, "fits"), pc.fits, fitIds);
       const colorPrints = vColorPrints(c, J(p, "prints"), pc.prints, printIds);
       const printPhotos = vPrintPhotos(c, J(p, "printPhotos"), pc.printPhotos, colorPrints);
-      // Stock: exactamente las tallas del producto (faltantes = 0, sobrantes se eliminan)
-      let stockIn = pc.stock;
-      if (stockIn === undefined || stockIn === null) stockIn = {};
-      if (!isPlainObject(stockIn)) { c.add(J(p, "stock"), "Formato inválido (se esperaba un objeto)."); stockIn = {}; }
-      const stock = {};
-      for (const s of sizes) {
-        if (!s) continue;
-        const raw = Object.hasOwn(stockIn, s) ? stockIn[s] : 0;
-        stock[s] = c.int(`${p}.stock.${s}`, raw ?? 0, { min: 0, max: 100000, def: 0 });
-      }
-      // Sin estampados en el producto no hay clave prints, y sin fotos de estampado no hay printPhotos
-      // (forma de siempre: { color, photos, stock }). Con estampados, prints siempre va (también vacía).
+      const printStock = vPrintStock(c, J(p, "printStock"), pc.printStock, colorPrints, sizes);
+      const stock = vStock(c, J(p, "stock"), pc.stock, sizes);
+      // Sin estampados en el producto no hay clave prints, y sin fotos / stock propio de estampado no hay printPhotos /
+      // printStock (forma de siempre: { color, photos, stock }). Con estampados, prints siempre va (también vacía).
       // fits solo va si el color NO viene en todas las hormas del producto (p. ej. Rojo solo en Regular).
       const out = { color, photos };
       if (colorFits.length && colorFits.length < fitIds.length) out.fits = colorFits;
       if (printIds.length) out.prints = colorPrints;
       if (printPhotos) out.printPhotos = printPhotos;
+      if (printStock) out.printStock = printStock;
       out.stock = stock;
       return out;
     },

@@ -8,6 +8,7 @@
    (printPhotos); photosFor(p, color, estampado) decide cuáles se ven (misma regla que el panel y el servidor).
    Cada color lleva sus propios estampados (colorPrints; printsOf(p, color) da la lista para la ficha y el carrito)
    y viene en sus propias hormas (colorFits; fitsOf(p, color): p. ej. Rojo solo en Regular).
+   Stock por color × talla; un estampado puede tener el suyo (printStock; stockOf(p, color, talla, estampado)).
    Departamentos/ciudades y medios de pago siguen fijos aquí.
    Defensivo ante contenido editado a mano: listas vacías, campos faltantes, colores sin stock,
    productos sin fotos o categorías sin productos nunca lanzan excepciones.
@@ -125,13 +126,14 @@ window.Mercy = window.Mercy || {};
   }
 
   /* --- Productos ----------------------------------------------------------------
-     Solo publicados (status "draft" = invisible). colors: [{ color, photos, prints?, printPhotos?, stock }] → colors: [ids],
+     Solo publicados (status "draft" = invisible). colors: [{ color, photos, prints?, printPhotos?, printStock?, stock }] → colors: [ids],
      stock[color][talla], colorPhotos[color] = [fotos] (0–10), colorPrints[color] = [ids de estampados que lleva ese
      color, en el orden de la prenda] (sin la clave prints = todos: contenido de antes de los estampados por color) y
      printPhotos[color][estampado] = [fotos] (1–10; solo estampados que lleva ese color y listas con fotos) y
      colorFits[color] = [ids de hormas en que viene ese color, en el orden de la prenda] (sin la clave fits = todas).
-     prints / fits = solo los estampados / hormas que tiene al menos un color. El stock sigue siendo color × talla
-     (lo comparten los estampados y las hormas). */
+     prints / fits = solo los estampados / hormas que tiene al menos un color. El stock es color × talla (lo comparten
+     las hormas y los estampados de ese color) salvo para un estampado con stock propio: printStock[color][estampado] =
+     { talla: n } (solo estampados que lleva ese color; sin la clave = usa el del color). */
   const MAX_PHOTOS = 10;                              // por color base y por combinación color + estampado
   function photoList(v) { return arr(v).map(normPhoto).filter(Boolean).slice(0, MAX_PHOTOS); }
   const P = [];
@@ -148,7 +150,7 @@ window.Mercy = window.Mercy || {};
     const allPrints = uniqueBy(arr(raw.prints).filter(function (x) { return x && typeof x === "object" && x.id; }), function (x) { return str(x.id); })
       .map(function (x) { return { id: str(x.id), name: str(x.name) || str(x.id), hex: hex(x.hex, "#999999") }; });
     const allFits = uniqueBy(strList(raw.fits).filter(function (f) { return FITS[f]; }), function (f) { return f; });
-    const stock = {}, colorPhotos = {}, colorPrints = {}, printPhotos = {}, colorFits = {};
+    const stock = {}, colorPhotos = {}, colorPrints = {}, printPhotos = {}, colorFits = {}, printStock = {};
     entries.forEach(function (c) {
       const id = str(c.color);
       const st = c.stock && typeof c.stock === "object" ? c.stock : {};
@@ -160,8 +162,20 @@ window.Mercy = window.Mercy || {};
       const fitsHere = allFits.filter(function (f) { return !ownFits || ownFits.indexOf(f) > -1; });
       colorFits[id] = fitsHere.length ? fitsHere : allFits.slice();
       /* Estampados del color, en el orden de la prenda; un estampado borrado se ignora */
-      const own = Array.isArray(c.prints) ? c.prints.map(str) : null;
-      colorPrints[id] = allPrints.filter(function (x) { return !own || own.indexOf(x.id) > -1; }).map(function (x) { return x.id; });
+      const ownPrints = Array.isArray(c.prints) ? c.prints.map(str) : null;
+      colorPrints[id] = allPrints.filter(function (x) { return !ownPrints || ownPrints.indexOf(x.id) > -1; }).map(function (x) { return x.id; });
+      /* Stock propio de un estampado en este color (solo de los que lleva): las tallas de la prenda, faltantes = 0 */
+      const ps = c.printStock && typeof c.printStock === "object" && !Array.isArray(c.printStock) ? c.printStock : null;
+      if (ps) {
+        const tables = {};
+        colorPrints[id].forEach(function (x) {
+          const t = own(ps, x);
+          if (!t || typeof t !== "object" || Array.isArray(t)) return;
+          tables[x] = {};
+          sizes.forEach(function (s) { const n = Math.floor(num(t[s], 0)); tables[x][s] = n > 0 ? n : 0; });
+        });
+        if (Object.keys(tables).length) printStock[id] = tables;
+      }
       /* Fotos de la combinación color + estampado: solo de los estampados que lleva ese color */
       const pp = c.printPhotos && typeof c.printPhotos === "object" && !Array.isArray(c.printPhotos) ? c.printPhotos : null;
       if (!pp) return;
@@ -202,7 +216,7 @@ window.Mercy = window.Mercy || {};
       bestRank: num(raw.bestRank, 1000 + idx), newRank: num(raw.newRank, 1000 + idx),
       rating: Math.max(0, Math.min(5, num(raw.rating, 0))), reviews: reviewsCount, reviewsCount: reviewsCount,
       colors: colors, stock: stock, colorPhotos: colorPhotos, colorPrints: colorPrints, printPhotos: printPhotos,
-      colorFits: colorFits, prints: prints,
+      printStock: printStock, colorFits: colorFits, prints: prints,
       video: raw.video && typeof raw.video === "object" && str(raw.video.src).trim()
         ? { src: str(raw.video.src).trim(), poster: str(raw.video.poster).trim() } : null,
       tile: {
@@ -217,12 +231,10 @@ window.Mercy = window.Mercy || {};
     };
     /* Sin estampados la propiedad no existe (forma de siempre) */
     if (!p.prints.length) delete p.prints;
-    p.soldOut = !!raw.soldOut || colors.every(function (c) {
-      return Object.keys(stock[c]).every(function (s) { return stock[c][s] === 0; });
-    });
+    p.soldOut = !!raw.soldOut || !colors.some(function (c) { return colorHasStock(p, c); });
     p.initialColor = colors.filter(function (c) { return colorHasStock(p, c); })[0] || colors[0] || "";
-    /* Estampado con el que abre la ficha: el primero del color inicial ("" = ese color no lleva) */
-    p.initialPrint = (colorPrints[p.initialColor] || [])[0] || "";
+    /* Estampado con el que abre la ficha: el primero del color inicial con stock, o su primero ("" = ese color no lleva) */
+    p.initialPrint = firstPrintWithStock(p, p.initialColor);
     p.photos = mainPhotos(p);
     P.push(p);
   });
@@ -274,12 +286,32 @@ window.Mercy = window.Mercy || {};
     }
     return [];
   }
-  function stockOf(p, color, size) {
-    return p && p.stock && p.stock[color] && p.stock[color][size] != null ? p.stock[color][size] : 0;
+  /* Stock propio de un estampado en un color ({ talla: n }) o null (usa el del color) */
+  function printStockOf(p, color, print) {
+    return (print && own(own((p && p.printStock) || {}, color), print)) || null;
   }
-  function colorHasStock(p, color) {
-    const s = p && p.stock && p.stock[color];
-    return !!s && Object.keys(s).some(function (k) { return s[k] > 0; });
+  /* Unidades de una talla. Con estampado (también ""), las que se pueden vender con él: su stock propio o, si no tiene,
+     el del color. Sin pasarlo (undefined), todas las de ese color y talla: los estampados con stock propio + el del
+     color si algún estampado lo usa (o el color no lleva estampados). Misma regla que el panel y el servidor. */
+  function stockOf(p, color, size, print) {
+    const base = p && p.stock && own(p.stock, color);
+    if (!base) return 0;
+    const n = own(base, size) || 0;
+    if (print !== undefined) { const t = printStockOf(p, color, print); return t ? own(t, size) || 0 : n; }
+    const ids = own(p.colorPrints || {}, color) || [];
+    if (!ids.length) return n;
+    let sum = 0, shared = false;
+    ids.forEach(function (x) { const t = printStockOf(p, color, x); if (t) sum += own(t, size) || 0; else shared = true; });
+    return sum + (shared ? n : 0);
+  }
+  /* ¿Hay alguna talla con stock en ese color (y estampado, si se pasa)? */
+  function colorHasStock(p, color, print) {
+    return !!p && (p.sizes || []).some(function (s) { return stockOf(p, color, s, print) > 0; });
+  }
+  /* Estampado de un color con el que abre la ficha: el primero con stock, o su primero ("" = el color no lleva) */
+  function firstPrintWithStock(p, color) {
+    const ids = own((p && p.colorPrints) || {}, color) || [];
+    return ids.filter(function (x) { return colorHasStock(p, color, x); })[0] || ids[0] || "";
   }
 
   /* --- Reseñas (solo visibles) ------------------------------------------- */
@@ -383,6 +415,9 @@ window.Mercy = window.Mercy || {};
     collectionById: collectionById,
     color: function (id) { return COLORS[id] || { id: id, name: str(id), hex: "#999999" }; },
     stockOf: stockOf,
-    colorHasStock: colorHasStock
+    /* Stock propio de un estampado en un color ({ talla: n }) o null; el carrito lo usa para saber qué líneas comparten unidades */
+    printStockOf: printStockOf,
+    colorHasStock: colorHasStock,
+    firstPrintWithStock: firstPrintWithStock
   };
 })();

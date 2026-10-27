@@ -106,6 +106,12 @@
 .pe-pphoto--pending { display: grid; gap: 4px; padding: 10px 12px; border: 1px dashed var(--c-border-strong); border-radius: 8px; }
 .pe-pphotos__list { display: grid; gap: 18px; }
 .pe-pphotos__list > .pe-pphotos__hint { padding: 10px 12px; border: 1px dashed var(--c-border-strong); border-radius: 8px; }
+/* Stock propio de un estampado (colors[].printStock): interruptor y, encendido, su grilla de tallas */
+.pe-pprint { display: grid; gap: 12px; }
+.pe-pprint + .pe-pprint { padding-top: 18px; border-top: 1px solid var(--c-border); }
+.pe-pstock { display: grid; gap: 10px; }
+.pe-pstock__body[hidden], .pe-cstock-note[hidden] { display: none; }
+.pe-pstock .pe-stock { background: var(--c-surface); }
 
 /* Stock por talla */
 .pe-stock { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface-2); }

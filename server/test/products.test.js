@@ -1,4 +1,4 @@
-// Productos: CRUD, validación (colores/fotos/stock/referencias), fotos por estampado, renombrar, duplicar, conflictos
+// Productos: CRUD, validación (colores/fotos/stock/referencias), fotos y stock por estampado, renombrar, duplicar, conflictos
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "./helpers.js";
@@ -306,6 +306,82 @@ test("hormas por color (colors[].fits): solo se guardan si el color no viene en 
   assert.equal(r.status, 200, r.text);
   assert.ok(r.data.item.colors.every((c) => !("fits" in c)));
   assert.equal((await admin.del("/api/admin/products/hormas-por-color")).status, 200);
+});
+
+test("stock por estampado (colors[].printStock): tallas del producto, solo estampados que lleva el color; sin ninguno no hay clave", async () => {
+  const p = printed();
+  p.id = "stock-por-estampado";
+  // negro: azul solo en M (faltantes = 0, sobrantes fuera); naranja sin stock propio; un estampado que no existe y uno nulo
+  p.colors[0].printStock = { fantasma: { S: 5 }, azul: { M: "2", XL: 7 }, naranja: null };
+  // crema no lleva azul: su stock propio de azul se descarta y el color conserva la forma de siempre
+  p.colors[1] = { color: "crema", photos: [photo(2)], prints: ["naranja"], printStock: { azul: { S: 3 } }, stock: { S: 1 } };
+  let r = await admin.post("/api/admin/products", p);
+  assert.equal(r.status, 201, r.text);
+  const [negro, crema] = r.data.item.colors;
+  assert.deepEqual(negro.printStock, { azul: { S: 0, M: 2, L: 0 } });
+  assert.deepEqual(Object.keys(negro), ["color", "photos", "prints", "printPhotos", "printStock", "stock"]);
+  assert.ok(!("printStock" in crema), "sin estampados con stock propio no hay clave");
+  const pub = (await srv.client({ admin: false }).get("/api/public/content")).data.products.find((x) => x.id === "stock-por-estampado");
+  assert.deepEqual(pub.colors[0].printStock, { azul: { S: 0, M: 2, L: 0 } }, "llega a la tienda");
+  // Guardar lo mismo otra vez no cambia nada
+  const same = await admin.put("/api/admin/products/stock-por-estampado", r.data.item);
+  assert.equal(same.status, 200);
+  assert.equal(same.data.item.updatedAt, r.data.item.updatedAt);
+
+  // Formato y números
+  for (const [bad, field, msg] of [
+    [["azul"], "colors.0.printStock", "Formato inválido (se esperaba un objeto)."],
+    [{ azul: 3 }, "colors.0.printStock.azul", "Formato inválido (se esperaba un objeto)."],
+    [{ azul: { M: -1 } }, "colors.0.printStock.azul.M", null],
+    [{ azul: { M: 1.5 } }, "colors.0.printStock.azul.M", null],
+  ]) {
+    const q = structuredClone(r.data.item);
+    q.colors[0].printStock = bad;
+    const e = await admin.put("/api/admin/products/stock-por-estampado", q);
+    assert.equal(e.status, 422, JSON.stringify(bad));
+    assert.ok(e.data.error.fields[field], JSON.stringify(e.data.error.fields));
+    if (msg) assert.equal(e.data.error.fields[field], msg);
+  }
+  // Quitar el estampado del color (o del producto) se lleva su stock propio
+  const q = structuredClone(r.data.item);
+  q.colors[0].prints = ["naranja"];
+  r = await admin.put("/api/admin/products/stock-por-estampado", q);
+  assert.equal(r.status, 200, r.text);
+  assert.ok(!("printStock" in r.data.item.colors[0]));
+  assert.equal((await admin.del("/api/admin/products/stock-por-estampado")).status, 200);
+});
+
+test("stock por estampado: las unidades de la prenda (escritorio y disponibilidad) cuentan el stock propio", async () => {
+  const p = printed();
+  p.id = "stock-estampado-total";
+  p.sizes = ["S", "M"];
+  // negro: los dos estampados con stock propio (el del color, 50, no se usa) · crema: sin estampados
+  p.colors = [
+    { color: "negro", photos: [], prints: ["naranja", "azul"], printStock: { naranja: { S: 0, M: 0 }, azul: { S: 0, M: 2 } }, stock: { S: 50, M: 50 } },
+    { color: "crema", photos: [], prints: [], stock: { S: 0, M: 0 } },
+  ];
+  const before = (await admin.get("/api/admin/stats")).data.products;
+  let r = await admin.post("/api/admin/products", p);
+  assert.equal(r.status, 201, r.text);
+  let now = (await admin.get("/api/admin/stats")).data.products;
+  assert.equal(now.lowStock, before.lowStock + 1, "2 unidades (solo Azul M) = poco stock, no 100");
+  assert.equal(now.soldOut, before.soldOut);
+  // Sin unidades en ningún estampado = agotada, aunque el color tenga stock (ningún estampado lo usa)
+  const q = structuredClone(r.data.item);
+  q.colors[0].printStock.azul.M = 0;
+  r = await admin.put("/api/admin/products/stock-estampado-total", q);
+  assert.equal(r.status, 200, r.text);
+  now = (await admin.get("/api/admin/stats")).data.products;
+  assert.equal(now.soldOut, before.soldOut + 1);
+  assert.equal(now.lowStock, before.lowStock);
+  // Un estampado sin stock propio vuelve a usar el del color
+  delete q.colors[0].printStock.naranja;
+  r = await admin.put("/api/admin/products/stock-estampado-total", q);
+  assert.equal(r.status, 200, r.text);
+  now = (await admin.get("/api/admin/stats")).data.products;
+  assert.equal(now.soldOut, before.soldOut);
+  assert.equal(now.lowStock, before.lowStock);
+  assert.equal((await admin.del("/api/admin/products/stock-estampado-total")).status, 200);
 });
 
 test("actualizar: concurrencia con X-Base-Updated-At (409) y sin cambios no crea revisión", async () => {

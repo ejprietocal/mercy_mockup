@@ -215,10 +215,46 @@ const photoList = (v) => (Array.isArray(v) ? v.filter((ph) => ph && typeof ph ==
 export function initialColorIndex(p) {
   const colors = Array.isArray(p?.colors) ? p.colors : [];
   const sizes = Array.isArray(p?.sizes) && p.sizes.length ? p.sizes : null;
-  const hasStock = (c) => (sizes || Object.keys(c?.stock || {})).some((s) => Number(c?.stock?.[s]) > 0);
+  const hasStock = (c) => (sizes || Object.keys(c?.stock || {})).some((s) => colorUnits(p, c, s) > 0);
   const i = colors.findIndex(hasStock);
   return i === -1 ? 0 : i;
 }
+
+/* ---------- Stock (misma regla que la tienda, Mercy.data.stockOf, y el servidor, colorUnits en server/lib/social.js) ---------- */
+const units = (v) => Math.max(0, Math.floor(Number(v) || 0));
+/** Stock propio de un estampado en un color ({ talla: n }) o null = usa el del color (colors[].printStock[id]). */
+export function printStockOf(p, c, printId) {
+  const ps = c?.printStock;
+  if (!printId || !ps || typeof ps !== "object" || Array.isArray(ps) || !Object.hasOwn(ps, printId)) return null;
+  const t = ps[printId];
+  return t && typeof t === "object" && !Array.isArray(t) && colorPrintIds(p, c).includes(printId) ? t : null;
+}
+/** Unidades de un color en una talla: las de sus estampados con stock propio + las del color si algún estampado que
+ *  lleva las usa (o si no lleva estampados). */
+export function colorUnits(p, c, size) {
+  const ids = colorPrintIds(p, c);
+  if (!ids.length) return units(c?.stock?.[size]);
+  let n = 0;
+  let shared = false;
+  for (const id of ids) {
+    const t = printStockOf(p, c, id);
+    if (t) n += units(t[size]);
+    else shared = true;
+  }
+  return n + (shared ? units(c?.stock?.[size]) : 0);
+}
+/** ¿Algún estampado que lleva el color usa el stock del color? (sin estampados, sí) */
+export function colorStockShared(p, c) {
+  const ids = colorPrintIds(p, c);
+  return !ids.length || ids.some((id) => !printStockOf(p, c, id));
+}
+/** Unidades de un color sumando sus tallas (las de la prenda; sin tallas, las de su stock). */
+export function colorStockTotal(p, c) {
+  const sizes = Array.isArray(p?.sizes) && p.sizes.length ? p.sizes : Object.keys(c?.stock || {});
+  return sizes.reduce((a, s) => a + colorUnits(p, c, s), 0);
+}
+/** Unidades de la prenda (todos sus colores). */
+export const productUnits = (p) => (Array.isArray(p?.colors) ? p.colors : []).reduce((a, c) => a + (c ? colorStockTotal(p, c) : 0), 0);
 
 /**
  * Estampados que lleva un color (ids de prints, en el orden del producto). Sin la clave colors[].prints (contenido de
