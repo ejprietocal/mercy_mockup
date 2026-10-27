@@ -183,6 +183,8 @@
 .fit-btn[aria-checked="true"] { background: var(--tinta); color: var(--crema); border-color: var(--tinta); }
 
 .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-left: -4px; }
+.opt__hint { margin-top: 8px; font-size: var(--fs-sm); line-height: 1.4; color: var(--pdp-muted); }
+.opt__hint[hidden] { display: none; }
 .swatch-btn { width: 48px; height: 48px; }
 .size-btn { min-width: 52px; height: 48px; }
 .size-grid { gap: 8px; }

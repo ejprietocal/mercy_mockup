@@ -9,11 +9,12 @@
                         vendidos, novedades, stock, actualizado) y acciones: editar, ver en la tienda,
                         duplicar, publicar / pasar a borrador, eliminar.
    · #/productos/nuevo  y #/productos/:id  editor por pestañas con barra de guardado:
-                        General · Colores y stock (hormas, tallas, colores con hasta 10 fotos, los estampados
-                        que lleva cada color con hasta 10 fotos por combinación y stock por talla) · Descripción (detalles
+                        General · Colores y stock (hormas, tallas, colores con hasta 10 fotos, las hormas en
+                        que viene cada color, los estampados que lleva cada color con hasta 10 fotos por
+                        combinación y stock por talla) · Descripción (detalles
                         y cuidados heredables) · Estampados · Video · Tarjeta sin foto (vista previa en
                         vivo) · Orden y reseñas. Columna lateral con la tarjeta tal como se ve en el
-                        catálogo. Maneja 422 (cada error en su campo, también colors.N.photos, colors.N.prints,
+                        catálogo. Maneja 422 (cada error en su campo, también colors.N.photos, colors.N.fits, colors.N.prints,
                         colors.N.printPhotos.ESTAMPADO y colors.N.stock.TALLA), 409 por edición
                         concurrente e id repetido.
    La tienda lee estos datos en js/data.js (solo productos publicados) y los muestra en catalogo.html,
@@ -390,7 +391,7 @@ function newProduct(data) {
     bestRank: Math.min(9999, best.length ? Math.max(...best) + 1 : 1),
     newRank: news.length ? Math.max(0, Math.min(...news) - 1) : 1,
     rating: 0, reviewsCount: 0,
-    colors: [{ color: "", photos: [], prints: [], printPhotos: {}, stock: Object.fromEntries(STD_SIZES.map((s) => [s, 0])) }],
+    colors: [{ color: "", photos: [], fits: [], prints: [], printPhotos: {}, stock: Object.fromEntries(STD_SIZES.map((s) => [s, 0])) }],
     prints: [], video: null,
     tile: { from: TILE_FROM, to: TILE_TO, lines: [], sub: "", stacked: false, small: false, fs: null },
     tags: [], desc: "", story: "", details: [], care: [],
@@ -405,9 +406,12 @@ function normalize(p) {
   p.colors = Array.isArray(p.colors) ? p.colors : [];
   p.sizes = Array.isArray(p.sizes) ? p.sizes : [];
   p.prints = Array.isArray(p.prints) ? p.prints : [];
+  for (const k of ["fits", "tags", "details", "care"]) if (!Array.isArray(p[k])) p[k] = [];
   const printIds = p.prints.map((x) => x?.id).filter(Boolean);
   for (const c of p.colors) {
     c.photos = Array.isArray(c.photos) ? c.photos : [];
+    // Hormas en que viene el color; sin la clave (viene en todas, como lo guarda el servidor) = todas las del producto
+    c.fits = Array.isArray(c.fits) ? p.fits.filter((x) => c.fits.includes(x)) : p.fits.slice();
     // Estampados que lleva el color; sin la clave (contenido de antes de los estampados por color) = todos, como el servidor
     c.prints = Array.isArray(c.prints) ? c.prints : printIds.slice();
     // Siempre un objeto: las rutas colors.N.printPhotos.<id> no crean listas aunque el id sea numérico («2025»)
@@ -415,15 +419,14 @@ function normalize(p) {
     c.stock = c.stock && typeof c.stock === "object" ? c.stock : {};
   }
   p.tile = { from: TILE_FROM, to: TILE_TO, lines: [], sub: "", stacked: false, small: false, fs: null, ...(p.tile || {}) };
-  for (const k of ["fits", "tags", "details", "care"]) if (!Array.isArray(p[k])) p[k] = [];
   return p;
 }
 
 /**
- * Lo que se envía al servidor: stock exacto por talla, video vacío = null, ids de estampados, los estampados de cada
- * color y sus fotos bajo el id que se envía (en el orden de los estampados; sin estampados que ya no existen o que el
- * color no lleva ni listas vacías; sin printPhotos si el color no tiene ninguna y sin prints si el producto no tiene
- * estampados, como lo guarda el servidor).
+ * Lo que se envía al servidor: stock exacto por talla, video vacío = null, ids de estampados, las hormas de cada color
+ * (solo si no viene en todas las del producto), los estampados de cada color y sus fotos bajo el id que se envía (en el
+ * orden de los estampados; sin estampados que ya no existen o que el color no lleva ni listas vacías; sin printPhotos
+ * si el color no tiene ninguna y sin prints si el producto no tiene estampados, como lo guarda el servidor).
  */
 function prepare(v) {
   const p = clone(v);
@@ -437,8 +440,11 @@ function prepare(v) {
     if (x.id && !idMap.has(x.id)) idMap.set(x.id, id);
     return { ...x, id };
   });
-  p.colors = (p.colors || []).map(({ prints: own, printPhotos, ...c }) => {
+  const fits = p.fits || [];
+  p.colors = (p.colors || []).map(({ prints: own, printPhotos, fits: ownFits, ...c }) => {
     const out = { ...c, stock: Object.fromEntries(sizes.map((s) => [s, Number.isFinite(c.stock?.[s]) ? c.stock[s] : 0])) };
+    const cf = Array.isArray(ownFits) ? fits.filter((x) => ownFits.includes(x)) : fits;
+    if (cf.length < fits.length) out.fits = cf;
     const carried = [...idMap].filter(([from]) => Array.isArray(own) && own.includes(from));
     if (p.prints.length) out.prints = carried.map(([, to]) => to);
     const pp = {};
@@ -787,13 +793,14 @@ async function editorView(el, id, ctx) {
       const used = new Set(arr.map((c) => c.color));
       const free = palette.find((c) => !used.has(c.id));
       if (!free) toast("Ya usaste todos los colores de la paleta. Crea uno nuevo en Colores.", { type: "warning" });
-      // Un color nuevo no lleva estampados hasta que los marques (no muestra los de otro color)
-      return { color: free?.id || "", photos: [], prints: [], printPhotos: {}, stock: Object.fromEntries((form.get("sizes") || []).map((s) => [s, 0])) };
+      // Un color nuevo viene en todas las hormas y no lleva estampados hasta que los marques (no muestra los de otro color)
+      return { color: free?.id || "", photos: [], fits: (form.get("fits") || []).slice(), prints: [], printPhotos: {}, stock: Object.fromEntries((form.get("sizes") || []).map((s) => [s, 0])) };
     },
     itemLabel: (it, i) => paletteById.get(it?.color)?.name || it?.color || `Color ${i + 1} (sin elegir)`,
     renderItem: (p, i) => {
       return h("div.pe-color",
         colorSelect(`${p}.color`, i),
+        colorFitsField(p),
         f.photos(form, `${p}.photos`, {
           label: "Fotos",
           max: MAX_PHOTOS,
@@ -804,6 +811,87 @@ async function editorView(el, id, ctx) {
     },
   });
   colorsField.classList.add("pe-colors");
+
+  /* --- Hormas de cada color (colors.N.fits) --- */
+  /* Declaración (no const): la lista de colores se pinta antes de llegar aquí */
+  function fitName(id) { return (data.fits || []).find((x) => x.id === id)?.name || id; }
+
+  /** «Hormas de este color»: un botón por horma del producto (solo se ve con 2 o más; con una, el color viene en
+   *  ella). Al menos una marcada. Se repinta si cambian las hormas del producto. */
+  function colorFitsField(p) {
+    let paint = () => {};
+    const field = f.custom(form, `${p}.fits`, {
+      label: "Hormas de este color",
+      group: true,
+      help: "Desmarca las hormas en que NO viene este color. En la ficha, al elegir esa horma este color sale tachado y no se puede pedir.",
+      validate: (v) => ((form.get("fits") || []).length && !(v || []).length ? "Marca al menos una horma para este color." : null),
+      create: ({ value, onChange }) => {
+        const root = h("div.chips.pe-cfits", { role: "group" });
+        let cur = Array.isArray(value) ? value.slice() : [];
+        paint = () => {
+          replace(root, (form.get("fits") || []).map((id) => {
+            const on = cur.includes(id);
+            const b = h("button.chip", { type: "button", "aria-pressed": String(on), dataset: { fit: id } },
+              h("span", fitName(id)),
+              icon(on ? "check" : "plus", { size: 14, className: "chip__icon" }));
+            b.addEventListener("click", () => toggle(id));
+            return b;
+          }));
+        };
+        const toggle = (id) => {
+          if (cur.includes(id)) {
+            if (cur.length === 1) { toast("Cada color necesita al menos una horma.", { type: "warning" }); return; }
+            cur = cur.filter((x) => x !== id);
+          } else {
+            const set = new Set([...cur, id]);
+            cur = (form.get("fits") || []).filter((x) => set.has(x));
+          }
+          onChange(cur);
+          paint();
+          root.querySelector(`[data-fit="${CSS.escape(id)}"]`)?.focus();
+        };
+        paint();
+        return {
+          el: root,
+          setValue: (v) => { cur = Array.isArray(v) ? v.slice() : []; paint(); },
+          focus: () => root.querySelector("button")?.focus(),
+        };
+      },
+    });
+    let ids = null;
+    const show = () => {
+      ids = JSON.stringify(form.get("fits") || []);
+      field.hidden = (form.get("fits") || []).length < 2;
+      paint();
+    };
+    let seen = false;
+    const off = form.on("change", () => {
+      if (!field.isConnected) { if (seen) off(); return; }
+      seen = true;
+      if (JSON.stringify(form.get("fits") || []) !== ids) show();
+    });
+    requestAnimationFrame(() => { if (field.isConnected) seen = true; });
+    show();
+    return field;
+  }
+
+  /* Al agregar una horma al producto, todos los colores vienen en ella (se desmarca en los que no); al quitarla, sale
+     de todos (un color que solo venía en ella pasa a venir en todas las que quedan). Descartar o guardar (ruta "") no
+     cuenta como cambio de hormas. */
+  let fitsBefore = clone(form.get("fits") || []);
+  form.on("change", ({ path }) => {
+    const now = form.get("fits") || [];
+    if (path === "fits") {
+      const added = now.filter((x) => !fitsBefore.includes(x));
+      (form.get("colors") || []).forEach((c, i) => {
+        const own = Array.isArray(c?.fits) ? c.fits : [];
+        let next = now.filter((x) => own.includes(x) || added.includes(x));
+        if (!next.length) next = now.slice();
+        if (JSON.stringify(next) !== JSON.stringify(own)) form.set(`colors.${i}.fits`, next);
+      });
+    }
+    fitsBefore = clone(now);
+  });
 
   /* --- Estampados de cada color (colors.N.prints) y sus fotos (colors.N.printPhotos.<id>) --- */
   const printIds = () => (form.get("prints") || []).map((x) => x?.id).filter(Boolean);
@@ -1026,6 +1114,7 @@ async function editorView(el, id, ctx) {
     const colors = form.get("colors") || [];
     const first = initialColorIndex(form.get());
     const hasPrints = printIds().length > 0;
+    const fits = form.get("fits") || [];
     Array.from(ol.children).forEach((li, i) => {
       const c = colors[i];
       const toggle = li.querySelector(":scope > .list-item__head .list-item__toggle");
@@ -1041,8 +1130,10 @@ async function editorView(el, id, ctx) {
       const n = c.photos?.length || 0;
       const cp = colorPrintIds(form.get(), c).length;
       const np = printPhotoCount(form.get(), c);
+      const cf = (c.fits || []).filter((x) => fits.includes(x));
       replace(meta,
         i === first && colors.length > 1 ? h("span.pe-chip.pe-chip--accent", "Primero en la tienda") : null,
+        cf.length && cf.length < fits.length ? h("span.pe-chip", `Solo ${cf.map(fitName).join(" y ")}`) : null,
         h("span.pe-chip", { class: !n && "is-muted" }, n ? `${n}/${MAX_PHOTOS} fotos` : "Sin fotos"),
         hasPrints ? h("span.pe-chip", { class: !cp && "is-muted" }, cp ? `${plural(cp, "estampado", "estampados")}${np ? ` · +${np} ${np === 1 ? "foto" : "fotos"}` : ""}` : "Sin estampados") : null,
         h("span.pe-chip", { class: !tot && "is-danger" }, tot ? plural(tot, "ud.", "uds.") : "Sin stock"));
@@ -1089,7 +1180,7 @@ async function editorView(el, id, ctx) {
         f.chips(form, "fits", {
           label: "Hormas",
           options: (data.fits || []).map((x) => ({ value: x.id, label: x.name })),
-          help: "Opciones de horma en la ficha y pestañas de la guía de tallas. Déjalo vacío en gorras y accesorios.",
+          help: "Opciones de horma en la ficha y pestañas de la guía de tallas. Déjalo vacío en gorras y accesorios. Si un color no viene en todas, desmárcalas en ese color (abajo, en Colores).",
         }),
         h("div.stack-sm", sizesField, sizeShortcuts),
       ],

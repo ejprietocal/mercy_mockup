@@ -6,7 +6,8 @@
      collection = nombre…), COLORS, FITS, CATEGORIES, COLLECTIONS, SIZE_CHARTS, REVIEWS, MARQUEE…
    Fotos de cada prenda: hasta 10 por color base (colorPhotos) y hasta 10 por combinación color + estampado
    (printPhotos); photosFor(p, color, estampado) decide cuáles se ven (misma regla que el panel y el servidor).
-   Cada color lleva sus propios estampados (colorPrints; printsOf(p, color) da la lista para la ficha y el carrito).
+   Cada color lleva sus propios estampados (colorPrints; printsOf(p, color) da la lista para la ficha y el carrito)
+   y viene en sus propias hormas (colorFits; fitsOf(p, color): p. ej. Rojo solo en Regular).
    Departamentos/ciudades y medios de pago siguen fijos aquí.
    Defensivo ante contenido editado a mano: listas vacías, campos faltantes, colores sin stock,
    productos sin fotos o categorías sin productos nunca lanzan excepciones.
@@ -127,8 +128,10 @@ window.Mercy = window.Mercy || {};
      Solo publicados (status "draft" = invisible). colors: [{ color, photos, prints?, printPhotos?, stock }] → colors: [ids],
      stock[color][talla], colorPhotos[color] = [fotos] (0–10), colorPrints[color] = [ids de estampados que lleva ese
      color, en el orden de la prenda] (sin la clave prints = todos: contenido de antes de los estampados por color) y
-     printPhotos[color][estampado] = [fotos] (1–10; solo estampados que lleva ese color y listas con fotos).
-     prints = solo los estampados que lleva al menos un color. El stock sigue siendo color × talla (lo comparten los estampados). */
+     printPhotos[color][estampado] = [fotos] (1–10; solo estampados que lleva ese color y listas con fotos) y
+     colorFits[color] = [ids de hormas en que viene ese color, en el orden de la prenda] (sin la clave fits = todas).
+     prints / fits = solo los estampados / hormas que tiene al menos un color. El stock sigue siendo color × talla
+     (lo comparten los estampados y las hormas). */
   const MAX_PHOTOS = 10;                              // por color base y por combinación color + estampado
   function photoList(v) { return arr(v).map(normPhoto).filter(Boolean).slice(0, MAX_PHOTOS); }
   const P = [];
@@ -144,13 +147,18 @@ window.Mercy = window.Mercy || {};
     const colors = entries.map(function (c) { return str(c.color); });
     const allPrints = uniqueBy(arr(raw.prints).filter(function (x) { return x && typeof x === "object" && x.id; }), function (x) { return str(x.id); })
       .map(function (x) { return { id: str(x.id), name: str(x.name) || str(x.id), hex: hex(x.hex, "#999999") }; });
-    const stock = {}, colorPhotos = {}, colorPrints = {}, printPhotos = {};
+    const allFits = uniqueBy(strList(raw.fits).filter(function (f) { return FITS[f]; }), function (f) { return f; });
+    const stock = {}, colorPhotos = {}, colorPrints = {}, printPhotos = {}, colorFits = {};
     entries.forEach(function (c) {
       const id = str(c.color);
       const st = c.stock && typeof c.stock === "object" ? c.stock : {};
       stock[id] = {};
       sizes.forEach(function (s) { const n = Math.floor(num(st[s], 0)); stock[id][s] = n > 0 ? n : 0; });
       colorPhotos[id] = photoList(c.photos);
+      /* Hormas del color, en el orden de la prenda; sin ninguna válida (editado a mano) = todas: el color se puede pedir */
+      const ownFits = Array.isArray(c.fits) ? c.fits.map(str) : null;
+      const fitsHere = allFits.filter(function (f) { return !ownFits || ownFits.indexOf(f) > -1; });
+      colorFits[id] = fitsHere.length ? fitsHere : allFits.slice();
       /* Estampados del color, en el orden de la prenda; un estampado borrado se ignora */
       const own = Array.isArray(c.prints) ? c.prints.map(str) : null;
       colorPrints[id] = allPrints.filter(function (x) { return !own || own.indexOf(x.id) > -1; }).map(function (x) { return x.id; });
@@ -169,6 +177,10 @@ window.Mercy = window.Mercy || {};
     const prints = allPrints.filter(function (x) {
       return colors.some(function (c) { return colorPrints[c].indexOf(x.id) > -1; });
     });
+    /* Igual con las hormas: una en que no viene ningún color no sale en la ficha ni en los filtros */
+    const fits = allFits.filter(function (f) {
+      return colors.some(function (c) { return colorFits[c].indexOf(f) > -1; });
+    });
 
     const t = raw.tile && typeof raw.tile === "object" ? raw.tile : {};
     const tileLines = strList(t.lines);
@@ -182,7 +194,7 @@ window.Mercy = window.Mercy || {};
       id: str(raw.id), ref: str(raw.ref), name: name,
       category: str(raw.category),
       collection: col ? col.name : "", collectionId: col ? col.id : "",
-      fits: strList(raw.fits).filter(function (f) { return FITS[f]; }),
+      fits: fits,
       sizes: sizes,
       price: Math.max(0, Math.round(num(raw.price, 0))),
       badge: str(raw.badge).trim(),
@@ -190,7 +202,7 @@ window.Mercy = window.Mercy || {};
       bestRank: num(raw.bestRank, 1000 + idx), newRank: num(raw.newRank, 1000 + idx),
       rating: Math.max(0, Math.min(5, num(raw.rating, 0))), reviews: reviewsCount, reviewsCount: reviewsCount,
       colors: colors, stock: stock, colorPhotos: colorPhotos, colorPrints: colorPrints, printPhotos: printPhotos,
-      prints: prints,
+      colorFits: colorFits, prints: prints,
       video: raw.video && typeof raw.video === "object" && str(raw.video.src).trim()
         ? { src: str(raw.video.src).trim(), poster: str(raw.video.poster).trim() } : null,
       tile: {
@@ -235,6 +247,10 @@ window.Mercy = window.Mercy || {};
   function printsOf(p, colorId) {
     const ids = (p && p.colorPrints && own(p.colorPrints, colorId)) || [];
     return ((p && p.prints) || []).filter(function (x) { return ids.indexOf(x.id) > -1; });
+  }
+  /* Hormas en que viene un color (ids, en el orden de la prenda; [] = la prenda no tiene hormas o el color no es suyo) */
+  function fitsOf(p, colorId) {
+    return ((p && p.colorFits && own(p.colorFits, colorId)) || []).slice();
   }
   /* Fotos que se ven para un color + estampado (regla común de tienda, panel y servidor; nunca se mezclan):
        1. las de la combinación color + estampado, si ese color lleva el estampado y tiene;  2. las del color;
@@ -360,6 +376,7 @@ window.Mercy = window.Mercy || {};
     photoSrcset: photoSrcset,
     photosFor: photosFor,
     printsOf: printsOf,
+    fitsOf: fitsOf,
     /* Producto publicado por id (o por un id anterior si se renombró: el resultado trae el id ACTUAL en p.id) */
     byId: byId,
     category: categoryById,

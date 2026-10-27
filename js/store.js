@@ -15,7 +15,7 @@
        (misma vigencia en hora de Colombia; sin red y sin contar usos).
      · Stock por color × talla, compartido entre estampados y hormas: el tope de una línea es ese stock menos lo que
        ya tienen las OTRAS líneas de la misma prenda + color + talla (al cargar, en add() y en setQty()).
-     · Al cargar: limpia líneas cuyo color/talla/horma ya no exista (el panel puede borrarlos),
+     · Al cargar: limpia líneas cuyo color/talla/horma ya no exista o cuyo color ya no venga en esa horma (el panel puede borrarlos),
        ajusta cantidades al stock (las líneas anteriores tienen prioridad) y revalida el cupón aplicado
        (si ya no vale, se quita con aviso).
        Un PRODUCTO que la tienda no encuentra (en borrador un rato, o renombrado sin alias) no se borra:
@@ -215,7 +215,7 @@ window.Mercy = window.Mercy || {};
   }
 
   /* → { lines, parked, removed, capped }: quita líneas imposibles (color/talla/horma ya no existen, el color ya no
-     lleva ese estampado, agotado), ajusta cantidades al stock (por prenda + color + talla, sumando estampados y hormas; las líneas anteriores
+     lleva ese estampado o ya no viene en esa horma, agotado), ajusta cantidades al stock (por prenda + color + talla, sumando estampados y hormas; las líneas anteriores
      tienen prioridad) y une líneas que quedan iguales. Las de un producto que NO se encuentra
      (borrador, renombrado sin alias, borrado) van a `parked` (con la fecha en que se apartaron) y vuelven solas si el
      producto reaparece; pasan 30 días y se olvidan. `removed` cuenta solo las que se veían en el carrito. */
@@ -234,10 +234,12 @@ window.Mercy = window.Mercy || {};
         return drop();
       }
       if (p.soldOut || p.colors.indexOf(l.color) < 0 || p.sizes.indexOf(l.size) < 0) return drop();
+      /* Horma: una en que venga ese color (la prenda no tenía hormas y ahora sí: la primera del color, como cart.add) */
       let fit = "";
-      if (p.fits && p.fits.length) {
-        if (!l.fit) fit = p.fits[0];                        // la prenda no tenía hormas y ahora sí: la primera (como cart.add)
-        else if (p.fits.indexOf(l.fit) < 0) return drop();
+      const fits = data.fitsOf(p, l.color);
+      if (fits.length) {
+        if (!l.fit) fit = fits[0];
+        else if (fits.indexOf(l.fit) < 0) return drop();
         else fit = l.fit;
       }
       /* Estampado: uno que lleve ese color (sin estampado guardado, su primero); si el color ya no lleva ninguno, sin estampado */
@@ -347,8 +349,11 @@ window.Mercy = window.Mercy || {};
       if (p.soldOut) return { ok: false, reason: "agotado" };
       const color = sel.color || p.colors[0];
       const size = sel.size;
-      const fit = p.fits && p.fits.length ? (sel.fit || p.fits[0]) : "";
       if (p.colors.indexOf(color) < 0) return { ok: false, reason: "color" };
+      /* Horma: una en que venga ese color (sin pedir ninguna, su primera); reason "horma" = ese color no viene en esa */
+      const fits = data.fitsOf(p, color);
+      const fit = fits.length ? (sel.fit || fits[0]) : "";
+      if (fits.length && fits.indexOf(fit) < 0) return { ok: false, reason: "horma" };
       /* Estampados del color: el elegido si ese color lo lleva; si no, su primero ("" = el color no lleva) */
       const prints = data.printsOf(p, color);
       const print = prints.some(function (x) { return x.id === sel.print; }) ? sel.print : (prints.length ? prints[0].id : "");

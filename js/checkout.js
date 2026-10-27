@@ -166,8 +166,8 @@
     return [it.color.name, it.fitName, it.size === "Única" ? "" : "Talla " + it.size, it.print ? "Estampado " + it.print.name : ""]
       .filter(Boolean).join(" · ");
   }
-  /* Ficha en la misma variante de la línea (color + estampado) */
-  function pUrl(it) { return U.productUrl(it.product, it.colorId, it.print ? it.print.id : ""); }
+  /* Ficha en la misma variante de la línea (color + estampado + horma) */
+  function pUrl(it) { return U.productUrl(it.product, it.colorId, it.print ? it.print.id : "", it.fit); }
   /* Foto de la variante de la línea */
   function lineTile(it) { return U.tileHTML(it.product, { size: "thumb", alt: "", color: it.colorId, print: it.print ? it.print.id : "" }); }
 

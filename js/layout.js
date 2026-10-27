@@ -377,11 +377,11 @@ window.Mercy = window.Mercy || {};
       ? I("truck", { size: 22 }) + "<p>" + U.strong(tx("shipping.cartFree", "Tu pedido tiene **ENVÍO GRATIS**")) + "</p>"
       : I("truck", { size: 22 }) + "<p>" + cartPaidHTML() + "</p>";
 
-    /* Cada línea muestra la foto de SU variante (color + estampado) y enlaza a la ficha en esa misma variante */
+    /* Cada línea muestra la foto de SU variante (color + estampado) y enlaza a la ficha en esa misma variante (y horma) */
     bodyEl.innerHTML = '<ul class="cart-lines">' + items.map(function (it) {
       const p = it.product;
       const printId = it.print ? it.print.id : "";
-      const url = U.productUrl(p, it.colorId, printId);
+      const url = U.productUrl(p, it.colorId, printId, it.fit);
       return (
         '<li class="cart-line" data-key="' + esc(it.key) + '">' +
         '<a class="cart-line__thumb" href="' + esc(url) + '" tabindex="-1" aria-hidden="true">' + U.tileHTML(p, { size: "thumb", alt: "", color: it.colorId, print: printId }) + "</a>" +

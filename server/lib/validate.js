@@ -734,6 +734,20 @@ function vColorPrints(c, path, v, printIds) {
 }
 
 /**
+ * Hormas en que viene UN color (ids de las hormas del producto, en su orden). Ausente o null = todas. Ids que no son
+ * hormas del producto se descartan sin error; sin ninguna → error (el color no se podría pedir).
+ */
+function vColorFits(c, path, v, fits) {
+  if (v === undefined || v === null) return fits.slice();
+  if (!Array.isArray(v)) { c.add(path, "Formato inválido (se esperaba una lista)."); return fits.slice(); }
+  v.forEach((x, i) => { if (typeof x !== "string") c.add(J(path, i), "Debe ser un texto."); });
+  const want = new Set(v.filter((x) => typeof x === "string"));
+  const out = fits.filter((id) => want.has(id));
+  if (fits.length && !out.length) c.add(path, "Marca al menos una horma para este color.");
+  return out;
+}
+
+/**
  * Fotos de las combinaciones color + estampado de UN color: { [idEstampado]: [Foto…] } (1–MAX_PHOTOS_PER_PRINT cada una).
  * · Ausente o null → sin fotos de estampado. No es un objeto → error.
  * · Claves que no son estampados de ESTE color (p. ej. uno que se borró, se renombró o se quitó del color) → se
@@ -807,6 +821,7 @@ export function validateProduct(value, refs) {
     },
   });
   fits.forEach((f, i) => { if (fits.indexOf(f) !== i) c.add(`fits.${i}`, "Horma repetida."); });
+  const fitIds = [...new Set(fits.filter((f) => SLUG_RE.test(f)))];
 
   // Estampados ANTES que los colores: colors[].prints y las claves de colors[].printPhotos se filtran con estos ids
   const prints = c.list("prints", o.prints, {
@@ -833,6 +848,7 @@ export function validateProduct(value, refs) {
         maxMsg: `Máximo ${MAX_PHOTOS_PER_COLOR} fotos por color.`,
         item: (q, ph) => vPhoto(c, q, ph),
       });
+      const colorFits = vColorFits(c, J(p, "fits"), pc.fits, fitIds);
       const colorPrints = vColorPrints(c, J(p, "prints"), pc.prints, printIds);
       const printPhotos = vPrintPhotos(c, J(p, "printPhotos"), pc.printPhotos, colorPrints);
       // Stock: exactamente las tallas del producto (faltantes = 0, sobrantes se eliminan)
@@ -847,7 +863,9 @@ export function validateProduct(value, refs) {
       }
       // Sin estampados en el producto no hay clave prints, y sin fotos de estampado no hay printPhotos
       // (forma de siempre: { color, photos, stock }). Con estampados, prints siempre va (también vacía).
+      // fits solo va si el color NO viene en todas las hormas del producto (p. ej. Rojo solo en Regular).
       const out = { color, photos };
+      if (colorFits.length && colorFits.length < fitIds.length) out.fits = colorFits;
       if (printIds.length) out.prints = colorPrints;
       if (printPhotos) out.printPhotos = printPhotos;
       out.stock = stock;

@@ -68,10 +68,11 @@
           <div class="fit-grid" id="fit-group" role="radiogroup" aria-labelledby="fit-label"></div>
         </div>
 
-        <!-- Color (C25: la etiqueta con el nombre va ENCIMA de los círculos) -->
+        <!-- Color (C25: la etiqueta con el nombre va ENCIMA de los círculos; tachado = agotado o no viene en el fit elegido) -->
         <div class="opt" id="opt-color">
           <p class="opt__label" id="color-label"></p>
-          <div class="swatches" id="color-group" role="radiogroup" aria-labelledby="color-label"></div>
+          <div class="swatches" id="color-group" role="radiogroup" aria-labelledby="color-label" aria-describedby="color-hint"></div>
+          <p class="opt__hint" id="color-hint" aria-live="polite" hidden></p>
         </div>
 
         <!-- Estampado (solo productos con p.prints) -->

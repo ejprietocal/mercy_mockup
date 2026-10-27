@@ -226,6 +226,8 @@
 .swatch-btn:hover { border-color: var(--borde-fuerte); }
 .swatch-btn[aria-checked="true"], .swatch-btn.is-on { border-color: var(--tinta); box-shadow: 0 0 0 1px var(--tinta); }
 .swatch-btn.is-out { opacity: 0.5; }
+.swatch-btn[disabled] { cursor: not-allowed; }
+.swatch-btn[disabled]:hover { border-color: transparent; }
 .swatch-btn.is-out::after {
   content: ""; position: absolute; inset: 3px; border-radius: 50%;
   background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--tinta) calc(50% - 1px), var(--tinta) calc(50% + 1px), transparent calc(50% + 1px));

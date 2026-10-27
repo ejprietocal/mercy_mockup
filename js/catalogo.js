@@ -126,7 +126,10 @@
     if (state.cat.length && state.cat.indexOf(p.category) < 0) return false;
     if (state.fit.length && !p.fits.some(function (f) { return state.fit.indexOf(f) > -1; })) return false;
     if (state.talla.length && !state.talla.some(function (s) { return p.sizes.indexOf(s) > -1 && (!state.stock || sizeInStock(p, s)); })) return false;
-    if (state.color.length && !p.colors.some(function (c) { return state.color.indexOf(c) > -1; })) return false;
+    /* Con fit elegido, el color tiene que venir en alguno de esos fits (Rojo solo en Regular no sale con Oversize + Rojo) */
+    if (state.color.length && !p.colors.some(function (c) {
+      return state.color.indexOf(c) > -1 && (!state.fit.length || D.fitsOf(p, c).some(function (f) { return state.fit.indexOf(f) > -1; }));
+    })) return false;
     if (p.price < state.pmin || p.price > state.pmax) return false;
     if (state.stock && p.soldOut) return false;
     return true;

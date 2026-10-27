@@ -104,9 +104,10 @@ Marcas para pruebas: `data-admin-link` (botón del header y enlace del menú), `
 `{ id, ref, name, category, collection (NOMBRE, "" si no hay), collectionId, fits, sizes, price, badge, envioGratis, soldOut (= soldOut || todo el stock en 0),
 bestRank, newRank, rating, reviews (= reviewsCount), colors: [ids], stock[color][talla], colorPhotos[color]: [fotos] (0–10, fotos base),
 colorPrints[color]: [ids de estampados que lleva ese color, en el orden de prints] ([] = ninguno),
+colorFits[color]: [ids de hormas en que viene ese color, en el orden de fits] (sin colors[].fits = todas; [] = la prenda no tiene hormas),
 printPhotos[color][estampado]: [fotos] (1–10; solo combinaciones con fotos y estampados que lleva ese color; {} si no hay ninguna),
 initialColor (1.er color con stock, si ninguno el primero), initialPrint (1.er estampado del color inicial o ""), photos (= fotos principales, ver abajo),
-prints (solo los estampados que lleva al menos un color; la propiedad no existe si no hay), video ({src, poster} | null; solo con src), tile, tags, desc, story,
+prints (solo los estampados que lleva al menos un color; la propiedad no existe si no hay), fits (solo las hormas en que viene al menos un color), video ({src, poster} | null; solo con src), tile, tags, desc, story,
 sizeChart (id de la guía de su categoría o ""), details (propios o los de la categoría), care (propios o texts.care) }`.
 `SIZE_CHARTS[idGuía]` conserva la forma de siempre `{ head, regular: [[talla, …]], oversize: […] }` (claves enumerables = `head` + ids de hormas) y además
 `id`, `name`, `unit`, `fits` (orden de las pestañas) como propiedades NO enumerables; `SIZE_CHART_IDS` = orden de las pestañas de la guía.
@@ -135,9 +136,11 @@ sizeChart (id de la guía de su categoría o ""), details (propios o los de la c
   la búsqueda y los favoritos (`tileHTML` sin `color` ni `print`); la primera es la que sale en `og:image` y en las miniaturas del panel.
 - **`Mercy.ui.tileHTML(p, { color, print })`** → `photosFor(p, color, print)` (sin `print` = primer estampado del color). Carrito (`layout.js`)
   y checkout (`checkout.js`) pasan el color **y el estampado de la línea** (la miniatura es la foto de esa variante) y enlazan a
-  `producto.html?id=…&color=…&print=…` (`print` solo si la línea tiene estampado).
-- **Ficha** (`producto.js`): `?color=<id>&print=<id>` fija la variante inicial si el color está en `p.colors` y ese color lleva el
-  estampado; si no, color inicial y su primer estampado. El selector «Estampado» muestra solo `printsOf(p, color)` y se oculta si el
+  `producto.html?id=…&color=…&print=…&fit=…` (`print` / `fit` solo si la línea tiene estampado / horma).
+- **Ficha** (`producto.js`): `?color=<id>&print=<id>&fit=<id>` fija la variante inicial si el color está en `p.colors` y ese color lleva el
+  estampado (y viene en esa horma); si no, color inicial, su primer estampado y su primera horma. **Hormas por color** (`fitsOf(p, color)`,
+  contrato §3): con un fit elegido, los colores que no vienen en él salen tachados (`.is-out`) y `disabled`, con el aviso `#color-hint`;
+  cambiar a un fit en que no viene el color elegido pasa al primer color que sí (con stock, si hay) y rehace la galería. El selector «Estampado» muestra solo `printsOf(p, color)` y se oculta si el
   color no lleva ninguno; al cambiar a un color que no lleva el estampado elegido, pasa a su primero (o a ninguno). `galleryPlan(color, print)` = las fotos de `photosFor` + la diapositiva de video al
   final **solo si `p.video && p.video.src`** (sin video `VIDEO_INDEX = -1`). Al cambiar de color **o** de estampado la galería se rehace
   (miniaturas, puntos, contador «Foto n de N», flechas, teclado y scroll-snap) solo si cambia el juego de fotos —se compara por contenido

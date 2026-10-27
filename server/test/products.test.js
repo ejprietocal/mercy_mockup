@@ -269,6 +269,45 @@ test("estampados por color (colors[].prints): cada color lleva los suyos; las fo
   assert.equal((await admin.del("/api/admin/products/estampada-por-color")).status, 200);
 });
 
+test("hormas por color (colors[].fits): solo se guardan si el color no viene en todas; sin ninguna → 422", async () => {
+  const p = baseProduct();
+  p.id = "hormas-por-color";
+  // negro: todas (desordenadas, repetidas y una que no es del producto) · crema: solo regular
+  p.colors[0].fits = ["oversize", "boxy", "regular", "oversize"];
+  p.colors[1].fits = ["regular", "fantasma"];
+  let r = await admin.post("/api/admin/products", p);
+  assert.equal(r.status, 201, r.text);
+  const [negro, crema] = r.data.item.colors;
+  assert.ok(!("fits" in negro), "un color que viene en todas las hormas conserva la forma de siempre");
+  assert.deepEqual(crema.fits, ["regular"]);
+  assert.deepEqual(Object.keys(crema), ["color", "photos", "fits", "prints", "stock"]);
+  const pub = (await srv.client({ admin: false }).get("/api/public/content")).data.products.find((x) => x.id === "hormas-por-color");
+  assert.deepEqual(pub.colors.map((c) => c.fits), [undefined, ["regular"]], "llega a la tienda");
+  // Guardar lo mismo otra vez no cambia nada
+  const same = await admin.put("/api/admin/products/hormas-por-color", r.data.item);
+  assert.equal(same.status, 200);
+  assert.equal(same.data.item.updatedAt, r.data.item.updatedAt);
+
+  // Formato y mínimo una horma
+  for (const [bad, field, msg] of [
+    ["regular", "colors.1.fits", "Formato inválido (se esperaba una lista)."],
+    [["regular", 5], "colors.1.fits.1", "Debe ser un texto."],
+    [[], "colors.1.fits", "Marca al menos una horma para este color."],
+    [["fantasma"], "colors.1.fits", "Marca al menos una horma para este color."],
+  ]) {
+    const q = structuredClone(r.data.item);
+    q.colors[1].fits = bad;
+    const e = await admin.put("/api/admin/products/hormas-por-color", q);
+    assert.equal(e.status, 422, JSON.stringify(bad));
+    assert.equal(e.data.error.fields[field], msg, JSON.stringify(e.data.error.fields));
+  }
+  // Si el producto queda sin hormas (gorras, accesorios), la clave desaparece
+  r = await admin.put("/api/admin/products/hormas-por-color", { ...r.data.item, fits: [] });
+  assert.equal(r.status, 200, r.text);
+  assert.ok(r.data.item.colors.every((c) => !("fits" in c)));
+  assert.equal((await admin.del("/api/admin/products/hormas-por-color")).status, 200);
+});
+
 test("actualizar: concurrencia con X-Base-Updated-At (409) y sin cambios no crea revisión", async () => {
   const cur = (await admin.get("/api/admin/products/camiseta-prueba")).data.item;
   const r = await admin.put("/api/admin/products/camiseta-prueba", { ...cur, price: 99900 }, { headers: { "x-base-updated-at": cur.updatedAt } });

@@ -153,10 +153,10 @@ window.Mercy = window.Mercy || {};
     }
   }, true);
 
-  /* Enlace a la ficha; con color / estampado abre esa misma variante (producto.html?id=…&color=…&print=…) */
-  function productUrl(p, color, print) {
+  /* Enlace a la ficha; con color / estampado / horma abre esa misma variante (producto.html?id=…&color=…&print=…&fit=…) */
+  function productUrl(p, color, print, fit) {
     return "producto.html?id=" + encodeURIComponent(p.id) + (color ? "&color=" + encodeURIComponent(color) : "") +
-      (print ? "&print=" + encodeURIComponent(print) : "");
+      (print ? "&print=" + encodeURIComponent(print) : "") + (fit ? "&fit=" + encodeURIComponent(fit) : "");
   }
 
   /* --- Tarjeta de producto ------------------------------------------------ */

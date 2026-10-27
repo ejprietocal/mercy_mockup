@@ -1,9 +1,10 @@
 /* ==========================================================================
    Mercy Studio — producto.js
-   Pantalla de detalle de producto:  producto.html?id=<id>[&color=<id>&print=<id>]
-   (color / print válidos fijan la variante con la que abre: enlaces del carrito y del checkout; print solo si ese
-   color lo lleva). Cada color tiene sus estampados: el selector «Estampado» muestra los del color elegido y no sale
-   si ese color no lleva ninguno.
+   Pantalla de detalle de producto:  producto.html?id=<id>[&color=<id>&print=<id>&fit=<id>]
+   (color / print / fit válidos fijan la variante con la que abre: enlaces del carrito y del checkout; print y fit solo
+   si ese color los lleva). Cada color tiene sus estampados: el selector «Estampado» muestra los del color elegido y no
+   sale si ese color no lleva ninguno. Cada color viene en sus hormas: con un fit elegido, los colores que no vienen en
+   él salen tachados y no se pueden elegir (al cambiar a un fit en que no viene el color elegido, pasa al primero que sí).
    Comentarios aplicados: C23/C24 (stock / no disponible), C25 (etiqueta de color
    encima), C26/C27 (solo "Agregar al carrito"), C28 (acordeones ítem por ítem +
    Medidas/Tallas), C32/C34 (envío), C43 (tachón diagonal), C44 (carrito overlay).
@@ -94,13 +95,20 @@
     return list.some(function (x) { return x.id === want; }) ? want : (list.length ? list[0].id : "");
   }
 
-  /* Variante pedida en la dirección (?color=&print=, p. ej. desde el carrito): solo si existe en la prenda */
-  const askColor = U.qs().get("color"), askPrint = U.qs().get("print");
+  /* Fit válido para un color: el pedido si ese color viene en él; si no, su primero ("" = la prenda no tiene hormas) */
+  function fitFor(color, want) {
+    const list = D.fitsOf(p, color);
+    return list.indexOf(want) > -1 ? want : (list[0] || "");
+  }
+  function colorHasFit(color, fit) { return !fit || D.fitsOf(p, color).indexOf(fit) > -1; }
+
+  /* Variante pedida en la dirección (?color=&print=&fit=, p. ej. desde el carrito): solo si existe en la prenda */
+  const askColor = U.qs().get("color"), askPrint = U.qs().get("print"), askFit = U.qs().get("fit");
   const startColor = askColor && p.colors.indexOf(askColor) > -1 ? askColor
     : p.initialColor || p.colors.filter(function (c) { return D.colorHasStock(p, c); })[0] || p.colors[0] || "";
   const st = {
     color: startColor,
-    fit: hasFits ? p.fits[0] : "",
+    fit: fitFor(startColor, askFit),
     print: printFor(startColor, askPrint),
     size: "",
     qty: 1
@@ -565,12 +573,10 @@
         return '<button type="button" class="fit-btn" role="radio" aria-checked="false" tabindex="-1" data-fit="' + esc(f) + '">' + esc(D.FITS[f]) + "</button>";
       }).join("");
     }
+    /* Etiquetas y tachado de cada color: refreshColors (dependen del fit elegido) */
     colorGroup.innerHTML = p.colors.map(function (c) {
-      const col = D.color(c);
-      const has = D.colorHasStock(p, c);
-      return '<button type="button" class="swatch-btn' + (has ? "" : " is-out") + '" role="radio" aria-checked="false" tabindex="-1" data-color="' + esc(c) + '"' +
-        ' aria-label="' + esc(col.name) + (has ? "" : " (agotado)") + '" title="' + esc(col.name) + (has ? "" : " · agotado") + '">' +
-        '<span class="swatch" style="--c:' + col.hex + '"></span></button>';
+      return '<button type="button" class="swatch-btn" role="radio" aria-checked="false" tabindex="-1" data-color="' + esc(c) + '">' +
+        '<span class="swatch" style="--c:' + D.color(c).hex + '"></span></button>';
     }).join("");
     renderPrints();
     sizeGroup.innerHTML = p.sizes.map(function (s) {
@@ -622,6 +628,31 @@
       btns[i].focus();
       onPick(btns[i].getAttribute(attr));
     });
+  }
+
+  /* Colores: agotado = tachado pero se puede elegir (para ver sus fotos); no viene en el fit elegido = tachado y
+     deshabilitado, con un aviso debajo (p. ej. «Rojo Burdeo no viene en fit Oversize.») */
+  function refreshColors() {
+    const fitName = st.fit ? D.FITS[st.fit] : "";
+    const missing = [];
+    $$("[data-color]", colorGroup).forEach(function (b) {
+      const c = b.getAttribute("data-color");
+      const name = D.color(c).name;
+      const na = !colorHasFit(c, st.fit);
+      const out = !D.colorHasStock(p, c);
+      if (na) missing.push(name);
+      b.disabled = na;
+      b.classList.toggle("is-out", na || out);
+      const why = na ? "no viene en fit " + fitName : out ? "agotado" : "";
+      b.setAttribute("aria-label", name + (why ? " (" + why + ")" : ""));
+      b.title = name + (why ? " · " + why : "");
+    });
+    setRadio(colorGroup, "data-color", st.color);
+    const hint = $("#color-hint");
+    hint.hidden = !missing.length;
+    hint.textContent = missing.length
+      ? (missing.length === 1 ? missing[0] + " no viene" : missing.slice(0, -1).join(", ") + " y " + missing[missing.length - 1] + " no vienen") + " en fit " + fitName + "."
+      : "";
   }
 
   function refreshSizes() {
@@ -714,7 +745,7 @@
   function update(what) {
     what = what || {};
     $("#color-label").innerHTML = "Color: <b>" + (st.color ? esc(D.color(st.color).name) : "—") + "</b>";
-    setRadio(colorGroup, "data-color", st.color);
+    refreshColors();
     if (hasFits) {
       $("#fit-label").innerHTML = "Fit: <b>" + esc(D.FITS[st.fit]) + "</b>";
       setRadio(fitGroup, "data-fit", st.fit);
@@ -751,6 +782,7 @@
     tope: "Ya tienes en el carrito todas las unidades disponibles de esta talla en este color.",
     agotado: "Esta prenda está agotada por ahora.",
     color: "Elige un color disponible.",
+    horma: "Ese color no viene en el fit elegido. Elige otro color u otro fit.",
     producto: "No pudimos encontrar la prenda. Intenta de nuevo."
   };
 
@@ -871,19 +903,30 @@
   /* Píxel de Meta: vista de la prenda */
   if (M.pixel && M.pixel.enabled) M.pixel.track("ViewContent", { content_ids: [p.id], content_name: p.name, content_type: "product", value: p.price, currency: "COP" });
 
-  bindRadio(fitGroup, "data-fit", function (v) {
-    st.fit = v;
-    update();
-    renderMeasures();
-  });
-  bindRadio(colorGroup, "data-color", function (v) {
+  /* Cambia de color: si el color nuevo no lleva el estampado elegido, pasa a su primero (o a ninguno) */
+  function setColor(v) {
     st.color = v;
-    /* Si el color nuevo no lleva el estampado elegido, pasa a su primero (o a ninguno) */
     const next = printFor(v, st.print);
     const samePrints = D.printsOf(p, v).map(function (x) { return x.id; }).join("|") === $$("[data-print]", printGroup).map(function (b) { return b.getAttribute("data-print"); }).join("|");
     st.print = next;
     if (!samePrints) renderPrints();
     st.size = pickSize();
+  }
+
+  bindRadio(fitGroup, "data-fit", function (v) {
+    st.fit = v;
+    /* El color elegido no viene en ese fit: pasa al primero que sí (con stock, si hay) */
+    const moved = !colorHasFit(st.color, v);
+    if (moved) {
+      const ok = p.colors.filter(function (c) { return colorHasFit(c, v); });
+      setColor(ok.filter(function (c) { return D.colorHasStock(p, c); })[0] || ok[0] || st.color);
+    }
+    update();
+    renderMeasures();
+    if (moved) refreshGallery();
+  });
+  bindRadio(colorGroup, "data-color", function (v) {
+    setColor(v);
     update();
     refreshGallery();                  /* fotos del color (+ estampado) elegido */
   });

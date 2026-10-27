@@ -202,6 +202,9 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
     colors: [ {                                    // 1–12 colores; orden = orden en la tienda
       color: "negro",                              // id de colors[]
       photos: [ Foto ],                            // fotos del COLOR BASE: 0–10 (MÁX 10); la primera es la principal
+      fits: ["regular"],                           // OPCIONAL: hormas en que viene ESTE color (ids de fits del producto, en su
+                                                   //   orden; ≥ 1). Sin la clave = todas (lo normal); solo existe si el color NO
+                                                   //   viene en todas (p. ej. Rojo Burdeo solo Regular, ver «Hormas por color»)
       prints: ["naranja", "azul"],                 // estampados que lleva ESTE color (ids de prints, en su orden; [] = ninguno).
                                                    //   Solo existe si el producto tiene estampados; ausente en contenido anterior = todos
       printPhotos: {                               // OPCIONAL: fotos de cada combinación color + estampado (ver «Fotos de producto»)
@@ -233,6 +236,7 @@ Reglas de integridad (el servidor las valida; el panel las previene):
 - Ids únicos dentro de cada lista. Un color/horma/categoría/colección/guía **en uso** no se puede borrar (409 `in_use` con la lista de productos).
 - `product.colors[].color` ∈ `colors`, `product.category` ∈ `categories`, `product.fits ⊆ fits`, `collection` ∈ `collections` o "".
 - `product.colors[].stock` tiene exactamente las tallas de `product.sizes` (faltantes = 0, sobrantes se eliminan).
+- `colors[].fits ⊆ product.fits` (al menos una; sin la clave = todas); el stock sigue siendo color × talla (lo comparten las hormas).
 - `photos.length ≤ 10` por color; `colors[].prints ⊆ prints[].id`; `printPhotos`: claves = estampados que lleva ese color, cada lista
   1–10. Producto "agotado" en la tienda =
   `soldOut` o todo el stock en 0. El stock es por color × talla y lo comparten todos los estampados.
@@ -258,6 +262,25 @@ Reglas de integridad (el servidor las valida; el panel las previene):
 - *(servidor)* Claves QUITADAS del esquema: `texts.product.videoSoonTitle` y `texts.product.videoSoonText` (el aviso «Video próximamente»
   ya no existe: sin video la ficha no muestra nada del video). Nadie las lee; en un `content.json` ya creado desaparecen la próxima vez
   que se guarda «Textos del sitio» (el normalizador estricto descarta las claves desconocidas). `texts.product.videoChip` se conserva.
+
+### Hormas por color
+- Cada color dice en qué hormas **viene** (`colors[].fits`): p. ej. la Camiseta Efesios tiene `fits: ["regular", "oversize"]`, Vainilla
+  viene en las dos (sin la clave) y Rojo Burdeo solo en Regular (`fits: ["regular"]`).
+- Ficha: con un fit elegido, los colores que no vienen en él salen **tachados y deshabilitados**, con el aviso «Rojo Burdeo no viene en
+  fit Oversize.» debajo de los círculos; al elegir un fit en que no viene el color elegido, la ficha pasa al primer color que sí viene
+  (con stock, si hay). Una horma en que no viene ningún color no sale en la ficha ni en los filtros (`Mercy.data.fitsOf(p, color)` da
+  las hormas de un color; `p.colorFits[color]`). Catálogo: con fit y color filtrados, la prenda sale solo si alguno de esos colores
+  viene en alguno de esos fits.
+- Carrito: `cart.add` con un color que no viene en ese fit → `{ ok: false, reason: "horma" }`; al sanear, una línea así se quita.
+- Panel: en cada color, «Hormas de este color» (solo con 2 o más hormas en el producto; al menos una marcada) y el chip «Solo Regular»
+  en su encabezado. Agregar una horma al producto la marca en todos los colores; quitarla la saca de todos (un color que solo venía
+  en ella pasa a venir en todas las que quedan).
+- *(servidor)* `colors.N.fits`: ausente o `null` → todas las hormas del producto; si no es una lista → `colors.N.fits` «Formato inválido
+  (se esperaba una lista).»; un elemento que no es texto → `colors.N.fits.M` «Debe ser un texto.»; ids que no son hormas del producto
+  se **descartan sin error**; sin ninguna (con hormas en el producto) → `colors.N.fits` «Marca al menos una horma para este color.».
+  Salida en el orden de `fits` y **solo si el color no viene en todas** (así los productos de siempre conservan su forma); sin hormas
+  en el producto la clave no aparece. Quitar o renombrar una horma usada por un producto ya está bloqueado (409 `in_use`), así que
+  `colors[].fits` nunca apunta a una horma inexistente.
 
 ### Fotos de producto: color base, estampados de cada color y combinaciones color + estampado
 - Cada color tiene sus fotos **base** (`colors[].photos`, 0–10), dice **qué estampados lleva** (`colors[].prints`, ids de `prints[]`) y,
@@ -527,21 +550,22 @@ Orden de scripts en las 4 páginas (todos `defer`):
 - `config.js` sigue exponiendo `Mercy.config` (mismas claves que usa el código) derivado de `settings`/`home`/`discountModal`.
 - `data.js` sigue exponiendo `Mercy.data` con la forma que ya usa la tienda (PRODUCTS con `colors: [ids]`, `stock[color][talla]`,
   `photos` = fotos principales, `colorPhotos[color]`, `colorPrints[color]`, `printPhotos[color][estampado]`, `initialPrint`, `reviews`
-  = número, `collection` = nombre…) más `photosFor(p, colorId, printId)` (regla de fotos, §3), `printsOf(p, color)` y `COLLECTIONS`.
+  = número, `collection` = nombre…) más `photosFor(p, colorId, printId)` (regla de fotos, §3), `printsOf(p, color)`, `fitsOf(p, color)`
+  (hormas del color, §3 «Hormas por color»; con `colorFits[color]`) y `COLLECTIONS`.
 - Galería de producto: muestra `photosFor(p, color, estampado)` (§3): las fotos (1–10) de la **combinación color + estampado elegida**
   si tiene; si no, las del **color** (no se mezclan). Se rehace al cambiar de color o de estampado solo si cambia el juego de fotos, y
   vuelve a la foto 1. La diapositiva de video (última), su miniatura ▶, su punto y el botón «Ver video» existen **solo si la prenda
   tiene video** (`video.src`); sin video no hay ningún aviso. Con una sola diapositiva se ocultan flechas, puntos y miniaturas. Tocar una
   foto (o el botón «Ver foto completa», o Enter en el carrusel) abre el **visor**: la foto entera a pantalla completa, con flechas/deslizar
-  para pasar de foto y clic, doble toque, rueda o pellizco para acercar. Las fotos con `fit: "contain"` se ven enteras también en el marco. `producto.html?id=…&color=<id>&print=<id>`
-  abre la ficha en esa variante (si el color no es del producto o ese color no lleva el estampado, se ignoran). Tarjetas, búsqueda y favoritos usan la
+  para pasar de foto y clic, doble toque, rueda o pellizco para acercar. Las fotos con `fit: "contain"` se ven enteras también en el marco. `producto.html?id=…&color=<id>&print=<id>&fit=<id>`
+  abre la ficha en esa variante (si el color no es del producto o ese color no lleva el estampado o no viene en esa horma, se ignoran). Tarjetas, búsqueda y favoritos usan la
   foto principal (§3); carrito y checkout, la foto de la variante de la línea (color + estampado), y su enlace abre la ficha en esa
   variante. Fotos de Pexels → `srcset` con `?w=`; fotos subidas → `srcset` con `thumb` (600 w) y `src`.
 - *(tienda, `js/store.js`)* Tope de cantidad del carrito = stock de (color, talla) **menos** lo que ya piden las OTRAS líneas del mismo
   producto + color + talla con cualquier estampado u horma (el stock es color × talla y lo comparten). Se aplica al agregar, al cambiar
   la cantidad y al sanear el carrito al cargar (las líneas anteriores tienen prioridad; mismos avisos de siempre). Al sanear, una línea
   con un estampado que su color ya no lleva se quita; si el color ya no lleva ninguno, queda sin estampado; sin estampado guardado
-  y con un color que ahora sí lleva, toma el primero (como las hormas).
+  y con un color que ahora sí lleva, toma el primero (como las hormas). Una línea con una horma en que su color ya no viene se quita.
 - Cupones/suscripción: con `Mercy.api.enabled` se usan los endpoints públicos (§4.1); si no, se validan contra `DEFAULT_COUPONS`.
   *(tienda, `js/store.js`)* Estado guardado: `discount = { email, claimedAt, coupon: CupónPúblico|null, claimedCoupon, checkedAt }`
   (`claimedCoupon` = cupón recibido al suscribirse, para volver a mostrar/copiar el código). El estado viejo del mockup (`coupon: true|false`
