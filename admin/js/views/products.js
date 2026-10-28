@@ -387,7 +387,7 @@ function newProduct(data) {
   const news = ps.map((p) => p.newRank).filter((n) => Number.isInteger(n));
   return {
     id: "", ref: "", name: "", status: "published",
-    category: "", collection: "",
+    category: "", collection: "", sizeChart: "",
     fits: [], sizes: STD_SIZES.slice(),
     price: null, badge: "Nuevo", envioGratis: false, soldOut: false,
     bestRank: Math.min(9999, best.length ? Math.max(...best) + 1 : 1),
@@ -409,6 +409,7 @@ function normalize(p) {
   p.sizes = Array.isArray(p.sizes) ? p.sizes : [];
   p.prints = Array.isArray(p.prints) ? p.prints : [];
   for (const k of ["fits", "tags", "details", "care"]) if (!Array.isArray(p[k])) p[k] = [];
+  p.sizeChart = typeof p.sizeChart === "string" ? p.sizeChart : "";   // el servidor omite la clave = la de la categoría
   const printIds = p.prints.map((x) => x?.id).filter(Boolean);
   for (const c of p.colors) {
     c.photos = Array.isArray(c.photos) ? c.photos : [];
@@ -1276,6 +1277,26 @@ async function editorView(el, id, ctx) {
     });
   }
 
+  /* Guía de tallas: la de la categoría (vacío) u otra propia, para una prenda con otras tallas sin crear otra categoría */
+  const charts = data.sizeCharts || [];
+  const chartName = (cid) => charts.find((g) => g.id === cid)?.name || "";
+  const inheritLabel = () => {
+    const cat = cats.get(form.get("category"));
+    if (!cat) return "La de la categoría";
+    return cat.sizeChart && chartName(cat.sizeChart) ? `La de la categoría (${chartName(cat.sizeChart)})` : `La de la categoría («${cat.name}» no tiene guía)`;
+  };
+  const sizeChartField = f.select(form, "sizeChart", {
+    label: "Guía de tallas",
+    emptyLabel: inheritLabel(),
+    options: charts.map((g) => ({ value: g.id, label: g.name })),
+    help: "La tabla de medidas que abre «Guía de tallas» en la ficha. Si esta prenda tiene tallas o medidas distintas a las de su categoría, elige (o crea) otra guía aquí: no hace falta crear otra categoría.",
+  });
+  const syncInheritLabel = () => {
+    const op = sizeChartField.querySelector('option[value=""]');
+    if (op) op.textContent = inheritLabel();
+  };
+  form.on("change", ({ path }) => { if (!path || path === "category") syncInheritLabel(); });
+
   const soldOutNote = notice({ tone: "warning", title: "Marcaste el producto como agotado", message: "En la tienda todas las tallas salen agotadas aunque tengan stock. Quítalo en General › Precio y venta." });
 
   const colorsTab = [
@@ -1288,6 +1309,8 @@ async function editorView(el, id, ctx) {
           help: "Opciones de horma en la ficha y pestañas de la guía de tallas. Déjalo vacío en gorras y accesorios. Si un color no viene en todas, desmárcalas en ese color (abajo, en Colores).",
         }),
         h("div.stack-sm", sizesField, sizeShortcuts),
+        sizeChartField,
+        h("p.pe-links", "Crea o edita las tablas de medidas en ", h("a", { href: "#/tallas" }, "Guía de tallas"), "."),
       ],
     }),
     card({

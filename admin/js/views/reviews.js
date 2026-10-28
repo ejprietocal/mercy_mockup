@@ -5,19 +5,85 @@
    · Ficha de producto: las 3 primeras reseñas visibles, con el texto largo (text).
    · Sin cita ni texto la tienda no muestra la reseña; sin reseñas visibles se oculta la sección.
    · El encabezado del Inicio (título, puntaje y cantidad) se edita en #/inicio.
+   · Cada parte (nombre, ciudad, cita y texto) puede tener su propio tipo de letra (fonts.*; "" = el de la tienda).
+   · Cómo se ven en el Inicio (carrusel o acordeón, movimiento) se elige en #/inicio.
    Estrellas: control accesible (radiogroup con flechas, Inicio/Fin y clic).
    ========================================================================== */
 import { h, replace } from "../core/dom.js";
 import { icon } from "../core/icons.js";
 import { content } from "../core/store.js";
 import { fields as f } from "../core/forms.js";
-import { badge, button, card, confirmDialog, sortHint } from "../core/ui.js";
+import { badge, button, card, confirmDialog, sortHint, toast } from "../core/ui.js";
 import { number, plural, truncate } from "../core/format.js";
 import { STORE, header, listForm, liveRegistry, focusOnAdd } from "./taxonomies.js";
 
 const PDP_COUNT = 3; // la ficha de producto muestra las 3 primeras visibles
 const trim = (v) => String(v ?? "").trim();
 const isShown = (r) => r && r.visible !== false && (trim(r.quote) || trim(r.text));
+
+/* Tipos de letra de las reseñas: mismos ids que server/lib/validate.js (REVIEW_FONTS) y js/ui.js (FONTS).
+   google = familia que se carga de Google Fonts para la vista previa (las de la marca ya las carga admin/index.html). */
+const FONTS = [
+  { id: "texto", label: "Lekton · texto de la marca", family: '"Lekton", ui-monospace, monospace' },
+  { id: "titulo", label: "Mercy Titulo · títulos de la marca", family: '"Mercy Titulo", "Oswald", "Arial Narrow", Impact, sans-serif' },
+  { id: "manuscrita", label: "Kaushan Script · manuscrita de la marca", family: '"Dafoe", "Kaushan Script", cursive' },
+  { id: "playfair", label: "Playfair Display · elegante con remates", family: '"Playfair Display", Georgia, serif', google: "Playfair+Display:wght@400;700" },
+  { id: "lora", label: "Lora · clásica con remates", family: '"Lora", Georgia, serif', google: "Lora:wght@400;700" },
+  { id: "montserrat", label: "Montserrat · moderna", family: '"Montserrat", "Helvetica Neue", Arial, sans-serif', google: "Montserrat:wght@400;700" },
+  { id: "poppins", label: "Poppins · redondeada", family: '"Poppins", "Helvetica Neue", Arial, sans-serif', google: "Poppins:wght@400;700" },
+  { id: "dancing", label: "Dancing Script · manuscrita elegante", family: '"Dancing Script", cursive', google: "Dancing+Script:wght@400;700" },
+  { id: "caveat", label: "Caveat · escrita a mano", family: '"Caveat", cursive', google: "Caveat:wght@400;700" },
+];
+const FONT = Object.fromEntries(FONTS.map((x) => [x.id, x]));
+/* Partes de una reseña con su letra de siempre en la tienda */
+const PARTS = [
+  { key: "name", label: "Nombre", def: "Lekton", sample: "Laura M." },
+  { key: "city", label: "Ciudad", def: "Lekton", sample: "Bogotá" },
+  { key: "quote", label: "Cita (Inicio)", def: "Mercy Titulo en cursiva", sample: "La calidad es increíble…" },
+  { key: "text", label: "Texto (ficha de producto)", def: "Lekton", sample: "Compré la Regular y me quedó perfecta…" },
+];
+const EMPTY_FONTS = { name: "", city: "", quote: "", text: "" };
+const hasFonts = (r) => !!r?.fonts && PARTS.some(({ key }) => FONT[r.fonts[key]]);
+
+const loaded = new Set();
+/** Carga de Google Fonts la familia de la vista previa (una vez; la CSP del panel lo permite). */
+function loadFont(id) {
+  const ft = FONT[id];
+  if (!ft?.google || loaded.has(id)) return;
+  loaded.add(id);
+  document.head.append(h("link", { rel: "stylesheet", href: `https://fonts.googleapis.com/css2?family=${ft.google}&display=swap` }));
+}
+const SCRIPT = new Set(["manuscrita", "dancing", "caveat"]);
+/** Pinta un elemento con la letra elegida, como css/components.css (.ff-*): "" = la de la tienda para esa parte
+    (la ponen las clases .rv-card__* / .rv-font__sample--*). Con otra letra, la cita deja la cursiva fina de Mercy Titulo. */
+function paintFont(el, id, { quote = false } = {}) {
+  const ft = FONT[id];
+  if (ft) loadFont(id);
+  el.style.fontFamily = ft ? ft.family : "";
+  el.style.fontSizeAdjust = SCRIPT.has(id) ? "0.5" : "";
+  const plain = quote && ft && id !== "titulo";
+  el.style.fontStyle = plain ? "normal" : "";
+  el.style.fontWeight = plain ? "400" : "";
+}
+
+/** Selector de tipo de letra (select nativo) con una muestra del texto de esa parte en la letra elegida. */
+function fontControl(part, sampleText) {
+  return ({ value, onChange, id, describedBy }) => {
+    const sel = h("select.input.input--select", { id, "aria-describedby": describedBy },
+      h("option", { value: "" }, `Predeterminada (${part.def})`),
+      FONTS.map((ft) => h("option", { value: ft.id }, ft.label)));
+    const sample = h(`span.rv-font__sample.rv-font__sample--${part.key}`, { "aria-hidden": "true" });
+    const show = (v) => {
+      const k = FONT[v] ? v : "";
+      if (sel.value !== k) sel.value = k;
+      paintFont(sample, k, { quote: part.key === "quote" });
+    };
+    sel.addEventListener("change", () => { show(sel.value); onChange(sel.value); });
+    show(value);
+    sampleText(sample);
+    return { el: h("div.rv-font", sel, sample), setValue: show, focus: () => sel.focus(), control: sel };
+  };
+}
 
 /** Control de 1 a 5 estrellas (para fields.custom con group: true; su nombre accesible es la <legend>). */
 function starsControl({ value, onChange, id, describedBy, labelId }) {
@@ -77,7 +143,7 @@ export default [
         addLabel: "Agregar reseña",
         confirmRemove: false,
         emptyText: "Aún no hay reseñas. Sin reseñas visibles, la sección no aparece en el Inicio.",
-        newItem: () => ({ id: "", name: "", city: "", stars: 5, quote: "", text: "", visible: true, _new: true }),
+        newItem: () => ({ id: "", name: "", city: "", stars: 5, quote: "", text: "", visible: true, fonts: { ...EMPTY_FONTS }, _new: true }),
         itemLabel: (it, i) => (it?.name ? `${it.name}${it.city ? ` · ${it.city}` : ""}` : `Reseña ${i + 1}`),
         // Insignias de la cabecera (el núcleo las vuelve a pedir cuando cambia la reseña)
         itemMeta: (cur) => {
@@ -85,6 +151,7 @@ export default [
           return h("span.tx-head-meta",
             r._new ? badge("Nueva", "accent") : null,
             h("span.rv-mini-stars", { role: "img", "aria-label": `${r.stars || 5} de 5 estrellas` }, starsText(r.stars || 5)),
+            hasFonts(r) ? badge("Letra propia", "neutral") : null,
             r.visible === false ? badge("Oculta", "neutral", { dot: true }) : !trim(r.quote) && !trim(r.text) ? badge("Sin texto", "warning") : null);
         },
         beforeRemove: async (r) => {
@@ -120,6 +187,31 @@ export default [
               placeholder: "Compré la Regular y me quedó perfecta…",
               help: `Se ve en «Reseñas verificadas» de la ficha de producto (las ${PDP_COUNT} primeras visibles). Si lo dejas vacío, se usa la cita.`,
             }),
+            h("div.rv-fonts",
+              h("div.rv-fonts__head",
+                h("div",
+                  h("h4.rv-fonts__title", "Tipo de letra"),
+                  h("p.rv-fonts__desc", "Para cada parte de esta reseña. «Predeterminada» = la letra de siempre de la tienda.")),
+                button({
+                  label: "Usar en todas",
+                  icon: "copy",
+                  size: "sm",
+                  variant: "ghost",
+                  title: "Copia estos tipos de letra a todas las reseñas",
+                  onClick: () => {
+                    const fonts = { ...EMPTY_FONTS, ...(form.get(`${p}.fonts`) || {}) };
+                    const all = form.get("items") || [];
+                    all.forEach((_, i) => form.set(`items.${i}.fonts`, { ...fonts }));
+                    toast(`Tipos de letra aplicados a ${plural(all.length, "reseña", "reseñas")}. Guarda para publicarlos (o descarta para deshacer).`, { type: "info" });
+                  },
+                })),
+              f.row(...PARTS.map((part) => f.custom(form, `${p}.fonts.${part.key}`, {
+                label: part.label,
+                className: "rv-font-field",
+                create: fontControl(part, (el) => live(el, () => {
+                  el.textContent = truncate(trim(form.get(`${p}.${part.key}`)) || (part.key === "quote" ? trim(form.get(`${p}.text`)) : "") || part.sample, 70);
+                })),
+              })), { cols: 2 })),
             f.switch(form, `${p}.visible`, { label: "Mostrar en la tienda", help: "Apágalo para ocultarla sin borrarla." }));
         },
       });
@@ -139,14 +231,20 @@ export default [
             h("div.rv-card__top",
               h("span.rv-card__stars", { role: "img", "aria-label": `${r.stars} de 5 estrellas` }, Array.from({ length: Math.min(5, Math.max(1, r.stars || 5)) }, () => icon("star", { size: 14 }))),
               i < PDP_COUNT ? h("span.rv-card__pdp", { title: "También se ve en la ficha de producto" }, "También en la ficha") : null),
-            h("blockquote.rv-card__quote", `“${truncate(trim(r.quote) || trim(r.text), 160)}”`),
+            h("blockquote.rv-card__quote", { ref: (el) => paintFont(el, r.fonts?.quote, { quote: true }) }, `“${truncate(trim(r.quote) || trim(r.text), 160)}”`),
             h("div.rv-card__who",
               h("span.rv-card__avatar", { "aria-hidden": "true" }, (trim(r.name) || "C").charAt(0).toUpperCase()),
-              h("span.rv-card__name", h("strong", trim(r.name) || "Cliente"), trim(r.city) ? h("span", trim(r.city)) : null))))
+              h("span.rv-card__name",
+                h("strong", { ref: (el) => paintFont(el, r.fonts?.name) }, trim(r.name) || "Cliente"),
+                trim(r.city) ? h("span", { ref: (el) => paintFont(el, r.fonts?.city) }, trim(r.city)) : null))))
           : h("li.rv-pv__empty", icon("eye-off", { size: 16 }), "No hay reseñas visibles: la sección «Reseñas» no aparece en el Inicio ni en la ficha de producto."));
       });
 
       const score = Number(head.score) || 0;
+      const LAYOUT = { slider: "Carrusel", accordion: "Acordeón" };
+      const motion = head.motion === "timer" || (head.motion === "continuous" && head.layout === "accordion")
+        ? `avanza cada ${plural(Number(head.interval) || 4, "segundo", "segundos")}`
+        : head.motion === "continuous" ? "tira continua" : "sin movimiento";
       el.append(h("div.page",
         header({
           title: "Reseñas",
@@ -161,12 +259,13 @@ export default [
           h("aside.tx-layout__aside", { "aria-label": "Encabezado y vista previa" },
             card({
               title: "Encabezado en el Inicio",
-              description: "Título, puntaje y cantidad de reseñas de la sección. Se editan en Inicio.",
+              description: "Título, puntaje, cantidad de reseñas y cómo se ven (carrusel o acordeón, con o sin movimiento). Se editan en Inicio.",
               body: h("div.rv-head",
                 h("p.rv-head__title", head.title || "Reseñas"),
                 h("p.rv-head__score",
                   score ? h("span.rv-head__stars", { role: "img", "aria-label": `${Math.round(score)} de 5 estrellas` }, Array.from({ length: Math.round(score) }, () => icon("star", { size: 15 }))) : null,
                   h("span", [score ? number(score, 1) : "", Number(head.count) ? plural(Number(head.count), "reseña", "reseñas") : ""].filter(Boolean).join(" · ") || "Sin puntaje")),
+                h("p.rv-head__layout", icon("layers", { size: 15 }), `${LAYOUT[head.layout] || LAYOUT.slider} · ${motion}`),
                 button({ label: "Editar en Inicio", icon: "edit", size: "sm", href: "#/inicio" })),
             }),
             card({

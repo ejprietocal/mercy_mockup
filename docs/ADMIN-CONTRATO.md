@@ -105,9 +105,16 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
       title: "Más que una prenda, un mensaje que *llevas puesto*",   // (acento)
       text: "Mercy Studio existe…",
       buttonLabel: "Conoce la historia",
-      storyTitle: "Nuestra historia", storyQuote: "La moda es el medio. Cristo es el mensaje", storyCtaLabel: "Conoce la colección"
+      storyTitle: "Nuestra historia", storyQuote: "La moda es el medio. Cristo es el mensaje", storyCtaLabel: "Conoce la colección",
+      storyText: ""          // (multilínea, ≤ 5000) texto de la ventana «Nuestra historia»; línea en blanco = párrafo. "" = repite text
     },
-    reviews: { title: "Reseñas de Google", score: 4.9 /*0–5*/, count: 320 },
+    reviews: {
+      title: "Reseñas de Google", score: 4.9 /*0–5*/, count: 320,
+      layout: "slider" | "accordion",               // nunca apiladas: carrusel de lado o acordeón horizontal (pestañas verticales)
+      motion: "none" | "timer" | "continuous",      // continuous = tira continua (solo carrusel; en acordeón se trata como timer)
+      interval: 4,                                  // segundos entre avances con motion "timer" (1–30)
+      speed: "slow" | "normal" | "fast"             // velocidad de la tira continua
+    },                                              // (se pausa con cursor, foco, toque, fuera de pantalla y botón Pausar; quieta con «reducir movimiento»)
     community: {
       title: "Sé parte de nuestra *comunidad* Mercy",               // (acento)
       subtitle: "Tu camino de fe comienza aquí.",
@@ -181,11 +188,14 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
 
   colors:      [ { id: "negro", name: "Negro", hex: "#2a1e14" }, … ],          // paleta global
   fits:        [ { id: "regular", name: "Regular" }, … ],                       // hormas
-  categories:  [ { id: "camisetas", name: "Camisetas", details: [string], sizeChart: "camisetas"|"", inFooter: true }, … ],
+  categories:  [ { id: "camisetas", name: "Camisetas", details: [string], sizeChart: "camisetas"|"" /* un producto puede usar otra: products[].sizeChart */, inFooter: true }, … ],
   collections: [ { id: "renacer", name: "Renacer", description: "" }, … ],
   sizeCharts:  [ { id: "camisetas", name: "Camisetas", head: ["Talla","Pecho","Largo","Manga"], unit: "cm" /* "" = sin unidad; sin la clave → "cm" */,
                    rows: { regular: [["S",51,68,20], …], oversize: […], boxy: […] } }, … ],   // claves de rows = ids de fits
-  reviews:     [ { id: "r1", name: "Laura M.", city: "Bogotá", stars: 5, quote: "…", text: "…", visible: true }, … ],
+  reviews:     [ { id: "r1", name: "Laura M.", city: "Bogotá", stars: 5, quote: "…", text: "…", visible: true,
+                   fonts: { name: "playfair", city: "", quote: "dancing", text: "" } }, … ],
+                 // fonts OPCIONAL: tipo de letra de cada parte ("" = el de la tienda); ids: texto, titulo, manuscrita, playfair, lora,
+                 //   montserrat, poppins, dancing, caveat (server/lib/validate.js REVIEW_FONTS). Sin ninguno elegido la clave NO existe
 
   products: [ {
     id: "fe", ref: "FE-002", name: "Camiseta Fe",
@@ -224,6 +234,9 @@ Slugs (`id`): `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 1–60 caracteres. Hex: `^#[0-9a-fA-
                                                    //   null = sin video: la ficha no muestra la diapositiva, la miniatura ▶ ni el botón
     tile: { from: "#c5a68b", to: "#a44809", lines: ["FE"], sub: "", stacked: false, small: false, fs: null },  // respaldo sin foto; lines [] = el nombre ACTUAL
     tags: ["fe","creer"], desc: "", story: "…",
+    sizeChart: "camisetas-xl",                     // OPCIONAL: guía de tallas propia (id de sizeCharts) para una prenda con otras tallas
+                                                   //   dentro de su categoría. Sin la clave = la de categories[].sizeChart. Una guía que
+                                                   //   usa un producto no se puede borrar (409 in_use, igual que con las categorías)
     details: [],                                   // [] = usa categories[].details
     care: [],                                      // [] = usa texts.care
     formerIds: ["camiseta-fe-vieja"],              // (servidor) ids anteriores; SOLO si se renombró (ver abajo)

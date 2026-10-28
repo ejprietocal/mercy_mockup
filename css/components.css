@@ -91,3 +91,19 @@
 .review-card__who { display: flex; align-items: center; gap: 12px; font-size: var(--fs-sm); color: var(--cafe-suave); }
 .review-card__avatar { width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--terracota); color: #fff; font-weight: 700; flex: none; }
 .review-card__verified { display: inline-flex; align-items: center; gap: 6px; color: var(--verde-oscuro); font-size: var(--fs-xs); }
+
+/* Tipo de letra elegido en el panel para cada parte de una reseña (Mercy.ui.fontClass) */
+.ff-texto { font-family: var(--font-small); }
+.ff-titulo { font-family: var(--font-title); }
+.ff-manuscrita { font-family: var(--font-accent); }
+.ff-playfair { font-family: "Playfair Display", Georgia, "Times New Roman", serif; }
+.ff-lora { font-family: "Lora", Georgia, "Times New Roman", serif; }
+.ff-montserrat { font-family: "Montserrat", "Helvetica Neue", Arial, sans-serif; }
+.ff-poppins { font-family: "Poppins", "Helvetica Neue", Arial, sans-serif; }
+.ff-dancing { font-family: "Dancing Script", "Brush Script MT", cursive; }
+.ff-caveat { font-family: "Caveat", "Brush Script MT", cursive; }
+/* Las manuscritas tienen la x muy baja: se igualan a la altura de las demás (como .accent) */
+.ff-manuscrita, .ff-dancing, .ff-caveat { font-size-adjust: 0.5; letter-spacing: 0; }
+/* Con otra letra, la cita deja la cursiva fina propia de Mercy Titulo */
+.review-card__quote[class*=" ff-"] { font-style: normal; font-weight: 400; }
+.review-card__quote.ff-titulo { font-style: italic; font-weight: 300; }

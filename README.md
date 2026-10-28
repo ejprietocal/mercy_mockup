@@ -26,14 +26,14 @@ Se entra con el **botón de usuario del header** de la tienda (o "Panel administ
 muestra la barra flotante **"Editar esta página"**. Dos roles: **Administrador** (todo) y **Editor** (contenido, productos y medios).
 
 Qué se administra:
-- **Inicio:** video o imagen del hero, título, frases de la franja en movimiento, más vendidos, propósito, reseñas y comunidad.
+- **Inicio:** video o imagen del hero, título, frases de la franja en movimiento, más vendidos, propósito (con el texto propio de la ventana «Nuestra historia»), reseñas (carrusel o acordeón horizontal, quietas, con temporizador o en tira continua) y comunidad.
 - **Textos del sitio:** todo lo que no es de un producto ni del Inicio: franja superior, menú y ayuda, búsqueda, favoritos y carrito, catálogo, avisos de envío, cuidados, guía de tallas, etiquetas de la ficha, página de pago (incluido el inicio y cierre del mensaje de WhatsApp), suscripción y pie de página.
 - **Productos:** precio, tallas, hormas (**cada color elige en cuáles viene**: p. ej. Rojo Burdeo solo en Regular), estampados (**cada color elige cuáles lleva**), stock por color y talla (**un estampado puede tener el suyo**: p. ej. Azul solo en M), **hasta 10 fotos por
   color** y **hasta 10 por combinación color + estampado** (p. ej. Negro + Naranja tiene las suyas y Crema no lleva estampados); un
   color sin fotos nunca muestra las de otro, casilla **«Mostrar completa (sin recortar)»** por
   foto, video opcional (sin video, la ficha no muestra la diapositiva ni el botón «Ver video»), borradores y duplicar. En la ficha, tocar
   una foto la abre **completa** a pantalla completa (con zoom).
-- **Categorías, colecciones, colores, hormas, guía de tallas y reseñas.**
+- **Categorías, colecciones, colores, hormas, guía de tallas y reseñas.** La guía de tallas sale de la categoría, pero un producto con otras tallas puede usar **su propia guía** (sin crear otra categoría). Cada reseña puede tener un **tipo de letra** distinto para el nombre, la ciudad, la cita y el texto.
 - **Modal de descuento** (textos, imagen, cuándo aparece) y **cupones** (porcentaje o valor fijo, vigencia, usos, por categoría o producto).
 - **Suscriptores** (con exportación CSV), **biblioteca de medios** (fotos y videos subidos), **usuarios** con roles y **ajustes** (WhatsApp, redes, logos, SEO, medios de pago).
 - **Historial:** actividad de cada persona y **revisiones** restaurables del contenido.

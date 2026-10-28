@@ -384,6 +384,37 @@ test("stock por estampado: las unidades de la prenda (escritorio y disponibilida
   assert.equal((await admin.del("/api/admin/products/stock-estampado-total")).status, 200);
 });
 
+test("guía de tallas propia (sizeChart): otra guía sin cambiar de categoría; vacía = la de la categoría; en uso no se borra", async () => {
+  const base = { ...baseProduct(), id: "camiseta-guia", ref: "PRU-GUIA", name: "Camiseta Guía" };
+  const bad = await admin.post("/api/admin/products", { ...base, sizeChart: "no-existe" });
+  assert.equal(bad.status, 422);
+  assert.equal(bad.data.error.fields.sizeChart, "Esa guía de tallas no existe.");
+  const r = await admin.post("/api/admin/products", { ...base, sizeChart: "" });
+  assert.equal(r.status, 201, r.text);
+  assert.ok(!("sizeChart" in r.data.item), "vacía = la de la categoría: sin clave (forma de siempre)");
+
+  // Una guía nueva solo para esta camiseta (sigue en la categoría «camisetas»)
+  const charts = (await admin.get("/api/admin/content")).data.sizeCharts;
+  const own = { ...charts.find((g) => g.id === "camisetas"), id: "camisetas-xl", name: "Camisetas tallas grandes" };
+  assert.equal((await admin.put("/api/admin/content/sizeCharts", [...charts, own])).status, 200);
+  const upd = await admin.put("/api/admin/products/camiseta-guia", { ...r.data.item, sizeChart: "camisetas-xl" });
+  assert.equal(upd.status, 200, upd.text);
+  assert.equal(upd.data.item.sizeChart, "camisetas-xl");
+  assert.equal(upd.data.item.category, "camisetas");
+  const pub = (await admin.get("/api/public/content")).data;
+  assert.equal(pub.products.find((p) => p.id === "camiseta-guia").sizeChart, "camisetas-xl");
+
+  // La guía la usa el producto: no se puede borrar hasta volver a «la de la categoría»
+  const del = await admin.put("/api/admin/content/sizeCharts", charts);
+  assert.equal(del.status, 409);
+  assert.equal(del.data.error.code, "in_use");
+  assert.ok(del.data.error.usages.includes("products/camiseta-guia"));
+  assert.match(del.data.error.message, /Camiseta Guía/);
+  assert.equal((await admin.put("/api/admin/products/camiseta-guia", { ...upd.data.item, sizeChart: "" })).status, 200);
+  assert.equal((await admin.put("/api/admin/content/sizeCharts", charts)).status, 200);
+  assert.equal((await admin.del("/api/admin/products/camiseta-guia")).status, 200);
+});
+
 test("actualizar: concurrencia con X-Base-Updated-At (409) y sin cambios no crea revisión", async () => {
   const cur = (await admin.get("/api/admin/products/camiseta-prueba")).data.item;
   const r = await admin.put("/api/admin/products/camiseta-prueba", { ...cur, price: 99900 }, { headers: { "x-base-updated-at": cur.updatedAt } });

@@ -62,10 +62,11 @@ Mercy.DEFAULT_CONTENT = {
       text: "Mercy Studio existe para usar la moda como un medio para comunicar la Palabra de Dios, expresar nuestra fe de manera auténtica y creativa, y llevar el mensaje de Cristo a más personas. Creamos prendas con propósito, recordando que Mercy es el medio; Cristo es siempre el centro.",
       buttonLabel: "Conoce la historia",
       storyTitle: "Nuestra historia",
+      storyText: "",
       storyQuote: "La moda es el medio. Cristo es el mensaje",
       storyCtaLabel: "Conoce la colección"
     },
-    reviews: { title: "Reseñas de Google", score: 4.9, count: 320 },
+    reviews: { title: "Reseñas de Google", score: 4.9, count: 320, layout: "slider", motion: "none", interval: 4, speed: "normal" },
     community: {
       title: "Sé parte de nuestra *comunidad* Mercy",
       subtitle: "Tu camino de fe comienza aquí.",

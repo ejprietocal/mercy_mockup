@@ -68,7 +68,10 @@ export default [
       const guide = (gi) => form.get(`items.${gi}`);
       const guides = () => form.get("items") || [];
       const catsUsing = (id) => (id ? categories.filter((c) => c.sizeChart === id) : []);
-      const productsIn = (catId) => products.filter((p) => p.category === catId);
+      // Productos con guía propia (products[].sizeChart): no usan la de su categoría
+      const ownUsing = (id) => (id ? products.filter((p) => p.sizeChart === id) : []);
+      const productsIn = (catId) => products.filter((p) => p.category === catId && !p.sizeChart);
+      const productLinks = (list) => list.map((p, i) => [i ? (i === list.length - 1 ? " y " : ", ") : "", h("a", { href: `#/productos/${encodeURIComponent(p.id)}` }, p.name)]);
 
       /* ---------- Estado de la pantalla ---------- */
       let sel = Math.max(0, guides().findIndex((g) => g.id === ctx.query.get("guia")));
@@ -134,7 +137,9 @@ export default [
           const keys = Object.keys(g.rows || {});
           meta.textContent = [g.unit || "cm", plural(keys.length, "horma", "hormas"), plural(countRows(g), "fila", "filas")].join(" · ");
           const used = g._new ? [] : catsUsing(g.id);
-          replace(cats, g._new ? badge("Nueva", "accent") : used.length ? `Categorías: ${used.map((c) => c.name).join(", ")}` : h("span.sc-guide__none", "Sin categoría"));
+          const own = g._new ? [] : ownUsing(g.id);
+          const parts = [used.length ? `Categorías: ${used.map((c) => c.name).join(", ")}` : "", own.length ? plural(own.length, "producto con guía propia", "productos con guía propia") : ""].filter(Boolean);
+          replace(cats, g._new ? badge("Nueva", "accent") : parts.length ? parts.join(" · ") : h("span.sc-guide__none", "Sin categoría ni producto"));
         });
         // Errores del servidor que no tienen un campo más preciso
         form.register({
@@ -191,6 +196,7 @@ export default [
         const p = `items.${gi}`;
         const g = guide(gi);
         const used = g._new ? [] : catsUsing(g.id);
+        const own = g._new ? [] : ownUsing(g.id);
         const n = guides().length;
         const actions = menu({
           label: "Acciones de la guía",
@@ -204,15 +210,21 @@ export default [
         });
         let usage;
         if (g._new) {
-          usage = notice({ tone: "info", message: "Guía nueva: después de guardarla, elígela en Categorías para que se abra desde la ficha de esos productos." });
-        } else if (used.length) {
-          usage = h("div.sc-usage",
-            icon("folder", { size: 16 }),
-            h("p", used.length === 1 ? "La usa la categoría " : "La usan las categorías ",
-              used.map((c, i) => [i ? (i === used.length - 1 ? " y " : ", ") : "", h("a", { href: "#/categorias" }, c.name), ` (${plural(productsIn(c.id).length, "producto", "productos")})`]),
-              ". Se abre con «Guía de tallas» y en «Medidas» de la ficha de producto."));
+          usage = notice({ tone: "info", message: "Guía nueva: después de guardarla, elígela en Categorías (para toda una categoría) o en un producto (Colores y stock › Hormas y tallas) para que se abra desde su ficha." });
+        } else if (used.length || own.length) {
+          usage = [
+            used.length ? h("div.sc-usage",
+              icon("folder", { size: 16 }),
+              h("p", used.length === 1 ? "La usa la categoría " : "La usan las categorías ",
+                used.map((c, i) => [i ? (i === used.length - 1 ? " y " : ", ") : "", h("a", { href: "#/categorias" }, c.name), ` (${plural(productsIn(c.id).length, "producto", "productos")})`]),
+                ". Se abre con «Guía de tallas» y en «Medidas» de la ficha de producto.")) : null,
+            own.length ? h("div.sc-usage",
+              icon("shirt", { size: 16 }),
+              h("p", used.length ? "Además, la " : "La ", own.length === 1 ? "usa como guía propia el producto " : "usan como guía propia los productos ",
+                productLinks(own), ` (en lugar de la de su categoría).`)) : null,
+          ];
         } else {
-          usage = notice({ tone: "warning", message: "Ninguna categoría usa esta guía. Elígela en Categorías para que se abra desde la ficha de producto; mientras tanto solo aparece en la guía general del pie de página." , action: button({ label: "Ir a Categorías", size: "sm", href: "#/categorias" }) });
+          usage = notice({ tone: "warning", message: "Ninguna categoría ni producto usa esta guía. Elígela en Categorías (para toda una categoría) o en un producto, en Colores y stock › Hormas y tallas; mientras tanto solo aparece en la guía general del pie de página.", action: button({ label: "Ir a Categorías", size: "sm", href: "#/categorias" }) });
         }
         return card({
           title: "Datos de la guía",
@@ -781,12 +793,20 @@ export default [
       async function removeGuide(gi) {
         const g = guide(gi);
         const used = g._new ? [] : catsUsing(g.id);
+        const own = g._new ? [] : ownUsing(g.id);
         const name = g.name || g.id || "sin nombre";
-        if (used.length) {
+        if (used.length || own.length) {
+          const who = [
+            used.length ? `${used.length === 1 ? "la categoría" : "las categorías"} ${used.map((c) => c.name).join(", ")}` : "",
+            own.length ? `${own.length === 1 ? "el producto" : "los productos"} ${own.map((p) => p.name).join(", ")} (como guía propia)` : "",
+          ].filter(Boolean).join(" y ");
           blockedDialog({
             title: `No puedes eliminar «${name}»`,
-            message: `${used.length === 1 ? "La usa la categoría" : "La usan las categorías"} ${used.map((c) => c.name).join(", ")}. En Categorías, elige otra guía (o «Sin guía de tallas») para ${used.length === 1 ? "ella" : "ellas"} y vuelve a intentarlo.`,
-            places: used.map((c) => ({ label: `Categoría «${c.name}»`, href: "#/categorias" })),
+            message: `La usa${used.length + own.length > 1 ? "n" : ""} ${who}. Elige otra guía (o «Sin guía de tallas» en la categoría, «La de la categoría» en el producto) y vuelve a intentarlo.`,
+            places: [
+              ...used.map((c) => ({ label: `Categoría «${c.name}»`, href: "#/categorias" })),
+              ...own.map((p) => ({ label: `Producto «${p.name}»`, href: `#/productos/${encodeURIComponent(p.id)}` })),
+            ],
           });
           return;
         }
@@ -869,7 +889,7 @@ export default [
       function updateStoreLink() {
         const g = guide(sel);
         const cats = g && !g._new ? catsUsing(g.id).map((c) => c.id) : [];
-        const p = products.find((x) => x.status === "published" && cats.includes(x.category));
+        const p = g && !g._new ? products.find((x) => x.status === "published" && (x.sizeChart ? x.sizeChart === g.id : cats.includes(x.category))) : null;
         storeBtn.href = p ? `${STORE}producto.html?id=${enc(p.id)}` : `${STORE}catalogo.html`;
         storeBtn.title = p ? `Abre «${p.name}»: toca «Guía de tallas» para ver la tabla.` : "Abre el catálogo: la guía general está en el pie de página.";
       }

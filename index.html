@@ -91,10 +91,16 @@
             <span class="reviews__score">4,9 · 320 reseñas</span>
           </h2>
         </div>
+        <!-- Carrusel o acordeón horizontal (home.reviews.layout); home.js arma las tarjetas y los controles -->
         <div class="reviews__scroller" data-reviews-scroller tabindex="0" role="region" aria-label="Reseñas de clientes">
           <ul class="reviews__list" data-reviews-list></ul>
         </div>
-        <div class="reviews__dots" data-reviews-dots aria-hidden="true"></div>
+        <div class="reviews__controls" data-reviews-controls>
+          <button type="button" class="reviews__arrow" data-reviews-prev aria-label="Reseñas anteriores" hidden></button>
+          <div class="reviews__dots" data-reviews-dots aria-hidden="true"></div>
+          <button type="button" class="reviews__arrow" data-reviews-next aria-label="Reseñas siguientes" hidden></button>
+          <button type="button" class="reviews__pause" data-reviews-pause hidden></button>
+        </div>
       </div>
     </section>
 

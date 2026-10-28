@@ -274,6 +274,7 @@ export class ContentService {
       }
       if (section === "sizeCharts") {
         for (const cat of cur.categories) if (cat.sizeChart === item.id) { usages.add(`categories/${cat.id}`); counts.categories.add(cat.id); }
+        cur.products.filter((p) => p.sizeChart === item.id).forEach(useP);   // productos con guía propia
       }
       if (usages.size > before) { blocked.push(`«${item.name}»`); blockedItems.push(item); }
     }

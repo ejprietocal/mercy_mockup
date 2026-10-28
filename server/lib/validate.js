@@ -23,6 +23,9 @@ export const SECTION_NAMES = {
   reviews: "Reseñas",
 };
 export const MARQUEE_ICONS = ["truck", "heart", "shield", "star", "lock", "gift", "tag", "cross", "check", "chat", "whatsapp", "ruler", "card", "user", "info"];
+/* Tipos de letra de cada reseña (reviews[].fonts.*). Mismo orden y mismos ids en js/ui.js (FONTS) y admin/js/views/reviews.js. */
+export const REVIEW_FONTS = ["texto", "titulo", "manuscrita", "playfair", "lora", "montserrat", "poppins", "dancing", "caveat"];
+export const REVIEW_FONT_PARTS = ["name", "city", "quote", "text"];
 export const MAX_PHOTOS_PER_COLOR = 10;   // fotos del color base de un producto
 export const MAX_PHOTOS_PER_PRINT = 10;   // fotos de una combinación color + estampado (colors[].printPhotos)
 
@@ -357,6 +360,7 @@ function vHome(c, v) {
       text: c.text("purpose.text", pu.text, { max: 2000, multiline: true }),
       buttonLabel: c.text("purpose.buttonLabel", pu.buttonLabel, { max: 40 }),
       storyTitle: c.text("purpose.storyTitle", pu.storyTitle),
+      storyText: c.text("purpose.storyText", pu.storyText, { max: 5000, multiline: true }),   // "" = repite purpose.text
       storyQuote: c.text("purpose.storyQuote", pu.storyQuote, { max: 300, multiline: true }),
       storyCtaLabel: c.text("purpose.storyCtaLabel", pu.storyCtaLabel, { max: 40 }),
     },
@@ -364,6 +368,10 @@ function vHome(c, v) {
       title: c.text("reviews.title", rv.title),
       score: c.num("reviews.score", rv.score, { min: 0, max: 5, def: 5, decimals: 1 }),
       count: c.int("reviews.count", rv.count, { min: 0, max: 10_000_000, def: 0 }),
+      layout: c.oneOf("reviews.layout", rv.layout, ["slider", "accordion"], "slider"),
+      motion: c.oneOf("reviews.motion", rv.motion, ["none", "timer", "continuous"], "none"),
+      interval: c.int("reviews.interval", rv.interval, { min: 1, max: 30, def: 4 }),   // segundos (motion "timer")
+      speed: c.oneOf("reviews.speed", rv.speed, ["slow", "normal", "fast"], "normal"),  // motion "continuous"
     },
     community: {
       title: c.text("community.title", cm.title, { multiline: true }),
@@ -666,9 +674,18 @@ function vReviews(c, v) {
         quote: c.text(J(p, "quote"), o.quote, { max: 300, multiline: true }),
         text: c.text(J(p, "text"), o.text, { max: 2000, multiline: true }),
         visible: c.bool(J(p, "visible"), o.visible, true),
+        ...vReviewFonts(c, J(p, "fonts"), o.fonts),
       };
     },
   });
+}
+
+/** Tipo de letra de cada parte de una reseña ("" = el de la tienda). Sin ninguno elegido no hay clave fonts (forma de siempre). */
+function vReviewFonts(c, path, v) {
+  const o = c.obj(path, v);
+  const fonts = {};
+  for (const k of REVIEW_FONT_PARTS) fonts[k] = c.oneOf(J(path, k), o[k], REVIEW_FONTS, "");
+  return Object.values(fonts).some(Boolean) ? { fonts } : {};
 }
 
 const SECTION_VALIDATORS = {
@@ -844,6 +861,12 @@ export function validateProduct(value, refs) {
   collection = collection.trim();
   if (collection && refs?.collections && !refs.collections.has(collection)) c.add("collection", "Esa colección no existe.");
 
+  // Guía de tallas propia (p. ej. una prenda de la categoría con otras tallas): "" = la de su categoría (sin clave)
+  let sizeChart = o.sizeChart ?? "";
+  if (typeof sizeChart !== "string") { c.add("sizeChart", "Debe ser un texto."); sizeChart = ""; }
+  sizeChart = sizeChart.trim();
+  if (sizeChart && refs?.sizeCharts && !refs.sizeCharts.has(sizeChart)) c.add("sizeChart", "Esa guía de tallas no existe.");
+
   const fits = c.list("fits", o.fits, {
     max: 20,
     item: (p, x) => {
@@ -914,6 +937,7 @@ export function validateProduct(value, refs) {
     status: c.oneOf("status", o.status, ["published", "draft"], "draft"),
     category,
     collection,
+    ...(sizeChart ? { sizeChart } : {}),
     fits,
     sizes,
     price: c.int("price", o.price, { min: 0, max: 100_000_000, def: 0 }),

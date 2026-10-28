@@ -634,18 +634,53 @@ export default [
         body: [
           f.text(form, "purpose.eyebrow", { label: "Texto sobre el título", maxlength: 160, placeholder: "Nuestro propósito", help: "Vacío = no se muestra." }),
           f.accentTitle(form, "purpose.title", { label: "Título", multiline: true, maxlength: 160 }),
-          f.textarea(form, "purpose.text", { label: "Texto", maxlength: 2000, recommended: 450, rows: 4, help: "También es el primer párrafo de la ventana «Nuestra historia»." }),
+          f.textarea(form, "purpose.text", { label: "Texto", maxlength: 2000, recommended: 450, rows: 4, help: "El párrafo del bloque. Si la ventana «Nuestra historia» no tiene texto propio, también se muestra allí." }),
           f.text(form, "purpose.buttonLabel", { label: "Texto del botón", maxlength: 40, placeholder: "Conoce la historia", help: "Abre la ventana «Nuestra historia». Vacío = sin botón ni ventana." }),
-          h("div.ct-subhead", h("h3.ct-subhead__title", "Ventana «Nuestra historia»"), h("p.ct-subhead__desc", "Se abre al tocar el botón de arriba.")),
+          h("div.ct-subhead", h("h3.ct-subhead__title", "Ventana «Nuestra historia»"), h("p.ct-subhead__desc", "Se abre al tocar el botón de arriba: aquí va la información que no cabe en el bloque.")),
           f.text(form, "purpose.storyTitle", { label: "Título de la ventana", maxlength: 160, placeholder: "Nuestra historia", help: "Vacío = usa el texto del botón." }),
+          f.textarea(form, "purpose.storyText", {
+            label: "Texto de la ventana",
+            optional: true,
+            maxlength: 5000,
+            rows: 8,
+            placeholder: "Cuéntale a la gente cómo nació Mercy, quiénes están detrás, qué los mueve…",
+            help: "Lo que se lee al abrir la ventana. Deja una línea en blanco entre párrafos. Vacío = repite el «Texto» del bloque.",
+          }),
           f.accentTitle(form, "purpose.storyQuote", { label: "Cita destacada", multiline: true, maxlength: 300 }),
           f.text(form, "purpose.storyCtaLabel", { label: "Texto del botón al catálogo", maxlength: 40, placeholder: "Conoce la colección", help: "Lleva a catalogo.html. Vacío = sin botón." }),
         ],
       }), { step: "Bloque 4 de 6", className: "ct-sec", links: [storeLink("../index.html#proposito")] });
 
+      /* --- Reseñas: estilo y movimiento (los campos que no aplican se esconden) --- */
+      const motionField = f.radio(form, "reviews.motion", {
+        label: "Movimiento",
+        options: [
+          { value: "none", label: "Sin movimiento", help: "Se pasan con las flechas o deslizando el dedo." },
+          { value: "timer", label: "Con temporizador", help: "Avanza sola a la siguiente reseña cada cierto tiempo." },
+          { value: "continuous", label: "Tira continua", help: "Las tarjetas pasan sin parar, como la franja de la portada. Solo en carrusel." },
+        ],
+      });
+      const intervalField = f.number(form, "reviews.interval", { label: "Cada cuántos segundos", required: true, min: 1, max: 30, integer: true, suffix: "s", help: "Entre 1 y 30 segundos." });
+      const speedField = f.segmented(form, "reviews.speed", {
+        label: "Velocidad de la tira",
+        options: [{ value: "slow", label: "Lenta" }, { value: "normal", label: "Normal" }, { value: "fast", label: "Rápida" }],
+      });
+      const syncMotion = () => {
+        const accordion = form.get("reviews.layout") === "accordion";
+        const cont = motionField.querySelector('input[value="continuous"]');
+        if (cont) cont.disabled = accordion;
+        // En acordeón no hay tira continua: pasa a temporizador (la tienda haría lo mismo)
+        if (accordion && form.get("reviews.motion") === "continuous") form.set("reviews.motion", "timer");
+        const motion = form.get("reviews.motion");
+        intervalField.hidden = motion !== "timer";
+        speedField.hidden = motion !== "continuous";
+      };
+      form.on("change", ({ path }) => { if (!path || path === "reviews" || path === "reviews.layout" || path === "reviews.motion") syncMotion(); });
+      syncMotion();
+
       const secReviews = decorateSection(section({
-        title: "Encabezado de reseñas",
-        description: "Título, estrellas y cantidad que se ven sobre las tarjetas de opiniones. Las estrellas se redondean al entero más cercano.",
+        title: "Reseñas",
+        description: "Encabezado (título, estrellas y cantidad) y cómo se ven las tarjetas de opiniones: siempre una al lado de la otra, en carrusel o en acordeón, quietas o en movimiento. Las estrellas del encabezado se redondean al entero más cercano.",
         aside: reviewsPreview(form),
         body: [
           f.text(form, "reviews.title", { label: "Título", maxlength: 160, placeholder: "Reseñas de Google", help: "Aparece junto al logo de Google." }),
@@ -653,6 +688,16 @@ export default [
             f.number(form, "reviews.score", { label: "Puntaje promedio", required: true, min: 0, max: 5, step: 0.1, integer: false, suffix: "de 5", help: "Entre 0 y 5, con un decimal (p. ej. 4,9).", validate: (v) => (Math.round(v * 10) / 10 !== v ? "Usa máximo un decimal (p. ej. 4,9)." : null) }),
             f.number(form, "reviews.count", { label: "Cantidad de reseñas", required: true, min: 0, max: 10000000, integer: true, help: "Total de opiniones en Google." }),
           ),
+          h("div.ct-subhead", h("h3.ct-subhead__title", "Cómo se ven las tarjetas"), h("p.ct-subhead__desc", "Nunca se apilan hacia abajo: salen a los lados.")),
+          f.segmented(form, "reviews.layout", {
+            label: "Estilo",
+            options: [{ value: "slider", label: "Carrusel", icon: "layers" }, { value: "accordion", label: "Acordeón", icon: "menu" }],
+            help: "Carrusel: tarjetas que se deslizan de lado (1 a la vista en el celular, 2 en tableta y 3 en computador). Acordeón: una reseña abierta y las demás como pestañas a los lados; se abren al tocarlas.",
+          }),
+          motionField,
+          intervalField,
+          speedField,
+          notice({ tone: "info", message: "El movimiento se detiene mientras la persona pasa el cursor, toca una reseña o usa el teclado, y hay un botón para pausarlo. Quien tenga activado «reducir movimiento» en su equipo las ve quietas." }),
           visibleReviews
             ? notice({ tone: "info", message: `Las tarjetas con las opiniones se editan en «Reseñas». Hoy hay ${plural(visibleReviews, "reseña visible", "reseñas visibles")}.`, action: button({ label: "Editar las reseñas", size: "sm", href: "#/resenas" }) })
             : notice({ tone: "warning", title: "No hay reseñas visibles", message: "Mientras no haya al menos una reseña visible, la tienda oculta este bloque completo.", action: button({ label: "Ir a Reseñas", size: "sm", href: "#/resenas" }) }),

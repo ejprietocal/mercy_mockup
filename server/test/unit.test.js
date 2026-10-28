@@ -48,6 +48,46 @@ test("textos: «Video próximamente» ya no existe (se descarta); «Ver video» 
   }
 });
 
+test("reseñas del Inicio: estilo, movimiento, temporizador y velocidad (con valores por defecto para contenidos anteriores)", () => {
+  const { content } = loadFactoryDefaults(join(REPO_ROOT, "js", "defaults.js"));
+  // Un Inicio guardado antes de existir estos campos se completa con carrusel quieto
+  const { title, score, count } = content.home.reviews;
+  const old = validateSection("home", { ...content.home, reviews: { title, score, count } });
+  assert.deepEqual(old.fields, {});
+  assert.deepEqual(old.value.reviews, { title, score, count, layout: "slider", motion: "none", interval: 4, speed: "normal" });
+  const ok = validateSection("home", { ...content.home, reviews: { ...content.home.reviews, layout: "accordion", motion: "timer", interval: 1, speed: "fast" } });
+  assert.deepEqual(ok.fields, {});
+  assert.equal(ok.value.reviews.layout, "accordion");
+  assert.equal(ok.value.reviews.interval, 1);
+  const bad = validateSection("home", { ...content.home, reviews: { ...content.home.reviews, layout: "grid", motion: "rapido", interval: 0, speed: "x" } });
+  assert.deepEqual(Object.keys(bad.fields).sort(), ["reviews.interval", "reviews.layout", "reviews.motion", "reviews.speed"]);
+  assert.match(validateSection("home", { ...content.home, reviews: { ...content.home.reviews, interval: 31 } }).fields["reviews.interval"], /entre 1 y 30/);
+});
+
+test("ventana «Nuestra historia»: texto propio de hasta 5000 caracteres", () => {
+  const { content } = loadFactoryDefaults(join(REPO_ROOT, "js", "defaults.js"));
+  const { storyText, ...rest } = content.home.purpose;
+  assert.equal(storyText, "");
+  assert.equal(validateSection("home", { ...content.home, purpose: rest }).value.purpose.storyText, "", "sin la clave = vacío");
+  const long = "Párrafo uno.\r\n\r\n\r\nPárrafo dos.";
+  const r = validateSection("home", { ...content.home, purpose: { ...rest, storyText: long } });
+  assert.deepEqual(r.fields, {});
+  assert.equal(r.value.purpose.storyText, "Párrafo uno.\n\nPárrafo dos.");
+  assert.match(validateSection("home", { ...content.home, purpose: { ...rest, storyText: "a".repeat(5001) } }).fields["purpose.storyText"], /Máximo 5000/);
+});
+
+test("reseñas: tipo de letra por parte (nombre, ciudad, cita, texto); sin ninguno no hay clave fonts", () => {
+  const base = { id: "r1", name: "Laura M.", city: "Bogotá", stars: 5, quote: "Hermosa", text: "", visible: true };
+  const none = validateSection("reviews", [{ ...base, fonts: { name: "", city: "", quote: "", text: "" } }, { ...base, id: "r2" }]);
+  assert.deepEqual(none.fields, {});
+  assert.ok(!("fonts" in none.value[0]) && !("fonts" in none.value[1]));
+  const some = validateSection("reviews", [{ ...base, fonts: { quote: "playfair", name: "titulo", extra: "x" } }]);
+  assert.deepEqual(some.fields, {});
+  assert.deepEqual(some.value[0].fonts, { name: "titulo", city: "", quote: "playfair", text: "" });
+  const bad = validateSection("reviews", [{ ...base, fonts: { city: "Comic Sans" } }, { ...base, id: "r2", fonts: "lora" }]);
+  assert.deepEqual(Object.keys(bad.fields).sort(), ["0.fonts.city", "1.fonts"]);
+});
+
 test("URLs seguras según §2", () => {
   for (const ok of ["https://x.co/a.jpg", "http://x.co", "/uploads/2026/10/a.webp", "/assets/logo/a.png", "assets/logo/a.png", "uploads/a.mp4"]) assert.ok(isSafeUrl(ok, "media"), ok);
   for (const ok of ["catalogo.html", "catalogo.html?cat=hoodies", "producto.html?id=fe", "index.html#x", "#comunidad", "/checkout.html"]) assert.ok(isSafeUrl(ok, "link"), ok);

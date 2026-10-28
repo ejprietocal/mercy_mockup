@@ -225,7 +225,8 @@ window.Mercy = window.Mercy || {};
         sub: str(t.sub), stacked: !!t.stacked, small: !!t.small, fs: num(t.fs, null) || null
       },
       tags: strList(raw.tags), desc: str(raw.desc).trim(), story: str(raw.story).trim(),
-      sizeChart: cat && cat.sizeChart ? cat.sizeChart : "",
+      /* Guía propia del producto (p. ej. otras tallas dentro de la misma categoría) o, si no tiene, la de su categoría */
+      sizeChart: raw.sizeChart && own(SIZE_CHARTS, str(raw.sizeChart)) ? str(raw.sizeChart) : (cat && cat.sizeChart ? cat.sizeChart : ""),
       details: details.length ? details : (cat ? cat.details.slice() : []),
       care: care.length ? care : CARE.slice()
     };
@@ -321,7 +322,9 @@ window.Mercy = window.Mercy || {};
       return {
         id: str(r.id), name: str(r.name).trim() || "Cliente", city: str(r.city).trim(),
         stars: Math.max(1, Math.min(5, Math.round(num(r.stars, 5)))),
-        quote: quote || text, text: text || quote
+        quote: quote || text, text: text || quote,
+        /* Tipo de letra de cada parte ("" = el de la tienda); Mercy.ui.fontClass descarta los ids desconocidos */
+        fonts: (function (f) { f = f && typeof f === "object" ? f : {}; return { name: str(f.name), city: str(f.city), quote: str(f.quote), text: str(f.text) }; })(r.fonts)
       };
     });
 

@@ -57,6 +57,31 @@ window.Mercy = window.Mercy || {};
   function vars(text, map) {
     return fill(text).replace(/\{(\w+)\}/g, function (m, k) { return map && map[k] != null ? String(map[k]) : m; });
   }
+  /* --- Tipos de letra de las reseñas (reviews[].fonts.*) ------------------
+     id → familia de Google Fonts que hay que cargar ("" = ya la carga la página: Lekton, Mercy Titulo, Kaushan).
+     Las clases .ff-<id> están en css/components.css. Mismos ids en server/lib/validate.js (REVIEW_FONTS). */
+  const FONTS = {
+    texto: "", titulo: "", manuscrita: "",
+    playfair: "Playfair+Display:wght@400;700", lora: "Lora:wght@400;700", montserrat: "Montserrat:wght@400;700",
+    poppins: "Poppins:wght@400;700", dancing: "Dancing+Script:wght@400;700", caveat: "Caveat:wght@400;700"
+  };
+  const own = Object.prototype.hasOwnProperty;
+  /* " ff-lora" para añadir al class de un elemento; id vacío o desconocido = "" (letra de siempre) */
+  function fontClass(id) { return id && own.call(FONTS, id) ? " ff-" + id : ""; }
+  /* Carga (una sola vez, en un único <link>) las fuentes de Google que usan esos ids */
+  const loadedFonts = {};
+  function loadFonts(ids) {
+    const fams = [];
+    (ids || []).forEach(function (id) {
+      if (id && own.call(FONTS, id) && FONTS[id] && !loadedFonts[id]) { loadedFonts[id] = true; fams.push(FONTS[id]); }
+    });
+    if (!fams.length) return;
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=" + fams.join("&family=") + "&display=swap";
+    document.head.appendChild(link);
+  }
+
   /* Negrita explícita: **así** → <strong>así</strong> (todo lo demás escapado). */
   function strong(text) { return esc(String(text == null ? "" : text)).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>"); }
   function rich(text, opts) {
@@ -459,7 +484,7 @@ window.Mercy = window.Mercy || {};
   Mercy.ui = {
     $: $, $$: $$, esc: esc, money: money, norm: norm, qs: qs, debounce: debounce, waLink: waLink,
     pluralize: pluralize, thousands: thousands, icon: icon, logoHTML: logoHTML, waGreeting: waGreeting,
-    rich: rich, fill: fill, plain: plain, safeUrl: safeUrl, tx: tx, vars: vars, strong: strong,
+    rich: rich, fill: fill, plain: plain, safeUrl: safeUrl, tx: tx, vars: vars, strong: strong, fontClass: fontClass, loadFonts: loadFonts,
     tileHTML: tileHTML, cardHTML: cardHTML, productUrl: productUrl, syncFavButtons: syncFavButtons, stepperHTML: stepperHTML,
     overlay: overlay, createDrawer: createDrawer, createModal: createModal, infoModal: infoModal,
     initAccordions: initAccordions, setAcc: setAcc, toast: toast,

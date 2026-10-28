@@ -1,7 +1,7 @@
 /* ==========================================================================
    Mercy Studio — home.js  (pantalla INICIO)
    Hero (media configurable + franja en movimiento) · Los más vendidos ·
-   Propósito (modal "Nuestra historia") · Reseñas · Comunidad + 15 % de descuento.
+   Propósito (modal "Nuestra historia") · Reseñas (carrusel o acordeón) · Comunidad + 15 % de descuento.
    Todos los textos salen de Mercy.content.home (panel → Inicio); el HTML estático
    de index.html es solo el marcado inicial y se sobrescribe aquí.
    Depende de: config, data, icons, ui, store, layout (ya cargados).
@@ -183,8 +183,10 @@
     btn.addEventListener("click", function () {
       const quote = txt(pu.storyQuote, "").trim();
       const cta = txt(pu.storyCtaLabel, "").trim();
+      /* Texto propio de la ventana (purpose.storyText, una línea en blanco = párrafo nuevo); vacío = el mismo del bloque */
+      const story = txt(pu.storyText, "").trim() || txt(pu.text, "").trim();
       const html =
-        (txt(pu.text, "").trim() ? '<p class="story__lead">' + rich(pu.text, { accent: false }) + "</p>" : "") +
+        story.split(/\n\s*\n/).map(function (par) { return '<p class="story__lead">' + rich(par.trim(), { accent: false }) + "</p>"; }).join("") +
         (quote ? '<p class="story__quote">' + rich(quote) + "</p>" : "") +
         (cta ? '<a class="btn btn--primary story__cta" href="catalogo.html">' + esc(cta) + "</a>" : "");
       U.infoModal("historia", txt(pu.storyTitle, "").trim() || label, html);
@@ -221,7 +223,11 @@
   }
 
   /* ----------------------------------------------------------------------
-     4 · RESEÑAS (Google): escritorio 3 columnas · móvil carrusel scroll-snap
+     4 · RESEÑAS (Google) — nunca apiladas: carrusel o acordeón horizontal (home.reviews.layout).
+     Movimiento (home.reviews.motion): "none" · "timer" (avanza cada `interval` s) · "continuous" (tira continua;
+     solo en carrusel: en acordeón avanza con el temporizador). Se detiene con el cursor encima, el foco de teclado,
+     un toque, la pestaña oculta, la sección fuera de pantalla o el botón Pausar; con «reducir movimiento» no se mueve.
+     Cada parte de una reseña puede tener su tipo de letra (reviews[].fonts → Mercy.ui.fontClass).
      ---------------------------------------------------------------------- */
   function starsHTML(n, size) {
     let h = "";
@@ -231,6 +237,35 @@
   /* Insignia «Compra verificada» de cada reseña (texts.product.verifiedLabel): vacío = sin insignia */
   const VERIFIED = (function () { const v = CT.texts && CT.texts.product ? CT.texts.product.verifiedLabel : undefined; return v == null ? "Compra verificada" : String(v).trim(); })();
   function verifiedHTML() { return VERIFIED ? '<span class="review-card__verified">' + I("check", { size: 14, stroke: 2.2 }) + " " + esc(VERIFIED) + "</span>" : ""; }
+  /* ' class="ff-lora"' (o nada) para un elemento sin clase propia */
+  function fontAttr(id) { const c = U.fontClass(id).trim(); return c ? ' class="' + c + '"' : ""; }
+  function reviewCardHTML(r) {
+    return (
+      '<article class="review-card">' +
+      '<div class="stars review-card__stars" role="img" aria-label="' + r.stars + ' de 5 estrellas">' + starsHTML(r.stars, 16) + "</div>" +
+      '<blockquote class="review-card__quote' + U.fontClass(r.fonts.quote) + '">“' + esc(r.quote) + "”</blockquote>" +
+      '<div class="review-card__who"><span class="review-card__avatar" aria-hidden="true">' + esc(r.name.charAt(0).toUpperCase()) + "</span>" +
+      '<span class="review-card__name"><strong' + fontAttr(r.fonts.name) + ">" + esc(r.name) + "</strong>" + (r.city ? "<span" + fontAttr(r.fonts.city) + ">" + esc(r.city) + "</span>" : "") + "</span>" +
+      verifiedHTML() + "</div>" +
+      "</article>"
+    );
+  }
+
+  /* Cómo se ven y cómo se mueven (home.reviews) */
+  function reviewsOptions() {
+    const rv = H.reviews || {};
+    const layout = rv.layout === "accordion" ? "accordion" : "slider";
+    let motion = rv.motion === "timer" || rv.motion === "continuous" ? rv.motion : "none";
+    if (layout === "accordion" && motion === "continuous") motion = "timer";
+    if (reduceMotion) motion = "none";
+    return {
+      layout: layout,
+      motion: motion,
+      ms: Math.max(1, Math.min(30, parseInt(rv.interval, 10) || 4)) * 1000,
+      speed: { slow: 28, normal: 48, fast: 80 }[rv.speed] || 48       // px por segundo de la tira continua
+    };
+  }
+
   function renderReviews() {
     const list = $("[data-reviews-list]");
     const head = $("[data-reviews-stars]");
@@ -253,38 +288,196 @@
       scoreEl.textContent = [score ? score.toFixed(1).replace(".", ",") : "", count ? U.pluralize(count, "reseña", "reseñas").replace(/^\d+/, U.thousands(count)) : ""].filter(Boolean).join(" · ");
       scoreEl.hidden = !scoreEl.textContent;
     }
-    if (!list) return;
-    list.innerHTML = D.REVIEWS.map(function (r) {
-      return (
-        "<li><article class=\"review-card\">" +
-        '<div class="stars review-card__stars" role="img" aria-label="' + r.stars + ' de 5 estrellas">' + starsHTML(r.stars, 16) + "</div>" +
-        '<blockquote class="review-card__quote">“' + esc(r.quote) + "”</blockquote>" +
-        '<div class="review-card__who"><span class="review-card__avatar" aria-hidden="true">' + esc(r.name.charAt(0).toUpperCase()) + "</span>" +
-        '<span class="review-card__name"><strong>' + esc(r.name) + "</strong>" + (r.city ? "<span>" + esc(r.city) + "</span>" : "") + "</span>" +
-        verifiedHTML() + "</div>" +
-        "</article></li>"
-      );
-    }).join("");
-    initDots();
-  }
-  function initDots() {
     const sc = $("[data-reviews-scroller]");
-    const dots = $("[data-reviews-dots]");
-    const items = $$("[data-reviews-list] > li");
-    if (!sc || !dots || !items.length) return;
-    dots.innerHTML = items.map(function (_, i) { return '<span class="reviews__dot' + (i === 0 ? " is-on" : "") + '"></span>'; }).join("");
-    const ds = $$(".reviews__dot", dots);
-    function update() {
-      const max = sc.scrollWidth - sc.clientWidth;
-      let idx = 0;
-      if (max > 0) {
-        const step = max / (items.length - 1);
-        idx = Math.round(sc.scrollLeft / step);
-      }
-      ds.forEach(function (d, i) { d.classList.toggle("is-on", i === idx); });
+    const ctl = {
+      box: $("[data-reviews-controls]"), dots: $("[data-reviews-dots]"),
+      prev: $("[data-reviews-prev]"), next: $("[data-reviews-next]"), pause: $("[data-reviews-pause]")
+    };
+    if (!list || !sc || !ctl.box || !ctl.dots || !ctl.prev || !ctl.next || !ctl.pause) return;
+    ctl.prev.innerHTML = I("chevron-left", { size: 20 });
+    ctl.next.innerHTML = I("chevron-right", { size: 20 });
+    U.loadFonts([].concat.apply([], D.REVIEWS.map(function (r) { return [r.fonts.name, r.fonts.city, r.fonts.quote]; })));
+    const o = reviewsOptions();
+    const mode = o.layout === "accordion" ? "accordion" : o.motion === "continuous" ? "strip" : "slider";
+    if (section) section.setAttribute("data-layout", mode);
+    if (mode === "accordion") mountAccordion(sc, list, o, ctl);
+    else if (mode === "strip") mountStrip(sc, list, o, ctl);
+    else mountSlider(sc, list, o, ctl);
+  }
+
+  /* Sin flechas, puntos ni botón Pausar, la fila de controles no ocupa espacio */
+  function syncControls(ctl) {
+    ctl.box.hidden = ctl.prev.hidden && ctl.next.hidden && ctl.pause.hidden && !ctl.dots.childElementCount;
+  }
+
+  /* Movimiento automático con pausas. opts.tick() cada opts.ms (temporizador) · opts.run(true|false) al arrancar o detenerse.
+     → { restart() } para reiniciar la cuenta después de un cambio manual. */
+  function autoplay(sc, ctl, opts) {
+    const why = { away: !!window.IntersectionObserver };     // motivos de pausa activos
+    let on = false, timer = 0, touchT = 0;
+    function apply() {
+      const want = !Object.keys(why).some(function (k) { return why[k]; });
+      if (want === on) return;
+      on = want;
+      clearInterval(timer);
+      if (on && opts.tick) timer = setInterval(opts.tick, opts.ms);
+      if (opts.run) opts.run(on);
     }
+    function pause(k, v) { why[k] = v; apply(); }
+    const keyboard = function (el) { try { return el.matches(":focus-visible"); } catch (e) { return true; } };
+    [sc, ctl.box].forEach(function (el) {
+      el.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") pause("hover", true); });
+      el.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") pause("hover", false); });
+      el.addEventListener("focusin", function (e) { if (e.target !== ctl.pause && keyboard(e.target)) pause("focus", true); });
+      el.addEventListener("focusout", function (e) { if (!sc.contains(e.relatedTarget) && !ctl.box.contains(e.relatedTarget)) pause("focus", false); });
+      el.addEventListener("pointerdown", function (e) {
+        if (e.pointerType === "mouse") return;
+        pause("touch", true);
+        clearTimeout(touchT);
+        touchT = setTimeout(function () { pause("touch", false); }, 6000);
+      }, { passive: true });
+    });
+    document.addEventListener("visibilitychange", function () { pause("tab", document.hidden); });
+    /* Puede llegar más de una entrada a la vez (p. ej. la inicial y la del scroll): manda la última */
+    if (window.IntersectionObserver) new IntersectionObserver(function (en) { pause("away", !en[en.length - 1].isIntersecting); }, { threshold: 0.2 }).observe(sc);
+    /* Botón Pausar / Reanudar (todo lo que se mueve solo debe poder detenerse) */
+    function paint() {
+      const off = !!why.user;
+      ctl.pause.innerHTML = I(off ? "play" : "pause", { size: 16 }) + '<span class="visually-hidden">' + (off ? "Reanudar" : "Pausar") + " el movimiento de las reseñas</span>";
+      ctl.pause.title = off ? "Reanudar" : "Pausar";
+    }
+    ctl.pause.addEventListener("click", function () { pause("user", !why.user); paint(); });
+    ctl.pause.hidden = false;
+    paint();
+    if (opts.run) opts.run(false);
+    apply();
+    return { restart: function () { if (on && opts.tick) { clearInterval(timer); timer = setInterval(opts.tick, opts.ms); } } };
+  }
+
+  /* Carrusel: 1 tarjeta (móvil), 2 o 3 a la vista; flechas, puntos y deslizamiento con scroll-snap */
+  function mountSlider(sc, list, o, ctl) {
+    list.innerHTML = D.REVIEWS.map(function (r) { return "<li>" + reviewCardHTML(r) + "</li>"; }).join("");
+    const items = $$(":scope > li", list);
+    let ap = null, pages = -1;
+    function step() { return items.length > 1 ? items[1].offsetLeft - items[0].offsetLeft : sc.clientWidth; }
+    function maxLeft() { return Math.max(0, sc.scrollWidth - sc.clientWidth); }
+    function go(dir) {
+      const m = maxLeft(), x = sc.scrollLeft;
+      if (m < 4) return;
+      let to = x + dir * step();
+      if (dir > 0 && x >= m - 4) to = 0;            // al final vuelve al principio
+      else if (dir < 0 && x <= 4) to = m;           // y desde el principio, al final
+      sc.scrollTo({ left: to, behavior: reduceMotion ? "auto" : "smooth" });
+    }
+    function update() {
+      const m = maxLeft(), st = step() || 1;
+      const n = m < 4 ? 0 : Math.round(m / st) + 1;
+      if (n !== pages) {
+        pages = n;
+        let d = "";
+        for (let i = 0; i < n; i++) d += '<span class="reviews__dot"></span>';
+        ctl.dots.innerHTML = d;
+      }
+      const idx = Math.min(n - 1, Math.round(sc.scrollLeft / st));
+      $$(".reviews__dot", ctl.dots).forEach(function (dot, i) { dot.classList.toggle("is-on", i === idx); });
+      ctl.prev.hidden = ctl.next.hidden = n < 2;
+      if (ap) ctl.pause.hidden = n < 2;               // todo cabe: no hay nada que mover
+      syncControls(ctl);
+    }
+    ctl.prev.addEventListener("click", function () { go(-1); if (ap) ap.restart(); });
+    ctl.next.addEventListener("click", function () { go(1); if (ap) ap.restart(); });
     sc.addEventListener("scroll", U.debounce(update, 40), { passive: true });
     window.addEventListener("resize", U.debounce(update, 100));
+    if (o.motion === "timer") ap = autoplay(sc, ctl, { ms: o.ms, tick: function () { go(1); } });
+    update();
+  }
+
+  /* Tira continua: las tarjetas pasan sin parar (como la franja del hero). La vuelta se repite las veces necesarias
+     para cubrir el ancho y se duplica para que el bucle no tenga saltos; las copias son aria-hidden. */
+  function mountStrip(sc, list, o, ctl) {
+    const one = D.REVIEWS.map(function (r) { return "<li>" + reviewCardHTML(r) + "</li>"; }).join("");
+    const copy = D.REVIEWS.map(function (r) { return '<li aria-hidden="true">' + reviewCardHTML(r) + "</li>"; }).join("");
+    let lastW = 0;
+    function build() {
+      const w = sc.clientWidth;
+      if (!w || w === lastW) return;                  // en el celular, la barra del navegador solo cambia el alto
+      lastW = w;
+      list.innerHTML = one;
+      const lap = list.offsetWidth;                   // ancho de una vuelta (cada tarjeta lleva su margen)
+      if (!lap) return;
+      const k = Math.max(1, Math.ceil(w / lap));
+      let h = one;
+      for (let i = 1; i < 2 * k; i++) h += copy;      // dos mitades iguales de k vueltas: translateX(-50%) = k vueltas
+      list.innerHTML = h;
+      list.style.setProperty("--strip-dur", ((k * lap) / o.speed).toFixed(1) + "s");
+    }
+    build();
+    window.addEventListener("resize", U.debounce(build, 150));
+    ctl.prev.hidden = ctl.next.hidden = true;
+    ctl.dots.innerHTML = "";
+    autoplay(sc, ctl, { run: function (on) { list.style.animationPlayState = on ? "running" : "paused"; } });
+    syncControls(ctl);
+  }
+
+  /* Acordeón horizontal: una reseña abierta y las demás como pestañas verticales a los lados */
+  function mountAccordion(sc, list, o, ctl) {
+    list.innerHTML = D.REVIEWS.map(function (r, i) {
+      const on = i === 0;
+      return '<li class="rv-acc' + (on ? " is-open" : "") + '">' +
+        '<button type="button" class="rv-acc__tab" id="rv-acc-t' + i + '" aria-controls="rv-acc-p' + i + '" aria-expanded="' + on + '">' +
+        '<span class="review-card__avatar" aria-hidden="true">' + esc(r.name.charAt(0).toUpperCase()) + "</span>" +
+        '<span class="rv-acc__name' + U.fontClass(r.fonts.name) + '">' + esc(r.name) + "</span>" +
+        '<span class="rv-acc__stars" aria-hidden="true">' + I("star", { size: 12 }) + r.stars + "</span>" +
+        "</button>" +
+        '<div class="rv-acc__panel" id="rv-acc-p' + i + '">' + reviewCardHTML(r) + "</div></li>";
+    }).join("");
+    const items = $$(":scope > li", list);
+    const tabs = items.map(function (li) { return $(".rv-acc__tab", li); });
+    let cur = 0, ap = null, tab = 56, gap = 10;
+    /* Ancho de la reseña abierta: lo que dejan las pestañas cerradas (entre ~270 y 720 px). Si no caben todas,
+       la fila se desliza de lado. */
+    function size() {
+      const cs = getComputedStyle(sc), ls = getComputedStyle(list);
+      const avail = sc.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      tab = parseFloat(ls.getPropertyValue("--acc-tab")) || 56;
+      gap = parseFloat(ls.columnGap) || 0;
+      const closed = items.length * tab + (items.length - 1) * gap;
+      const p = Math.max(Math.min(avail - tab - 24, 320), Math.min(avail - closed, 720));
+      list.style.setProperty("--acc-p", Math.round(p) + "px");
+    }
+    function open(i, focus) {
+      i = (i + items.length) % items.length;
+      items.forEach(function (li, j) {
+        li.classList.toggle("is-open", j === i);
+        tabs[j].setAttribute("aria-expanded", String(j === i));
+      });
+      cur = i;
+      /* Si la fila no cabe, la desliza para que la abierta se vea completa y, si hay espacio, también la pestaña
+         anterior. Se calcula con la posición final (cuando terminan de cerrarse las demás). */
+      if (sc.scrollWidth > sc.clientWidth + 2) {
+        const cs = getComputedStyle(sc);
+        const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+        const start = list.offsetLeft + i * (tab + gap);
+        const end = start + tab + (parseFloat(list.style.getPropertyValue("--acc-p")) || 0);
+        const left = Math.max(start - padL - (tab + gap), end + padR - sc.clientWidth);
+        sc.scrollTo({ left: Math.max(0, Math.min(left, start - padL)), behavior: reduceMotion ? "auto" : "smooth" });
+      }
+      if (focus) tabs[i].focus();
+    }
+    tabs.forEach(function (t, i) { t.addEventListener("click", function () { open(i); if (ap) ap.restart(); }); });
+    list.addEventListener("keydown", function (e) {
+      const i = tabs.indexOf(document.activeElement);
+      const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      if (i < 0 || to === undefined) return;
+      e.preventDefault();
+      open(to, true);
+    });
+    size();
+    window.addEventListener("resize", U.debounce(size, 120));
+    ctl.prev.hidden = ctl.next.hidden = true;
+    ctl.dots.innerHTML = "";
+    if (o.motion !== "none") ap = autoplay(sc, ctl, { ms: o.ms, tick: function () { open(cur + 1); } });
+    syncControls(ctl);
   }
 
   /* ----------------------------------------------------------------------

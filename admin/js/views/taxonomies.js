@@ -491,7 +491,7 @@ async function categoriesView(el, params, ctx) {
             label: "Guía de tallas",
             emptyLabel: "Sin guía de tallas (talla única)",
             options: charts.map((sc) => ({ value: sc.id, label: sc.name })),
-            help: "Tabla que se abre con «Guía de tallas» en la ficha de producto. Sin guía, la ficha dice «Talla única».",
+            help: "Tabla que se abre con «Guía de tallas» en la ficha de sus productos. Sin guía, la ficha dice «Talla única». Un producto con otras tallas puede usar otra guía (Productos › Colores y stock › Hormas y tallas) sin crear otra categoría.",
           }),
           h("div.tx-cat__switch", f.switch(form, `${p}.inFooter`, { label: "Mostrar en el pie de página", help: "Enlace en la columna «Tienda» del pie de página." })),
           { cols: 2 }),
